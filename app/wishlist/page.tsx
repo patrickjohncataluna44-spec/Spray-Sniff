@@ -1,47 +1,45 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
 import { ProductCard } from '@/components/product-card'
-import { products } from '@/lib/products'
+import { StorefrontPageHero } from '@/components/storefront-page-hero'
+import { StorefrontShell } from '@/components/storefront-shell'
+import { useStore } from '@/lib/store-context'
 
 export default function WishlistPage() {
-  const [wishlistedIds] = useState(['1', '3', '5', '7'])
-  const wishlistedProducts = products.filter(p => wishlistedIds.includes(p.id))
+  const { catalog, wishlistIds } = useStore()
+  const wishlistedProducts = catalog.filter((product) => wishlistIds.includes(product.id))
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <StorefrontShell>
+      <StorefrontPageHero
+        eyebrow="Saved Perfumes"
+        title="My Wishlist"
+        description={`${wishlistedProducts.length} fragrance${wishlistedProducts.length === 1 ? '' : 's'} saved for later. Revisit your favorite scent directions any time.`}
+      />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-12">
-          <h1 className="font-serif text-4xl text-foreground mb-2">
-            My Wishlist
-          </h1>
-          <p className="text-foreground/60">
-            {wishlistedProducts.length} items saved
-          </p>
+      <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          {wishlistedProducts.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              {wishlistedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <div className="storefront-panel rounded-[2rem] p-12 text-center">
+              <p className="text-2xl text-foreground">Your wishlist is still empty.</p>
+              <p className="mt-3 text-sm leading-7 text-foreground/62">
+                Save perfumes you want to revisit, compare, or gift later.
+              </p>
+              <Button className="mt-6 h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+                <Link href="/shop">Start Exploring</Link>
+              </Button>
+            </div>
+          )}
         </div>
-
-        {wishlistedProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {wishlistedProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-20">
-            <p className="text-lg text-foreground/60 mb-6">
-              Your wishlist is empty
-            </p>
-            <Button asChild>
-              <Link href="/shop">Start Shopping</Link>
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
+      </section>
+    </StorefrontShell>
   )
 }

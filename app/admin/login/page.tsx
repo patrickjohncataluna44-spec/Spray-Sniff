@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { Spinner } from '@/components/ui/spinner'
+import { SITE_NAME } from '@/lib/site'
 
 export default function AdminLoginPage() {
   const router = useRouter()
-  const { login, isAuthenticated, isAdmin, isLoading: authLoading } = useAuth()
+  const { login, isAuthenticated, canAccessBackoffice, isLoading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,23 +18,17 @@ export default function AdminLoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
-      if (isAdmin) {
+      if (canAccessBackoffice) {
         router.push('/admin/dashboard')
       } else {
         router.push('/')
       }
     }
-  }, [isAuthenticated, isAdmin, authLoading, router])
+  }, [authLoading, canAccessBackoffice, isAuthenticated, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    // Only allow admin credentials
-    if (email !== 'admin@purepath.com') {
-      setError('Only admin accounts can access this page')
-      return
-    }
 
     setLoading(true)
     try {
@@ -52,10 +46,10 @@ export default function AdminLoginPage() {
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="font-serif text-4xl text-foreground">
-            Pure Path Admin
+            {SITE_NAME} Operations
           </h1>
           <p className="text-foreground/60">
-            Sign in to manage your store
+            Sign in to manage your store operations
           </p>
         </div>
 
@@ -66,11 +60,12 @@ export default function AdminLoginPage() {
           </div>
         )}
 
-        {/* Demo Credentials */}
+        {/* Access Guidance */}
         <div className="p-4 bg-muted rounded-lg">
-          <p className="text-sm font-medium text-foreground mb-2">Admin Credentials:</p>
-          <p className="text-xs text-foreground/70 font-mono">admin@purepath.com</p>
-          <p className="text-xs text-foreground/70 font-mono">admin123</p>
+          <p className="text-sm font-medium text-foreground mb-2">Store Access:</p>
+          <p className="text-xs text-foreground/70">
+            Sign in with a Supabase Auth account whose profile role is set to `ADMIN` or `STAFF`.
+          </p>
         </div>
 
         {/* Form */}
@@ -84,8 +79,10 @@ export default function AdminLoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              suppressHydrationWarning
               required
-              placeholder="admin@pureimage.com"
+              placeholder="staff@yourstore.com"
               className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
@@ -99,6 +96,8 @@ export default function AdminLoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              suppressHydrationWarning
               required
               placeholder="••••••••"
               className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
@@ -112,15 +111,16 @@ export default function AdminLoginPage() {
             size="lg"
           >
             {loading && <Spinner className="w-4 h-4" />}
-            {loading ? 'Signing in...' : 'Sign In to Admin'}
+            {loading ? 'Signing in...' : 'Sign In to Operations'}
           </Button>
         </form>
 
-        {/* Demo Credentials */}
+        {/* Role Note */}
         <div className="bg-muted rounded-lg p-4 space-y-2">
-          <p className="text-xs font-medium text-foreground/60 uppercase">Demo Credentials</p>
-          <p className="text-sm text-foreground/70">Email: admin@pureimage.com</p>
-          <p className="text-sm text-foreground/70">Password: demo1234</p>
+          <p className="text-xs font-medium text-foreground/60 uppercase">Role Note</p>
+          <p className="text-sm text-foreground/70">
+            Customer accounts can sign in on the storefront, but only `ADMIN` and `STAFF` profiles can open operations tools.
+          </p>
         </div>
       </div>
     </div>

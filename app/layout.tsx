@@ -2,15 +2,30 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
+import { getPublicRuntimeEnv } from '@/lib/server-runtime-env'
+import { StoreProvider } from '@/lib/store-context'
+import { Toaster } from '@/components/ui/toaster'
+import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
-const _playfair = Playfair_Display({ subsets: ["latin"], variable: '--font-serif' });
+const geistSans = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist-sans',
+})
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+})
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+})
 
 export const metadata: Metadata = {
-  title: 'Pure Path - Luxury Fragrances',
-  description: 'Discover premium luxury fragrances crafted with the finest ingredients. Explore our collections and find your signature scent.',
+  title: `${SITE_NAME} - Luxury Fragrances`,
+  description: SITE_DESCRIPTION,
   generator: 'v0.app',
   icons: {
     icon: [
@@ -36,10 +51,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#faf8f5' },
-    { media: '(prefers-color-scheme: dark)', color: '#332d29' },
-  ],
+  themeColor: '#fffaf5',
 }
 
 export default function RootLayout({
@@ -47,11 +59,24 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const publicEnv = getPublicRuntimeEnv()
+
   return (
-    <html lang="en" className={_playfair.variable}>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable}`}
+    >
       <body className="font-sans antialiased">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__APP_PUBLIC_ENV__ = ${JSON.stringify(publicEnv)};`,
+          }}
+        />
         <AuthProvider>
-          {children}
+          <StoreProvider>
+            {children}
+            <Toaster />
+          </StoreProvider>
         </AuthProvider>
         <Analytics />
       </body>

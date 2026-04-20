@@ -2,12 +2,12 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, type UserRole } from '@/lib/auth-context'
 import { Spinner } from '@/components/ui/spinner'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
-  requiredRole?: 'ADMIN' | 'USER'
+  requiredRole?: UserRole | UserRole[]
   fallbackPath?: string
 }
 
@@ -17,7 +17,12 @@ export function ProtectedRoute({
   fallbackPath = '/auth/signin',
 }: ProtectedRouteProps) {
   const router = useRouter()
-  const { isAuthenticated, isAdmin, isLoading, user } = useAuth()
+  const { isAuthenticated, canAccessBackoffice, isLoading, user } = useAuth()
+  const requiredRoles = Array.isArray(requiredRole)
+    ? requiredRole
+    : requiredRole
+      ? [requiredRole]
+      : undefined
 
   useEffect(() => {
     if (isLoading) return
@@ -27,16 +32,13 @@ export function ProtectedRoute({
       return
     }
 
-    if (requiredRole === 'ADMIN' && !isAdmin) {
-      router.push('/')
+    if (requiredRoles && user && !requiredRoles.includes(user.role)) {
+      router.push(
+        user.role === 'USER' ? '/' : canAccessBackoffice ? '/admin/dashboard' : '/',
+      )
       return
     }
-
-    if (requiredRole === 'USER' && isAdmin) {
-      router.push('/admin/dashboard')
-      return
-    }
-  }, [isAuthenticated, isAdmin, isLoading, requiredRole, router, fallbackPath])
+  }, [canAccessBackoffice, fallbackPath, isAuthenticated, isLoading, requiredRoles, router, user])
 
   if (isLoading) {
     return (
@@ -50,11 +52,7 @@ export function ProtectedRoute({
     return null
   }
 
-  if (requiredRole === 'ADMIN' && !isAdmin) {
-    return null
-  }
-
-  if (requiredRole === 'USER' && isAdmin) {
+  if (requiredRoles && user && !requiredRoles.includes(user.role)) {
     return null
   }
 

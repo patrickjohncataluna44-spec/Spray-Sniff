@@ -1,4 +1,4 @@
-# Pure Path - Luxury Fragrance eCommerce Platform
+# SPRAY & SNIFF - Luxury Fragrance eCommerce Platform
 
 A complete luxury fragrance eCommerce platform built with Next.js, featuring both customer-facing and admin-facing experiences.
 
@@ -94,15 +94,111 @@ public/
 1. Clone or download the project
 2. Install dependencies:
 ```bash
-pnpm install
+npm install
 ```
 
-3. Start the development server:
+3. Create your local environment file and add your real credentials:
 ```bash
-pnpm dev
+copy .env.example .env.local
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) to view the app
+Required variables:
+```env
+NEXT_PUBLIC_SITE_URL=https://sprayandsniff.vercel.app
+
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+PAYMONGO_SECRET_KEY=sk_live_your_paymongo_secret_key
+NEXT_PUBLIC_PAYMONGO_PUBLIC_KEY=pk_live_your_paymongo_public_key
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=your_store_email@gmail.com
+SMTP_PASS=your_gmail_app_password
+SMTP_FROM="Spray & Sniff <your_store_email@gmail.com>"
+```
+
+4. In Supabase, open the SQL Editor and run:
+```sql
+-- paste the full contents of supabase/schema.sql
+```
+
+This creates:
+- `profiles`
+- `app_store_snapshots`
+- `user_carts`
+- `user_wishlists`
+- `promotions`
+
+5. Start the development server:
+```bash
+npm run dev
+```
+
+6. Open [http://localhost:3000](http://localhost:3000) to view the app
+
+## Supabase Setup
+
+This project is already wired to Supabase for:
+- Auth with email/password
+- Email verification before sign-in
+- User profiles
+- Shared store snapshot data
+- Per-user carts
+- Per-user wishlists
+- Promotions
+- Realtime subscriptions for backoffice store data, admin promotions, user carts, user wishlists, and profile role updates
+
+### Supabase CLI Workflow
+
+This repo now includes:
+- `supabase/config.toml`
+- `supabase/migrations/20260414103353_new-migration.sql`
+- `supabase/schema.sql`
+
+To link and push with the Supabase CLI:
+
+```bash
+npx supabase link --project-ref axnbkdaooluehoxtduke
+npx supabase db push
+```
+
+If you want another migration later:
+
+```bash
+npx supabase migration new your-migration-name
+```
+
+### First Admin User
+
+New signups are created as `USER` by default. To promote your account to admin after signing up, run this in the Supabase SQL Editor:
+
+```sql
+update public.profiles
+set role = 'ADMIN'
+where email = 'your-email@example.com';
+```
+
+### Data Model
+
+- `public.profiles`: user identity, display name, role
+- `public.app_store_snapshots`: shared catalog, inventory, orders, reports state
+- `public.user_carts`: each signed-in user's cart
+- `public.user_wishlists`: each signed-in user's saved products
+- `public.promotions`: admin-managed promo codes
+
+### Important Notes
+
+- The browser uses the Supabase anon key for auth/session handling.
+- Server routes use the Supabase service role key for trusted writes.
+- The first app load seeds the store snapshot and starter promotions automatically if the tables are empty.
+- Realtime relies on the publication and RLS policies defined in `supabase/schema.sql` and the migration file.
+- Hosted Supabase projects do not read your local `supabase/config.toml` automatically. In the Supabase dashboard, turn on `Confirm email` and configure Custom SMTP with the same Gmail SMTP values.
+- For deployed email verification, set `NEXT_PUBLIC_SITE_URL` to your production domain on Vercel and in your local env when needed.
+- In Supabase Auth URL Configuration, set the Site URL to `https://sprayandsniff.vercel.app` and allow your deployed sign-in redirect URL there as well.
+- If you change `.env` or `.env.local`, restart the Next.js server.
 
 ### Building for Production
 
@@ -134,11 +230,12 @@ pnpm start
 - `/admin/customers` - Customer management
 - `/admin/promotions` - Promotions
 
-## Demo Credentials
+## Authentication
 
-Admin access:
-- Email: `admin@pureimage.com`
-- Password: `demo1234`
+- Customer sign-up: `/auth/signup`
+- Customer sign-in: `/auth/signin`
+- Admin sign-in uses the same Supabase account system at `/admin/login`
+- Access to admin pages depends on the `role` value in `public.profiles`
 
 ## Sample Data
 
@@ -158,7 +255,7 @@ Edit `lib/products.ts` to add more fragrances:
 {
   id: 'unique-id',
   name: 'Fragrance Name',
-  brand: 'Pure Path',
+  brand: 'SPRAY & SNIFF',
   description: 'Description',
   price: 185,
   // ... other properties
@@ -185,16 +282,16 @@ The layout structure is in `components/header.tsx` and can be customized with yo
 - **UI Components**: Radix UI + shadcn/ui
 - **Forms**: React Hook Form with Zod validation
 - **Icons**: Lucide React
-- **Database Ready**: Schema defined, ready for integration (Supabase, Neon, etc.)
-- **Auth Ready**: Login pages ready for Auth.js or Supabase Auth integration
-- **Payments Ready**: Checkout flow ready for Stripe integration
+- **Database**: Supabase-backed store, cart, wishlist, promotions, and profiles
+- **Authentication**: Supabase Auth with profile syncing
+- **Payments**: PayMongo Checkout API for QR Ph and GCash flows
 
 ## Integration Ready
 
-This platform is built to integrate with:
-- **Authentication**: Supabase Auth, Auth.js, or custom auth
-- **Database**: Supabase, Neon PostgreSQL, or any backend
-- **Payments**: Stripe integration
+This platform is built with:
+- **Authentication**: Supabase Auth
+- **Database**: Supabase PostgreSQL
+- **Payments**: PayMongo Checkout API
 - **Email**: SendGrid, Mailgun, or similar
 - **Images**: Vercel Blob or any CDN
 - **Analytics**: Vercel Analytics, Google Analytics

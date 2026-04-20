@@ -1,10 +1,33 @@
-import { UserRole } from './auth-context'
+import type { UserRole } from './auth-context'
 
 export interface AuthUser {
   id: string
   email: string
   name: string
   role: UserRole
+}
+
+/**
+ * Allow only internal app redirects such as "/checkout".
+ */
+export function getSafeRedirectPath(value: string | null | undefined): string | null {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) {
+    return null
+  }
+
+  return value
+}
+
+export function getRoleLabel(role: UserRole | null | undefined): string {
+  if (role === 'ADMIN') {
+    return 'Admin'
+  }
+
+  if (role === 'STAFF') {
+    return 'Staff'
+  }
+
+  return 'Customer'
 }
 
 /**
@@ -36,6 +59,22 @@ export function isAuthenticated(): boolean {
 export function isAdmin(): boolean {
   const user = getAuthUser()
   return user?.role === 'ADMIN'
+}
+
+/**
+ * Check if user is staff
+ */
+export function isStaff(): boolean {
+  const user = getAuthUser()
+  return user?.role === 'STAFF'
+}
+
+/**
+ * Check if user can access backoffice tools
+ */
+export function canAccessBackoffice(): boolean {
+  const user = getAuthUser()
+  return user?.role === 'ADMIN' || user?.role === 'STAFF'
 }
 
 /**

@@ -1,125 +1,120 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
+import { StorefrontPageHero } from '@/components/storefront-page-hero'
+import { StorefrontShell } from '@/components/storefront-shell'
+import { SITE_NAME } from '@/lib/site'
+
+const values = [
+  {
+    title: 'Curated Selection',
+    description:
+      'Every featured bottle is chosen to cover a clear mood, occasion, or scent direction instead of overwhelming you with noise.',
+  },
+  {
+    title: 'Note-Led Shopping',
+    description:
+      'We believe perfume becomes easier to love when shoppers can understand top, heart, and base notes before they commit.',
+  },
+  {
+    title: 'Wearable Luxury',
+    description:
+      'Our focus is premium-feeling fragrance that fits real routines, real gifting, and real signature-scent habits.',
+  },
+]
+
+const processSteps = [
+  {
+    title: 'Sourcing',
+    description:
+      'We build our assortment around scent families and perfume moods that feel polished, wearable, and giftable.',
+  },
+  {
+    title: 'Curation',
+    description:
+      'Each fragrance earns its place through composition, wearability, and how clearly it fits the customer journey on site.',
+  },
+  {
+    title: 'Testing',
+    description:
+      'We look for perfumes that retain character from the first spray through the dry down, not just the opening note.',
+  },
+  {
+    title: 'Presentation',
+    description:
+      'From product pages to delivery updates, we keep the full perfume-buying experience soft, warm, and easy to revisit.',
+  },
+]
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <StorefrontShell>
+      <StorefrontPageHero
+        eyebrow="Our Story"
+        title="A Boutique Built Around Perfume"
+        description={`${SITE_NAME} is a fragrance-first destination shaped around note storytelling, curated scent families, and premium perfume shopping that still feels warm and approachable.`}
+      />
 
-      {/* Hero */}
-      <section className="relative h-96 w-full overflow-hidden bg-muted">
-        <Image
-          src="/hero-banner.jpg"
-          alt="Pure Path story"
-          fill
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <h1 className="font-serif text-5xl text-white">Our Story</h1>
-        </div>
-      </section>
-
-      {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 space-y-16">
-        {/* Philosophy */}
-        <section className="space-y-6">
-          <div>
-            <p className="text-sm font-medium text-accent uppercase tracking-wide mb-2">
-              Our Philosophy
-            </p>
-            <h2 className="font-serif text-4xl text-foreground mb-4">
-              Pure Path
-            </h2>
+      <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="storefront-panel relative min-h-[420px] overflow-hidden rounded-[2rem]">
+            <Image
+              src="/hero-banner.jpg"
+              alt={`${SITE_NAME} perfume story`}
+              fill
+              sizes="(min-width: 1024px) 45vw, 100vw"
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(45,33,36,0.08),rgba(45,33,36,0.32))]" />
           </div>
-
-          <p className="text-lg text-foreground/70 leading-relaxed">
-            Founded in 2010, Pure Path emerged from a simple belief: fragrance is not just a product—it's an experience, a memory, a part of your identity. Every scent we create tells a story of craftsmanship, passion, and dedication to excellence.
-          </p>
-
-          <p className="text-lg text-foreground/70 leading-relaxed">
-            We source the finest ingredients from around the world, working with master perfumers to create fragrances that evoke emotion and inspire confidence. Each bottle contains more than just a scent; it contains our commitment to quality and sustainability.
-          </p>
-        </section>
-
-        {/* Values */}
-        <section className="space-y-6">
-          <h2 className="font-serif text-3xl text-foreground">Our Values</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-3">
-              <h3 className="font-serif text-xl text-foreground">Quality</h3>
-              <p className="text-foreground/70">
-                We never compromise on quality. Every ingredient is carefully selected and tested to ensure the highest standards.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="font-serif text-xl text-foreground">Sustainability</h3>
-              <p className="text-foreground/70">
-                Our commitment to the environment is reflected in our sustainable sourcing practices and eco-friendly packaging.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="font-serif text-xl text-foreground">Innovation</h3>
-              <p className="text-foreground/70">
-                We continuously innovate, blending traditional perfumery techniques with modern expertise to create unique fragrances.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Process */}
-        <section className="space-y-6">
-          <h2 className="font-serif text-3xl text-foreground">Our Process</h2>
 
           <div className="space-y-6">
-            <div className="border-l-2 border-accent pl-6 py-2">
-              <h3 className="font-serif text-lg text-foreground mb-2">1. Sourcing</h3>
-              <p className="text-foreground/70">
-                We work directly with suppliers to source premium ingredients from the finest locations worldwide.
+            <article className="storefront-panel rounded-[2rem] p-7 sm:p-9">
+              <p className="storefront-eyebrow">Fragrance Philosophy</p>
+              <h2 className="mt-3 text-4xl text-foreground">Why {SITE_NAME}</h2>
+              <p className="mt-4 text-base leading-8 text-foreground/68 sm:text-lg">
+                Spray &amp; Sniff began with one simple belief: perfume should be expressive, memorable,
+                and easy to shop when the story behind the scent is clear. We built the store around
+                discovery, note education, and wardrobe-ready fragrance edits that feel luxurious without losing warmth.
               </p>
-            </div>
+              <p className="mt-4 text-base leading-8 text-foreground/68 sm:text-lg">
+                Based in Mabini, our boutique perspective favors polished daily signatures, evening statements,
+                and gift-ready bottles that make it easier to choose perfume with confidence.
+              </p>
+            </article>
 
-            <div className="border-l-2 border-accent pl-6 py-2">
-              <h3 className="font-serif text-lg text-foreground mb-2">2. Conception</h3>
-              <p className="text-foreground/70">
-                Our master perfumers conceive each fragrance, crafting unique olfactory experiences.
-              </p>
-            </div>
-
-            <div className="border-l-2 border-accent pl-6 py-2">
-              <h3 className="font-serif text-lg text-foreground mb-2">3. Testing</h3>
-              <p className="text-foreground/70">
-                Every batch undergoes rigorous testing to ensure consistency, quality, and longevity.
-              </p>
-            </div>
-
-            <div className="border-l-2 border-accent pl-6 py-2">
-              <h3 className="font-serif text-lg text-foreground mb-2">4. Bottling</h3>
-              <p className="text-foreground/70">
-                Each fragrance is carefully bottled in sustainable packaging, ready for its journey to you.
-              </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {values.map((value) => (
+                <article key={value.title} className="storefront-panel rounded-[1.75rem] p-5">
+                  <h3 className="text-2xl text-foreground">{value.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-foreground/62">{value.description}</p>
+                </article>
+              ))}
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* CTA */}
-        <section className="text-center space-y-6 bg-muted rounded-lg p-12">
-          <h2 className="font-serif text-3xl text-foreground">
-            Discover Your Signature Scent
-          </h2>
-          <p className="text-lg text-foreground/70">
-            Explore our complete collection and find the fragrance that speaks to you.
-          </p>
-          <Button size="lg" asChild>
-            <Link href="/shop">Shop Now</Link>
-          </Button>
-        </section>
-      </div>
-    </div>
+        <div className="mx-auto mt-8 max-w-7xl">
+          <article className="storefront-panel rounded-[2rem] p-7 sm:p-9">
+            <p className="storefront-eyebrow">How We Work</p>
+            <h2 className="mt-3 text-4xl text-foreground">From Selection To Delivery</h2>
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              {processSteps.map((step, index) => (
+                <div key={step.title} className="rounded-[1.5rem] bg-muted/30 p-5">
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground/46">
+                    Step {index + 1}
+                  </p>
+                  <h3 className="mt-3 text-2xl text-foreground">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-foreground/64">{step.description}</p>
+                </div>
+              ))}
+            </div>
+            <Button className="mt-8 h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+              <Link href="/shop">Discover Your Scent</Link>
+            </Button>
+          </article>
+        </div>
+      </section>
+    </StorefrontShell>
   )
 }

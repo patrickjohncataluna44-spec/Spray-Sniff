@@ -1,0 +1,1 @@
+-- Seed data is handled by the application bootstrap logic in lib/store-persistence.ts.

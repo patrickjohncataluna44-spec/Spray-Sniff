@@ -1,3 +1,5 @@
+import { SITE_NAME } from '@/lib/site'
+
 export interface Product {
   id: string
   name: string
@@ -26,9 +28,34 @@ export interface Product {
 
 export const products: Product[] = [
   {
+    id: 'test-1peso',
+    name: 'Payment Test Item',
+    brand: SITE_NAME,
+    description: 'A 1 peso test item for verifying checkout and payment flows.',
+    price: 1,
+    category: 'Test Item',
+    scentFamily: ['Test'],
+    gender: 'unisex',
+    topNotes: ['Test'],
+    middleNotes: ['Test'],
+    baseNotes: ['Test'],
+    longevity: 1,
+    intensity: 1,
+    sizes: [{ ml: 1, price: 1 }],
+    images: ['/products/dawn-light-1.jpg'],
+    rating: 5,
+    reviewCount: 1,
+    inStock: true,
+    featured: false,
+    isNewArrival: false,
+    occasions: ['Testing'],
+    seasons: ['All Seasons'],
+    relatedProducts: [],
+  },
+  {
     id: '1',
     name: 'Midnight Elegance',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A sophisticated blend of dark florals and woody notes, perfect for evening occasions.',
     price: 185,
     category: 'Eau de Parfum',
@@ -57,7 +84,7 @@ export const products: Product[] = [
   {
     id: '2',
     name: 'Dawn Light',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A fresh citrus fragrance with subtle floral notes, ideal for daytime wear.',
     price: 155,
     category: 'Eau de Toilette',
@@ -86,7 +113,7 @@ export const products: Product[] = [
   {
     id: '3',
     name: 'Velvet Spice',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A warm, sensual blend with exotic spices and precious woods.',
     price: 195,
     category: 'Eau de Parfum',
@@ -115,7 +142,7 @@ export const products: Product[] = [
   {
     id: '4',
     name: 'Ocean Breeze',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A crisp aquatic fragrance with marine and green notes.',
     price: 145,
     category: 'Eau de Toilette',
@@ -144,7 +171,7 @@ export const products: Product[] = [
   {
     id: '5',
     name: 'Golden Hour',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A warm amber fragrance with golden accords, perfect for any occasion.',
     price: 175,
     category: 'Eau de Parfum',
@@ -173,7 +200,7 @@ export const products: Product[] = [
   {
     id: '6',
     name: 'Forest Trail',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'An earthy, aromatic fragrance with moss, pine, and leather notes.',
     price: 165,
     category: 'Eau de Parfum',
@@ -202,7 +229,7 @@ export const products: Product[] = [
   {
     id: '7',
     name: 'Silk Dreams',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A dreamy tuberose perfume with creamy florals and soft woods.',
     price: 205,
     category: 'Eau de Parfum',
@@ -231,7 +258,7 @@ export const products: Product[] = [
   {
     id: '8',
     name: 'Stone & Steel',
-    brand: 'Pure Path',
+    brand: SITE_NAME,
     description: 'A fresh aromatic for the modern man, with clean and crisp accords.',
     price: 155,
     category: 'Eau de Toilette',

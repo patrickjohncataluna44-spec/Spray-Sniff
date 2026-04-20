@@ -47,11 +47,18 @@ function Button({
     asChild?: boolean
   }) {
   const Comp = asChild ? Slot : 'button'
+  const buttonProps = !asChild
+    ? {
+        type: props.type ?? 'button',
+        suppressHydrationWarning: true,
+      }
+    : {}
 
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      {...buttonProps}
       {...props}
     />
   )

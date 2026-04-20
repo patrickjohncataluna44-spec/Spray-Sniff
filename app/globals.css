@@ -4,40 +4,39 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Luxury Light Theme - Warm, sophisticated neutrals */
-  --background: oklch(0.99 0.01 50); /* Creamy ivory */
-  --foreground: oklch(0.15 0.02 50); /* Warm charcoal */
-  --card: oklch(1 0 0); /* Pure white */
-  --card-foreground: oklch(0.15 0.02 50);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.02 50);
-  --primary: oklch(0.7 0.12 45); /* Warm gold/rose accent */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.85 0.06 80); /* Soft sage */
-  --secondary-foreground: oklch(0.15 0.02 50);
-  --muted: oklch(0.88 0.04 50); /* Soft taupe */
-  --muted-foreground: oklch(0.5 0.04 50);
-  --accent: oklch(0.7 0.12 45); /* Warm gold */
-  --accent-foreground: oklch(1 0 0);
+  --background: #fffaf5;
+  --foreground: #2d2124;
+  --card: #fffdfb;
+  --card-foreground: #2d2124;
+  --popover: #fffdfb;
+  --popover-foreground: #2d2124;
+  --primary: #ff9a86;
+  --primary-foreground: #fffaf5;
+  --secondary: #ffd6a6;
+  --secondary-foreground: #3a2a2e;
+  --muted: #fff0be;
+  --muted-foreground: #806669;
+  --accent: #ffb399;
+  --accent-foreground: #3a2226;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.92 0.02 50); /* Very light taupe */
-  --input: oklch(0.96 0.01 50);
-  --ring: oklch(0.7 0.12 45);
-  --chart-1: oklch(0.7 0.12 45);
-  --chart-2: oklch(0.85 0.06 80);
-  --chart-3: oklch(0.65 0.08 40);
-  --chart-4: oklch(0.75 0.1 35);
-  --chart-5: oklch(0.55 0.06 50);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.98 0.01 50);
-  --sidebar-foreground: oklch(0.15 0.02 50);
-  --sidebar-primary: oklch(0.7 0.12 45);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.85 0.06 80);
-  --sidebar-accent-foreground: oklch(0.15 0.02 50);
-  --sidebar-border: oklch(0.92 0.02 50);
-  --sidebar-ring: oklch(0.7 0.12 45);
+  --border: #f3d9cb;
+  --input: #fffefc;
+  --ring: #ff9a86;
+  --chart-1: #ff9a86;
+  --chart-2: #ffb399;
+  --chart-3: #ffd6a6;
+  --chart-4: #fff0be;
+  --chart-5: #c77966;
+  --radius: 1rem;
+  --sidebar: #fff7f1;
+  --sidebar-foreground: #2d2124;
+  --sidebar-primary: #ff9a86;
+  --sidebar-primary-foreground: #fffaf5;
+  --sidebar-accent: #fff0be;
+  --sidebar-accent-foreground: #2d2124;
+  --sidebar-border: #f3d9cb;
+  --sidebar-ring: #ff9a86;
 }
 
 .dark {
@@ -76,9 +75,53 @@
   --sidebar-ring: oklch(0.7 0.12 45);
 }
 
+.admin-shell {
+  --background: oklch(0.985 0.015 355);
+  --foreground: oklch(0.28 0.05 360);
+  --card: oklch(0.995 0.008 355);
+  --card-foreground: oklch(0.28 0.05 360);
+  --popover: oklch(0.995 0.008 355);
+  --popover-foreground: oklch(0.28 0.05 360);
+  --primary: oklch(0.72 0.16 356);
+  --primary-foreground: oklch(0.99 0.01 355);
+  --secondary: oklch(0.95 0.03 352);
+  --secondary-foreground: oklch(0.32 0.05 360);
+  --muted: oklch(0.955 0.025 352);
+  --muted-foreground: oklch(0.53 0.05 360);
+  --accent: oklch(0.74 0.15 354);
+  --accent-foreground: oklch(0.99 0.01 355);
+  --border: oklch(0.91 0.03 352);
+  --input: oklch(0.99 0.01 355);
+  --ring: oklch(0.76 0.15 354);
+  --chart-1: oklch(0.72 0.16 356);
+  --chart-2: oklch(0.8 0.11 348);
+  --chart-3: oklch(0.68 0.13 12);
+  --chart-4: oklch(0.63 0.11 330);
+  --chart-5: oklch(0.86 0.06 20);
+  --sidebar: oklch(0.975 0.02 352);
+  --sidebar-foreground: oklch(0.28 0.05 360);
+  --sidebar-primary: oklch(0.72 0.16 356);
+  --sidebar-primary-foreground: oklch(0.99 0.01 355);
+  --sidebar-accent: oklch(0.94 0.035 352);
+  --sidebar-accent-foreground: oklch(0.3 0.05 360);
+  --sidebar-border: oklch(0.9 0.03 352);
+  --sidebar-ring: oklch(0.76 0.15 354);
+  background:
+    radial-gradient(circle at top left, rgba(255, 211, 228, 0.42), transparent 28%),
+    radial-gradient(circle at top right, rgba(255, 236, 244, 0.8), transparent 24%),
+    linear-gradient(180deg, rgba(255, 248, 251, 0.94), rgba(255, 242, 247, 0.96));
+}
+
+.admin-shell .bg-card {
+  box-shadow:
+    0 20px 45px rgba(183, 92, 127, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.65) inset;
+}
+
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -124,6 +167,10 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
   
   /* Luxury typography */
   h1, h2, h3, h4, h5, h6 {
@@ -157,5 +204,56 @@
   
   .animate-fade-in {
     animation: fadeIn 0.4s ease-out;
+  }
+}
+
+@layer components {
+  .storefront-page {
+    background:
+      radial-gradient(circle at top left, rgba(255, 214, 166, 0.24), transparent 26%),
+      radial-gradient(circle at top right, rgba(255, 179, 153, 0.18), transparent 22%),
+      linear-gradient(180deg, rgba(255, 250, 245, 1), rgba(255, 245, 235, 0.98));
+  }
+
+  .storefront-panel {
+    border: 1px solid color-mix(in srgb, var(--border) 82%, white 18%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 251, 246, 0.92));
+    box-shadow:
+      0 28px 75px rgba(145, 84, 73, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  }
+
+  .storefront-soft-panel {
+    border: 1px solid rgba(255, 179, 153, 0.28);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 240, 190, 0.32));
+    box-shadow: 0 22px 55px rgba(145, 84, 73, 0.09);
+  }
+
+  .storefront-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(45, 33, 36, 0.55);
+  }
+
+  .storefront-input {
+    border: 1px solid rgba(243, 217, 203, 0.96);
+    background: rgba(255, 253, 251, 0.95);
+    color: var(--foreground);
+    border-radius: 1rem;
+    padding-inline: 1rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  }
+
+  .storefront-input::placeholder {
+    color: rgba(45, 33, 36, 0.42);
+  }
+
+  .storefront-input:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px rgba(255, 154, 134, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.75);
   }
 }

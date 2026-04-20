@@ -1,220 +1,265 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { Gift, MoveRight, Sparkles, Truck, WandSparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
 import { ProductCard } from '@/components/product-card'
-import { getFeaturedProducts, getNewArrivals } from '@/lib/products'
+import { StorefrontShell } from '@/components/storefront-shell'
+import {
+  HOME_BENEFITS,
+  HOME_JOURNAL_ENTRIES,
+  HOME_TESTIMONIALS,
+} from '@/lib/storefront-content'
+import { useStore } from '@/lib/store-context'
+
+const benefitIcons = {
+  craft: Sparkles,
+  notes: WandSparkles,
+  gifting: Gift,
+  delivery: Truck,
+} as const
 
 export default function Home() {
-  const featured = getFeaturedProducts()
-  const newArrivals = getNewArrivals()
+  const { catalog } = useStore()
+  const featured = catalog.filter((product) => product.featured).slice(0, 4)
+  const bestSellers = [...catalog].sort((left, right) => right.rating - left.rating).slice(0, 4)
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      {/* Hero Section */}
-      <section className="relative h-screen w-full overflow-hidden">
-        <Image
-          src="/hero-banner.jpg"
-          alt="Luxury perfume collection"
-          fill
-          priority
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-black/30" />
-        
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="max-w-2xl text-center space-y-6 px-6">
-            <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl text-white font-light tracking-tight">
-              Discover Your Scent
+    <StorefrontShell>
+      <section className="px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pt-10">
+        <div className="mx-auto grid max-w-7xl gap-8 overflow-hidden rounded-[2.5rem] bg-[linear-gradient(140deg,#ffd2c9_0%,#ffbfa8_42%,#fff0be_100%)] px-7 py-10 shadow-[0_32px_90px_rgba(182,104,86,0.18)] sm:px-10 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-14">
+          <div className="relative z-10 flex flex-col justify-center">
+            <p className="storefront-eyebrow">Perfume-Only Curation</p>
+            <h1 className="mt-5 max-w-xl font-serif text-5xl leading-[0.98] text-foreground sm:text-6xl lg:text-7xl">
+              Find A Signature Scent That Feels Personal.
             </h1>
-            <p className="text-lg sm:text-xl text-white/90 font-light">
-              Crafted with the finest ingredients from around the world
+            <p className="mt-6 max-w-xl text-base leading-8 text-foreground/70 sm:text-lg">
+              Explore editor-style fragrance collections, rich note stories, and long-wear perfume
+              picks designed for daily rituals, gifting moments, and evening statements.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                className="h-12 rounded-2xl bg-primary px-7 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.34)] hover:bg-[#ff8a73]"
                 asChild
               >
-                <Link href="/shop">Shop Now</Link>
+                <Link href="/shop">
+                  Shop Fragrances
+                  <MoveRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white text-white hover:bg-white/10"
+                className="h-12 rounded-2xl border-border/70 bg-white/60 px-7"
                 asChild
               >
-                <Link href="/discovery">Take the Quiz</Link>
+                <Link href="/discovery">Take The Discovery Quiz</Link>
               </Button>
             </div>
+
+            <div className="mt-10 grid max-w-xl gap-4 sm:grid-cols-3">
+              <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
+                <p className="text-2xl font-semibold text-foreground">Curated</p>
+                <p className="mt-1 text-sm text-foreground/65">Perfume-only collections</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
+                <p className="text-2xl font-semibold text-foreground">Notes</p>
+                <p className="mt-1 text-sm text-foreground/65">Top, heart, and base clarity</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
+                <p className="text-2xl font-semibold text-foreground">Fast</p>
+                <p className="mt-1 text-sm text-foreground/65">Smooth order tracking</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative flex min-h-[360px] items-end justify-center lg:min-h-[560px]">
+            <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.38),transparent_56%)]" />
+            <div className="absolute right-2 top-4 h-[76%] w-[78%] rounded-full bg-[linear-gradient(180deg,rgba(255,154,134,0.18),rgba(255,255,255,0.08))] blur-[1px]" />
+            <div className="relative h-[320px] w-full max-w-[560px] overflow-hidden rounded-[2.25rem] border border-white/40 bg-white/28 shadow-[0_40px_80px_rgba(135,77,70,0.18)] sm:h-[420px]">
+              <Image
+                src="/hero-banner.jpg"
+                alt="Luxury perfume collection"
+                fill
+                preload
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,230,220,0.14))]" />
+            </div>
+
+            <div className="absolute left-0 top-8 hidden max-w-[200px] rounded-[1.75rem] border border-white/50 bg-white/72 p-4 text-left shadow-[0_18px_50px_rgba(135,77,70,0.14)] sm:block">
+              <p className="storefront-eyebrow">Fragrance Mood</p>
+              <p className="mt-3 font-serif text-2xl text-foreground">Soft floral, warm woods, and polished citrus.</p>
+            </div>
+
+            <div className="absolute bottom-4 right-0 hidden max-w-[220px] rounded-[1.75rem] border border-white/50 bg-white/78 p-4 shadow-[0_18px_50px_rgba(135,77,70,0.14)] sm:block">
+              <p className="text-sm font-semibold text-foreground">Gift-ready picks</p>
+              <p className="mt-2 text-sm leading-6 text-foreground/66">
+                Discover scents with elegant wear, refined note transitions, and effortless gifting appeal.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Featured Collections */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <p className="text-sm font-medium text-accent uppercase tracking-wide mb-2">
-            Collection
-          </p>
-          <h2 className="font-serif text-4xl sm:text-5xl text-foreground mb-4">
-            Featured Fragrances
-          </h2>
-          <p className="text-foreground/60 text-lg max-w-2xl mx-auto">
-            Explore our carefully curated selection of premium fragrances
-          </p>
-        </div>
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <p className="storefront-eyebrow">Featured Fragrances</p>
+              <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Curated Signatures</h2>
+            </div>
+            <Link href="/shop" className="hidden text-sm font-semibold text-foreground/65 transition hover:text-foreground sm:inline-flex">
+              Browse all scents
+            </Link>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {featured.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            {featured.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Brand Story */}
-      <section className="bg-muted py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div className="relative aspect-square rounded-lg overflow-hidden bg-background">
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.88fr_1.12fr]">
+          <div className="storefront-panel relative min-h-[340px] overflow-hidden rounded-[2rem]">
             <Image
-              src="/hero-banner.jpg"
-              alt="Brand story"
+              src="/collections/timeless-classics-banner.jpg"
+              alt="Perfume bottles from the Timeless Classics collection"
               fill
+              sizes="(min-width: 1024px) 40vw, 100vw"
               className="object-cover"
             />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(45,33,36,0.1),rgba(45,33,36,0.24))]" />
           </div>
-          
-          <div className="space-y-6">
-            <div>
-              <p className="text-sm font-medium text-accent uppercase tracking-wide mb-2">
-                Our Story
-              </p>
-              <h2 className="font-serif text-4xl text-foreground mb-4">
-                Pure Path Philosophy
-              </h2>
+
+          <div className="rounded-[2rem] bg-[linear-gradient(180deg,rgba(255,179,153,0.12),rgba(255,240,190,0.34))] p-6 sm:p-8">
+            <p className="storefront-eyebrow">Why Choose Us</p>
+            <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">A Warmer Way To Shop Perfume</h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-foreground/68 sm:text-base">
+              Every section is built around fragrance selection, note storytelling, gifting confidence,
+              and a checkout experience that stays polished from browse to order tracking.
+            </p>
+
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {HOME_BENEFITS.map((benefit) => {
+                const Icon = benefitIcons[benefit.id]
+
+                return (
+                  <article key={benefit.id} className="storefront-panel rounded-[1.5rem] p-5">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,#ffd6a6,#ffb399)] text-foreground">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <h3 className="mt-4 text-2xl text-foreground">{benefit.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-foreground/64">{benefit.description}</p>
+                  </article>
+                )
+              })}
             </div>
-            
-            <p className="text-foreground/70 text-lg leading-relaxed">
-              Since our founding, Pure Path has been dedicated to creating exceptional fragrances that tell a story. Each scent is meticulously crafted using the finest ingredients sourced from around the world.
-            </p>
-            
-            <p className="text-foreground/70 text-lg leading-relaxed">
-              We believe that fragrance is a form of self-expression, a personal signature that reflects who you are. Our commitment to quality and sustainability drives every decision we make.
-            </p>
-
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/about">Learn More</Link>
-            </Button>
           </div>
         </div>
       </section>
 
-      {/* New Arrivals */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <p className="text-sm font-medium text-accent uppercase tracking-wide mb-2">
-            Latest
-          </p>
-          <h2 className="font-serif text-4xl sm:text-5xl text-foreground mb-4">
-            New Arrivals
-          </h2>
-          <p className="text-foreground/60 text-lg max-w-2xl mx-auto">
-            Discover what's new in our collection
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {newArrivals.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      </section>
-
-      {/* Newsletter */}
-      <section className="bg-foreground text-background py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-2xl mx-auto text-center space-y-8">
-          <div>
-            <h2 className="font-serif text-3xl sm:text-4xl mb-4">
-              Stay Updated
-            </h2>
-            <p className="text-background/80 text-lg">
-              Subscribe to receive exclusive offers and new fragrance launches
-            </p>
-          </div>
-
-          <form className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="flex-1 px-4 py-3 bg-background text-foreground placeholder:text-foreground/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-              required
-            />
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <p className="storefront-eyebrow">Best Sellers</p>
+              <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Most-Loved Bottles</h2>
+            </div>
             <Button
-              type="submit"
-              size="lg"
-              className="bg-accent text-accent-foreground hover:bg-accent/90"
+              variant="outline"
+              className="hidden h-11 rounded-2xl border-border/70 bg-white/70 px-5 sm:inline-flex"
+              asChild
             >
-              Subscribe
+              <Link href="/collections">Explore Collections</Link>
             </Button>
-          </form>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            {bestSellers.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-background border-t border-border py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-            <div>
-              <h3 className="font-serif text-lg text-foreground mb-4">
-                Pure Path
-              </h3>
-              <p className="text-foreground/60 text-sm">
-                Crafting premium fragrances since 2010
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-foreground mb-4 text-sm">Shop</h4>
-              <ul className="space-y-2 text-sm text-foreground/60">
-                <li><Link href="/shop" className="hover:text-accent">All Fragrances</Link></li>
-                <li><Link href="/collections" className="hover:text-accent">Collections</Link></li>
-                <li><Link href="/discovery" className="hover:text-accent">Discovery Quiz</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-foreground mb-4 text-sm">Company</h4>
-              <ul className="space-y-2 text-sm text-foreground/60">
-                <li><Link href="/about" className="hover:text-accent">About</Link></li>
-                <li><Link href="/help/contact" className="hover:text-accent">Contact</Link></li>
-                <li><Link href="/help/faq" className="hover:text-accent">FAQ</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-medium text-foreground mb-4 text-sm">Support</h4>
-              <ul className="space-y-2 text-sm text-foreground/60">
-                <li><Link href="/help/shipping" className="hover:text-accent">Shipping</Link></li>
-                <li><Link href="/help/returns" className="hover:text-accent">Returns</Link></li>
-                <li><Link href="/help/contact" className="hover:text-accent">Support</Link></li>
-              </ul>
-            </div>
+      <section id="reviews" className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="text-center">
+            <p className="storefront-eyebrow">Customer Reviews</p>
+            <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">What Perfume Buyers Are Saying</h2>
           </div>
 
-          <div className="border-t border-border pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-foreground/60">
-              © 2024 Pure Path. All rights reserved.
-            </p>
-            <div className="flex gap-6">
-              <button className="text-sm text-foreground/60 hover:text-accent">Privacy</button>
-              <button className="text-sm text-foreground/60 hover:text-accent">Terms</button>
-              <button className="text-sm text-foreground/60 hover:text-accent">Cookies</button>
-            </div>
+          <div className="mt-8 grid gap-6 lg:grid-cols-3">
+            {HOME_TESTIMONIALS.map((testimonial) => (
+              <article key={testimonial.name} className="storefront-panel rounded-[2rem] p-7">
+                <div className="flex gap-1 text-primary">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <span key={`${testimonial.name}-${index}`}>★</span>
+                  ))}
+                </div>
+                <p className="mt-5 text-sm leading-7 text-foreground/72 sm:text-base">
+                  {testimonial.quote}
+                </p>
+                <div className="mt-6 border-t border-border/60 pt-4">
+                  <p className="font-semibold text-foreground">{testimonial.name}</p>
+                  <p className="text-sm text-foreground/52">{testimonial.role}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
-      </footer>
-    </div>
+      </section>
+
+      <section id="journal" className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <p className="storefront-eyebrow">Journal</p>
+              <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Scent Notes And Buying Guides</h2>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            {HOME_JOURNAL_ENTRIES.map((entry) => (
+              <article key={entry.title} className="storefront-panel overflow-hidden rounded-[2rem]">
+                <div className="relative h-64">
+                  <Image
+                    src={entry.image}
+                    alt={entry.imageAlt}
+                    fill
+                    sizes="(min-width: 1024px) 30vw, 100vw"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-foreground/45">
+                    <span>{entry.label}</span>
+                    <span className="h-1 w-1 rounded-full bg-foreground/25" />
+                    <span>{entry.date}</span>
+                  </div>
+                  <h3 className="mt-4 text-2xl leading-tight text-foreground">{entry.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-foreground/65">{entry.excerpt}</p>
+                  <Link
+                    href={entry.href}
+                    className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-foreground transition hover:text-primary"
+                  >
+                    Explore More
+                    <MoveRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </StorefrontShell>
   )
 }

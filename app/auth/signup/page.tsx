@@ -1,16 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { AuthPageShell } from '@/components/auth-page-shell'
 import { Button } from '@/components/ui/button'
-import { Header } from '@/components/header'
-import { useAuth } from '@/lib/auth-context'
 import { Spinner } from '@/components/ui/spinner'
+import { useAuth } from '@/lib/auth-context'
+import { getSafeRedirectPath } from '@/lib/auth'
+import { SITE_NAME } from '@/lib/site'
 
-export default function SignUpPage() {
+function SignUpPageContent() {
   const router = useRouter()
-  const { signup, isAuthenticated, isLoading: authLoading } = useAuth()
+  const searchParams = useSearchParams()
+  const { signup, resendVerificationEmail, isAuthenticated, canAccessBackoffice, isLoading: authLoading } =
+    useAuth()
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -19,23 +23,55 @@ export default function SignUpPage() {
     confirmPassword: '',
   })
   const [loading, setLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [verificationEmail, setVerificationEmail] = useState('')
+  const redirectTo = getSafeRedirectPath(searchParams.get('redirectTo'))
+  const reason = searchParams.get('reason')
+  const isCheckoutRedirect = reason === 'checkout'
+  const isProductRedirect = redirectTo?.startsWith('/products/') ?? false
+  const authQuery = new URLSearchParams()
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      router.push('/shop')
-    }
-  }, [isAuthenticated, authLoading, router])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+  if (redirectTo) {
+    authQuery.set('redirectTo', redirectTo)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  if (reason) {
+    authQuery.set('reason', reason)
+  }
+
+  const signinHref = authQuery.toString() ? `/auth/signin?${authQuery.toString()}` : '/auth/signin'
+  const contextEyebrow = isCheckoutRedirect
+    ? 'Secure Checkout'
+    : isProductRedirect
+      ? 'Member Purchase'
+      : 'Create Your Account'
+  const contextMessage = isCheckoutRedirect
+    ? 'Create your account to continue to checkout and place your perfume order.'
+    : isProductRedirect
+      ? 'Create your account to add this fragrance to your cart and continue shopping.'
+      : 'Create an account to save favorites, manage orders, and build your own perfume shortlist.'
+
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      if (canAccessBackoffice) {
+        router.push('/admin/dashboard')
+      } else {
+        router.push(redirectTo || '/shop')
+      }
+    }
+  }, [isAuthenticated, authLoading, canAccessBackoffice, redirectTo, router])
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target
+    setFormData((current) => ({ ...current, [name]: value }))
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setError('')
+    setSuccessMessage('')
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
@@ -50,8 +86,12 @@ export default function SignUpPage() {
     setLoading(true)
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim()
-      await signup(formData.email, formData.password, fullName)
-      // Redirect will happen via useEffect
+      const result = await signup(formData.email, formData.password, fullName)
+
+      if (result.requiresEmailVerification) {
+        setVerificationEmail(result.email)
+        setSuccessMessage(`We sent a verification link to ${result.email}. Verify your email before signing in.`)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
@@ -59,151 +99,225 @@ export default function SignUpPage() {
     }
   }
 
+  const handleResendVerification = async () => {
+    setError('')
+    setSuccessMessage('')
+    setResendLoading(true)
+
+    try {
+      await resendVerificationEmail(verificationEmail || formData.email)
+      setSuccessMessage('A fresh verification email has been sent. Check your inbox and spam folder.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to resend verification email.')
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <AuthPageShell>
+      <section className="w-full">
+        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.92fr_1.08fr]">
+          <article className="storefront-panel rounded-[2.25rem] p-7 sm:p-10">
+            <p className="storefront-eyebrow">{contextEyebrow}</p>
+            <h1 className="mt-4 text-5xl leading-tight text-foreground sm:text-6xl">Create Account</h1>
+            <p className="mt-4 text-base leading-8 text-foreground/68">{contextMessage}</p>
 
-      <div className="flex items-center justify-center py-20 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          {/* Header */}
-          <div className="text-center space-y-2">
-            <h1 className="font-serif text-4xl text-foreground">
-              Create Account
-            </h1>
-            <p className="text-foreground/60">
-              Join Pure Path and discover your perfect scent
-            </p>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mt-8 space-y-4 rounded-[1.75rem] bg-[linear-gradient(180deg,rgba(255,179,153,0.1),rgba(255,240,190,0.24))] p-5">
+              <p className="text-sm font-semibold text-foreground">What you unlock</p>
+              <ul className="space-y-3 text-sm leading-7 text-foreground/66">
+                <li>Save your fragrance wishlist across desktop and mobile.</li>
+                <li>Track perfume orders and delivery updates in one place.</li>
+                <li>Move from product page to checkout with less friction.</li>
+              </ul>
             </div>
-          )}
+          </article>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-foreground mb-2">
-                  First Name
-                </label>
-                <input
-                  id="firstName"
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  required
-                  placeholder="John"
-                  className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                />
+          <article className="storefront-panel rounded-[2.25rem] px-6 py-8 sm:px-10 sm:py-10">
+            {error ? (
+              <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-600">{error}</p>
               </div>
+            ) : null}
 
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-foreground mb-2">
-                  Last Name
-                </label>
-                <input
-                  id="lastName"
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  required
-                  placeholder="Doe"
-                  className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                />
+            {successMessage ? (
+              <div className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5">
+                <p className="text-sm leading-6 text-emerald-700">{successMessage}</p>
               </div>
-            </div>
+            ) : null}
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                placeholder="you@example.com"
-                className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
+            {verificationEmail ? (
+              <div className="space-y-4">
+                <div className="rounded-[1.75rem] bg-muted/30 p-5">
+                  <p className="text-sm leading-7 text-foreground/68">
+                    Open the verification email we sent to{' '}
+                    <span className="font-semibold text-foreground">{verificationEmail}</span>. After confirming your
+                    address, you can sign in normally.
+                  </p>
+                </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                placeholder="••••••••"
-                className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
+                <Button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resendLoading}
+                  variant="outline"
+                  className="h-12 w-full rounded-2xl border-border/70 bg-white/70"
+                >
+                  {resendLoading ? 'Resending verification...' : 'Resend Verification Email'}
+                </Button>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-foreground mb-2">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                placeholder="••••••••"
-                className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
+                <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]" asChild>
+                  <Link href={signinHref}>Go To Sign In</Link>
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="firstName" className="text-sm font-medium text-foreground">
+                      First Name
+                    </label>
+                    <input
+                      id="firstName"
+                      type="text"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      autoComplete="given-name"
+                      suppressHydrationWarning
+                      required
+                      placeholder="John"
+                      className="storefront-input h-12 w-full"
+                    />
+                  </div>
 
-            <label className="flex items-center gap-3 cursor-pointer pt-2">
-              <input
-                type="checkbox"
-                required
-                className="w-4 h-4 rounded"
-              />
-              <span className="text-sm text-foreground/70">
-                I agree to the{' '}
-                <Link href="#" className="underline hover:text-foreground">
-                  Terms of Service
-                </Link>{' '}
-                and{' '}
-                <Link href="#" className="underline hover:text-foreground">
-                  Privacy Policy
+                  <div className="space-y-2">
+                    <label htmlFor="lastName" className="text-sm font-medium text-foreground">
+                      Last Name
+                    </label>
+                    <input
+                      id="lastName"
+                      type="text"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      autoComplete="family-name"
+                      suppressHydrationWarning
+                      required
+                      placeholder="Doe"
+                      className="storefront-input h-12 w-full"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium text-foreground">
+                    Email Address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    autoComplete="email"
+                    suppressHydrationWarning
+                    required
+                    placeholder="you@example.com"
+                    className="storefront-input h-12 w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    autoComplete="new-password"
+                    suppressHydrationWarning
+                    required
+                    placeholder="********"
+                    className="storefront-input h-12 w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                    Confirm Password
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    autoComplete="new-password"
+                    suppressHydrationWarning
+                    required
+                    placeholder="********"
+                    className="storefront-input h-12 w-full"
+                  />
+                </div>
+
+                <label className="flex items-center gap-3 pt-1 text-sm text-foreground/68">
+                  <input type="checkbox" required suppressHydrationWarning className="h-4 w-4 rounded border-border" />
+                  I agree to the account terms and the fragrance store privacy policy.
+                </label>
+
+                <Button
+                  type="submit"
+                  disabled={loading || authLoading}
+                  className="h-12 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
+                >
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="h-4 w-4" />
+                      Creating account...
+                    </span>
+                  ) : (
+                    'Create Account'
+                  )}
+                </Button>
+              </form>
+            )}
+
+            <div className="mt-8 border-t border-border/70 pt-6 text-center">
+              <p className="text-sm text-foreground/60">
+                Already have an account?{' '}
+                <Link href={signinHref} className="font-semibold text-primary transition hover:text-[#ff8a73]">
+                  Sign in
                 </Link>
-              </span>
-            </label>
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </AuthPageShell>
+  )
+}
 
-            <Button
-              type="submit"
-              disabled={loading || authLoading}
-              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground flex items-center justify-center gap-2"
-              size="lg"
-            >
-              {loading && <Spinner className="w-4 h-4" />}
-              {loading ? 'Creating account...' : 'Create Account'}
-            </Button>
-          </form>
-
-          {/* Sign In Link */}
-          <p className="text-center text-foreground/60">
-            Already have an account?{' '}
-            <Link href="/auth/signin" className="text-accent hover:underline font-medium">
-              Sign in
-            </Link>
-          </p>
+function SignUpPageFallback() {
+  return (
+    <AuthPageShell>
+      <div className="flex min-h-[40vh] w-full items-center justify-center px-4">
+        <div className="flex items-center gap-3 text-foreground/70">
+          <Spinner className="h-5 w-5" />
+          <p>Loading sign-up...</p>
         </div>
       </div>
-    </div>
+    </AuthPageShell>
+  )
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={<SignUpPageFallback />}>
+      <SignUpPageContent />
+    </Suspense>
   )
 }
