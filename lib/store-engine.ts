@@ -56,6 +56,7 @@ export type StockMovementReason =
   | 'manual-adjustment'
   | 'online-sale'
   | 'pos-sale'
+  | 'order-cancelled'
 export type InventoryAvailability = 'In Stock' | 'Low Stock' | 'Out of Stock'
 
 export interface StoreActor {
@@ -99,6 +100,22 @@ export interface OrderTimelineEntry {
   note: string
 }
 
+export interface OrderPaymentSummary {
+  paymentGateway?: string
+  paymentChannel?: string
+  reference?: string
+  checkoutSessionId?: string
+  paidAt?: string
+}
+
+export interface OrderActionAvailability {
+  canCancel: boolean
+  canConfirmReceived: boolean
+  cancelBlockedReason?: string
+  confirmBlockedReason?: string
+  needsRefundFollowUp: boolean
+}
+
 export interface OrderRecord {
   id: string
   source: OrderSource
@@ -117,6 +134,8 @@ export interface OrderRecord {
   notes?: string
   items: OrderLineItem[]
   timeline: OrderTimelineEntry[]
+  paymentSummary?: OrderPaymentSummary
+  actionAvailability?: OrderActionAvailability
 }
 
 export interface PosTransaction {
@@ -235,6 +254,8 @@ export type StoreAction =
   | { type: 'clearCart' }
   | { type: 'placeOnlineOrder'; input: PlaceOnlineOrderInput }
   | { type: 'createPosSale'; input: CreatePosSaleInput }
+  | { type: 'cancelOwnOrder'; orderId: string }
+  | { type: 'confirmOwnDelivery'; orderId: string }
   | { type: 'markOrderPaymentPaid'; orderId: string; actor?: string; note?: string }
   | { type: 'updateOrderStatus'; orderId: string; status: OrderStatus; actor?: string; note?: string }
 
@@ -277,6 +298,93 @@ function canAccessBackoffice(actor: StoreActor | null | undefined) {
 
 function getActorName(actor: StoreActor | null | undefined, fallback: string) {
   return actor?.name || fallback
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
+export function orderBelongsToActor(
+  order: Pick<OrderRecord, 'customerId' | 'customerEmail'>,
+  actor?: Pick<StoreActor, 'id' | 'email'> | null,
+) {
+  if (!actor) {
+    return false
+  }
+
+  if (order.customerId) {
+    return order.customerId === actor.id
+  }
+
+  return normalizeEmail(order.customerEmail) === normalizeEmail(actor.email)
+}
+
+export function getOrderNeedsRefundFollowUp(
+  order: Pick<OrderRecord, 'status' | 'paymentStatus'>,
+) {
+  return order.status === 'Cancelled' && order.paymentStatus === 'Paid'
+}
+
+export function getCustomerOrderActionAvailability(
+  order: OrderRecord,
+  actor?: StoreActor | null,
+): OrderActionAvailability {
+  const ownsOrder = actor?.role === 'USER' && order.source === 'ONLINE' && orderBelongsToActor(order, actor)
+  const needsRefundFollowUp = getOrderNeedsRefundFollowUp(order)
+
+  if (!ownsOrder) {
+    return {
+      canCancel: false,
+      canConfirmReceived: false,
+      needsRefundFollowUp,
+    }
+  }
+
+  const canCancel = order.status === 'Pending' || order.status === 'Processing'
+  const canConfirmReceived = order.status === 'Out for Delivery'
+
+  let cancelBlockedReason: string | undefined
+  let confirmBlockedReason: string | undefined
+
+  if (!canCancel) {
+    switch (order.status) {
+      case 'Cancelled':
+        cancelBlockedReason = 'This order has already been cancelled.'
+        break
+      case 'Ready for Dispatch':
+      case 'Out for Delivery':
+        cancelBlockedReason = 'This order is already in dispatch and can no longer be cancelled here.'
+        break
+      case 'Delivered':
+        cancelBlockedReason = 'Delivered orders can no longer be cancelled here.'
+        break
+      default:
+        cancelBlockedReason = 'This order cannot be cancelled from your account.'
+        break
+    }
+  }
+
+  if (!canConfirmReceived) {
+    switch (order.status) {
+      case 'Delivered':
+        confirmBlockedReason = 'This order is already marked as delivered.'
+        break
+      case 'Cancelled':
+        confirmBlockedReason = 'Cancelled orders cannot be marked as received.'
+        break
+      default:
+        confirmBlockedReason = 'You can confirm receipt once the order is out for delivery.'
+        break
+    }
+  }
+
+  return {
+    canCancel,
+    canConfirmReceived,
+    cancelBlockedReason,
+    confirmBlockedReason,
+    needsRefundFollowUp,
+  }
 }
 
 export function getInventoryAvailability(
@@ -714,15 +822,15 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
 
 function createOrderId(source: OrderSource) {
   const prefix = source === 'POS' ? 'POS' : 'WEB'
-  return `${prefix}-${Date.now().toString().slice(-8)}`
+  return `${prefix}-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 }
 
 function createTransactionId() {
-  return `TX-${Date.now().toString().slice(-8)}`
+  return `TX-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 }
 
 function createMovementId() {
-  return `MVT-${Date.now().toString().slice(-8)}`
+  return `MVT-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 }
 
 export function getProductByIdFromState(state: StoreState, productId: string) {
@@ -1461,6 +1569,171 @@ export function performStoreAction(
       }
     }
 
+    case 'cancelOwnOrder': {
+      if (!hasRole(actor, 'USER')) {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Sign in with your customer account to cancel this order.' },
+        }
+      }
+
+      const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
+      if (!existingOrder || !orderBelongsToActor(existingOrder, actor)) {
+        return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
+      }
+
+      if (existingOrder.source !== 'ONLINE') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Only online orders can be cancelled from your account.' },
+        }
+      }
+
+      if (existingOrder.status === 'Cancelled') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: `Order ${existingOrder.id} has already been cancelled.` },
+        }
+      }
+
+      if (existingOrder.status !== 'Pending' && existingOrder.status !== 'Processing') {
+        return {
+          nextState: currentState,
+          result: {
+            ok: false,
+            message: 'Only pending or processing orders can be cancelled from your account.',
+          },
+        }
+      }
+
+      const timestamp = new Date().toISOString()
+      const actorName = getActorName(actor, 'Customer')
+      const quantityByProduct = existingOrder.items.reduce<Record<string, number>>((totals, item) => {
+        totals[item.productId] = (totals[item.productId] ?? 0) + item.quantity
+        return totals
+      }, {})
+
+      const nextInventory = currentState.inventory.map((record) => {
+        const restoredQuantity = quantityByProduct[record.productId]
+        if (!restoredQuantity) {
+          return record
+        }
+
+        return {
+          ...record,
+          stock: clampToWholeNumber(record.stock + restoredQuantity),
+          lastUpdated: timestamp,
+          lastUpdatedBy: actorName,
+        }
+      })
+
+      const updatedOrder: OrderRecord = {
+        ...existingOrder,
+        status: 'Cancelled',
+        timeline: [
+          ...existingOrder.timeline,
+          {
+            status: 'Cancelled',
+            createdAt: timestamp,
+            note:
+              existingOrder.paymentStatus === 'Paid'
+                ? 'Order cancelled by the customer through self-service. Refund follow-up is required.'
+                : 'Order cancelled by the customer through self-service.',
+          },
+        ],
+      }
+
+      const nextMovements = [
+        ...existingOrder.items.map((item) => ({
+          id: createMovementId(),
+          productId: item.productId,
+          productName: item.productName,
+          change: item.quantity,
+          reason: 'order-cancelled' as const,
+          actor: actorName,
+          createdAt: timestamp,
+          resultingStock: nextInventory.find((record) => record.productId === item.productId)?.stock ?? item.quantity,
+          note: existingOrder.id,
+        })),
+        ...currentState.stockMovements,
+      ]
+
+      return {
+        nextState: {
+          ...currentState,
+          catalog: syncCatalogStock(currentState.catalog, nextInventory),
+          inventory: nextInventory,
+          orders: currentState.orders.map((order) => (order.id === action.orderId ? updatedOrder : order)),
+          stockMovements: nextMovements,
+        },
+        result: {
+          ok: true,
+          message:
+            existingOrder.paymentStatus === 'Paid'
+              ? `Order ${existingOrder.id} has been cancelled. Our team will review the refund and follow up separately.`
+              : `Order ${existingOrder.id} has been cancelled successfully.`,
+          data: updatedOrder,
+        },
+      }
+    }
+
+    case 'confirmOwnDelivery': {
+      if (!hasRole(actor, 'USER')) {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Sign in with your customer account to confirm delivery.' },
+        }
+      }
+
+      const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
+      if (!existingOrder || !orderBelongsToActor(existingOrder, actor)) {
+        return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
+      }
+
+      if (existingOrder.source !== 'ONLINE') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Only online orders can be updated from your account.' },
+        }
+      }
+
+      if (existingOrder.status !== 'Out for Delivery') {
+        return {
+          nextState: currentState,
+          result: {
+            ok: false,
+            message: 'You can confirm receipt once the order is out for delivery.',
+          },
+        }
+      }
+
+      const timestamp = new Date().toISOString()
+      const updatedOrder: OrderRecord = {
+        ...existingOrder,
+        status: 'Delivered',
+        timeline: [
+          ...existingOrder.timeline,
+          {
+            status: 'Delivered',
+            createdAt: timestamp,
+            note: 'Delivery confirmed by the customer through self-service.',
+          },
+        ],
+      }
+
+      return {
+        nextState: {
+          ...currentState,
+          orders: currentState.orders.map((order) => (order.id === action.orderId ? updatedOrder : order)),
+        },
+        result: {
+          ok: true,
+          message: `Thanks for confirming receipt of order ${existingOrder.id}.`,
+          data: updatedOrder,
+        },
+      }
+    }
+
     case 'updateOrderStatus': {
       if (!canAccessBackoffice(actor)) {
         return { nextState: currentState, result: { ok: false, message: 'Only staff and admins can update order status.' } }
@@ -1469,6 +1742,20 @@ export function performStoreAction(
       const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
       if (!existingOrder) {
         return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
+      }
+
+      if (existingOrder.status === 'Cancelled') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Cancelled orders can no longer be updated.' },
+        }
+      }
+
+      if (action.status === 'Cancelled') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Use the cancellation workflow so stock is restored correctly.' },
+        }
       }
 
       const timestamp = new Date().toISOString()
@@ -1509,6 +1796,13 @@ export function performStoreAction(
       const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
       if (!existingOrder) {
         return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
+      }
+
+      if (existingOrder.status === 'Cancelled') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Cancelled orders cannot be marked as paid.' },
+        }
       }
 
       if (existingOrder.paymentStatus === 'Paid') {

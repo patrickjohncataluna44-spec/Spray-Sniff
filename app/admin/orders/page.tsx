@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ import { formatPHP } from '@/lib/currency'
 import { ONLINE_ORDER_STATUSES, type OrderRecord, type OrderStatus, useStore } from '@/lib/store-context'
 import { toast } from '@/hooks/use-toast'
 
-const ALL_STATUSES = ['All Status', ...ONLINE_ORDER_STATUSES, 'Completed']
+const ALL_STATUSES = ['All Status', ...ONLINE_ORDER_STATUSES, 'Cancelled', 'Completed']
 const ALL_CHANNELS = ['All Channels', 'ONLINE', 'POS']
 const ALL_PAYMENT_STATES = ['All Payments', 'Paid', 'Pending']
 
@@ -48,6 +49,12 @@ function getPaymentDescription(order: OrderRecord) {
     return 'Walk-in payment recorded at checkout.'
   }
 
+  if (order.status === 'Cancelled') {
+    return order.paymentStatus === 'Paid'
+      ? 'Order cancelled after payment. Manual refund follow-up is still required.'
+      : 'Order cancelled before payment collection.'
+  }
+
   if (order.paymentMethod === 'Cash on Delivery') {
     return order.paymentStatus === 'Paid'
       ? 'COD payment has been collected.'
@@ -59,6 +66,22 @@ function getPaymentDescription(order: OrderRecord) {
     : 'Online payment is still waiting for confirmation.'
 }
 
+function getStatusTone(status: OrderRecord['status']) {
+  if (status === 'Cancelled') {
+    return 'bg-slate-200 text-slate-700'
+  }
+
+  return 'bg-accent/10 text-accent'
+}
+
+function getLastTimelineEntry(order: OrderRecord) {
+  return order.timeline[order.timeline.length - 1]
+}
+
+function needsRefundFollowUp(order: OrderRecord) {
+  return order.actionAvailability?.needsRefundFollowUp ?? (order.status === 'Cancelled' && order.paymentStatus === 'Paid')
+}
+
 export default function AdminOrdersPage() {
   const { user } = useAuth()
   const { markOrderPaymentPaid, orders, updateOrderStatus } = useStore()
@@ -68,6 +91,7 @@ export default function AdminOrdersPage() {
   const [paymentFilter, setPaymentFilter] = useState('All Payments')
   const [paymentUpdatingOrderId, setPaymentUpdatingOrderId] = useState<string | null>(null)
   const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null)
+  const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null)
 
   const filteredOrders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -77,7 +101,9 @@ export default function AdminOrdersPage() {
         query.length === 0 ||
         order.id.toLowerCase().includes(query) ||
         order.customerName.toLowerCase().includes(query) ||
-        order.customerEmail.toLowerCase().includes(query)
+        order.customerEmail.toLowerCase().includes(query) ||
+        order.paymentSummary?.reference?.toLowerCase().includes(query) ||
+        order.paymentSummary?.checkoutSessionId?.toLowerCase().includes(query)
       const matchesStatus =
         statusFilter === 'All Status' || order.status === statusFilter
       const matchesChannel =
@@ -129,6 +155,59 @@ export default function AdminOrdersPage() {
     }
   }
 
+  const handleIssueRefund = async (order: OrderRecord) => {
+    if (!order.paymentSummary?.checkoutSessionId) {
+      toast({
+        title: 'No PayMongo session found',
+        description: 'This order has no linked PayMongo checkout session to refund.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Issue full refund of ${formatPHP(order.total)} for order ${order.id}?\n\nThis will send the money back to the customer's GCash / QR Ph via PayMongo.`,
+    )
+    if (!confirmed) return
+
+    try {
+      setRefundingOrderId(order.id)
+      const response = await fetch('/api/paymongo/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkoutSessionId: order.paymentSummary.checkoutSessionId,
+          reason: 'others',
+          notes: `Admin refund for cancelled order ${order.id} by ${user?.name ?? 'admin'}.`,
+        }),
+      })
+
+      const result = await response.json().catch(() => null) as {
+        ok?: boolean
+        message?: string
+        refundId?: string
+        error?: string
+      } | null
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(result?.error ?? result?.message ?? 'Refund failed.')
+      }
+
+      toast({
+        title: '✅ Refund issued',
+        description: result.message ?? `Refund sent back to customer. Refund ID: ${result.refundId}`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Refund failed',
+        description: error instanceof Error ? error.message : 'Unable to process the refund.',
+        variant: 'destructive',
+      })
+    } finally {
+      setRefundingOrderId(null)
+    }
+  }
+
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
       <div className="flex min-h-screen bg-background">
@@ -157,11 +236,13 @@ export default function AdminOrdersPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by order ID, customer, or email..."
+                aria-label="Search orders by order ID, customer, email, reference, or PayMongo session"
+                placeholder="Search by order ID, customer, email, or payment reference..."
                 className="px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
               />
               <select
                 value={statusFilter}
+                aria-label="Filter orders by status"
                 onChange={(event) => setStatusFilter(event.target.value)}
                 className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
               >
@@ -173,6 +254,7 @@ export default function AdminOrdersPage() {
               </select>
               <select
                 value={channelFilter}
+                aria-label="Filter orders by channel"
                 onChange={(event) => setChannelFilter(event.target.value)}
                 className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
               >
@@ -184,6 +266,7 @@ export default function AdminOrdersPage() {
                 </select>
               <select
                 value={paymentFilter}
+                aria-label="Filter orders by payment state"
                 onChange={(event) => setPaymentFilter(event.target.value)}
                 className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
               >
@@ -241,29 +324,60 @@ export default function AdminOrdersPage() {
                             <p className="max-w-52 text-xs text-foreground/55">
                               {getPaymentDescription(order)}
                             </p>
+                            {order.paymentSummary?.reference ? (
+                              <p className="max-w-52 break-all text-[11px] text-foreground/50">
+                                Ref: {order.paymentSummary.reference}
+                              </p>
+                            ) : null}
+                            {needsRefundFollowUp(order) ? (
+                              order.paymentSummary?.checkoutSessionId ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={refundingOrderId === order.id}
+                                  onClick={() => handleIssueRefund(order)}
+                                  className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                >
+                                  {refundingOrderId === order.id ? (
+                                    <><RefreshCw className="mr-1.5 h-3 w-3 animate-spin" />Refunding...</>
+                                  ) : (
+                                    '⮐ Issue Refund'
+                                  )}
+                                </Button>
+                              ) : (
+                                <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                                  Refund follow-up needed
+                                </span>
+                              )
+                            ) : null}
                           </div>
                         </td>
                         <td className="py-4 px-6 font-medium text-foreground">
                           {formatPHP(order.total)}
                         </td>
                         <td className="py-4 px-6">
-                          <span className="inline-flex rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(order.status)}`}>
                             {order.status}
                           </span>
                         </td>
                         <td className="py-4 px-6">
-                          <p className="text-sm text-foreground">
-                            {order.timeline[order.timeline.length - 1]?.note || 'No activity yet'}
-                          </p>
-                          <p className="text-xs text-foreground/50">
-                            {order.timeline[order.timeline.length - 1]?.createdAt
-                              ? new Date(order.timeline[order.timeline.length - 1].createdAt).toLocaleString()
-                              : 'Not recorded'}
-                          </p>
+                          {getLastTimelineEntry(order) ? (
+                            <>
+                              <p className="text-sm text-foreground">
+                                {getLastTimelineEntry(order)?.note}
+                              </p>
+                              <p className="text-xs text-foreground/50">
+                                {new Date(getLastTimelineEntry(order)?.createdAt ?? order.createdAt).toLocaleString()}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-foreground/50">No activity yet</p>
+                          )}
                         </td>
                         <td className="py-4 px-6">
                           <div className="space-y-3">
-                            {order.source === 'ONLINE' ? (
+                            {order.source === 'ONLINE' && order.status !== 'Cancelled' ? (
                               <select
                                 value={order.status}
                                 onChange={(event) => handleStatusChange(order.id, event.target.value)}
@@ -276,13 +390,17 @@ export default function AdminOrdersPage() {
                                   </option>
                                 ))}
                               </select>
+                            ) : order.status === 'Cancelled' ? (
+                              <span className="text-xs text-foreground/50">
+                                Customer cancellation locked this order.
+                              </span>
                             ) : (
                               <span className="text-xs text-foreground/50">
                                 Walk-in orders complete at checkout
                               </span>
                             )}
 
-                            {order.paymentStatus === 'Pending' ? (
+                            {order.paymentStatus === 'Pending' && order.status !== 'Cancelled' ? (
                               <Button
                                 type="button"
                                 size="sm"
@@ -296,6 +414,10 @@ export default function AdminOrdersPage() {
                                     ? 'Mark COD Paid'
                                     : 'Mark Paid'}
                               </Button>
+                            ) : order.status === 'Cancelled' && order.paymentStatus === 'Pending' ? (
+                              <span className="text-xs text-foreground/50">
+                                Payment collection stops after cancellation.
+                              </span>
                             ) : (
                               <span className="text-xs font-medium text-emerald-700">
                                 Payment already recorded in Supabase

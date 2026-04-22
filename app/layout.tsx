@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
+import { CustomerSupportWidget } from '@/components/customer-support-widget'
 import { getPublicRuntimeEnv } from '@/lib/server-runtime-env'
 import { StoreProvider } from '@/lib/store-context'
 import { Toaster } from '@/components/ui/toaster'
@@ -75,6 +76,7 @@ export default function RootLayout({
         <AuthProvider>
           <StoreProvider>
             {children}
+            <CustomerSupportWidget />
             <Toaster />
           </StoreProvider>
         </AuthProvider>

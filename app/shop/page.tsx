@@ -93,6 +93,7 @@ export default function ShopPage() {
               {hasFilters ? (
                 <button
                   type="button"
+                  suppressHydrationWarning
                   onClick={() => {
                     setSelectedScents([])
                     setSelectedGenders([])
@@ -118,6 +119,7 @@ export default function ShopPage() {
                       <button
                         key={scent}
                         type="button"
+                        suppressHydrationWarning
                         onClick={() => toggleScent(scent)}
                         className={`rounded-full px-3 py-2 text-sm transition ${
                           active
@@ -141,6 +143,7 @@ export default function ShopPage() {
                     <label key={gender} className="flex items-center gap-3 text-sm text-foreground/72">
                       <input
                         type="checkbox"
+                        suppressHydrationWarning
                         checked={selectedGenders.includes(gender)}
                         onChange={() => toggleGender(gender)}
                         className="h-4 w-4 rounded border-border text-primary focus:ring-primary/40"
@@ -160,6 +163,7 @@ export default function ShopPage() {
                     <label key={`${range.min}-${range.max}`} className="flex items-center gap-3 text-sm text-foreground/72">
                       <input
                         type="radio"
+                        suppressHydrationWarning
                         name="price"
                         checked={priceRange?.min === range.min && priceRange?.max === range.max}
                         onChange={() => setPriceRange({ min: range.min, max: range.max })}
@@ -189,6 +193,7 @@ export default function ShopPage() {
               <div className="relative">
                 <select
                   value={sortBy}
+                  suppressHydrationWarning
                   onChange={(event) => setSortBy(event.target.value)}
                   className="storefront-input h-11 min-w-56 appearance-none pr-10 text-sm"
                 >

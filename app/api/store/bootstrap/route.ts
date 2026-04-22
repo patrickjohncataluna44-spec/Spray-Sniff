@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       source: 'supabase',
-      state: getVisibleStoreState(snapshot, actor, cart),
+      state: await getVisibleStoreState(snapshot, actor, cart),
       wishlistIds,
     })
   } catch (error) {

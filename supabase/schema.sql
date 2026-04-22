@@ -195,6 +195,34 @@ create table if not exists public.promotions (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.support_cases (
+  id text primary key,
+  customer_id uuid null references public.profiles (id) on delete set null,
+  customer_email text not null,
+  category text not null check (category in ('order_help', 'payment_issue', 'refund_request', 'general')),
+  status text not null check (status in ('open', 'waiting_on_staff', 'waiting_on_customer', 'resolved', 'closed')),
+  priority text not null default 'normal' check (priority in ('low', 'normal', 'high')),
+  source text not null default 'chatbot' check (source in ('chatbot')),
+  order_id text null references public.store_orders (id) on delete set null,
+  payment_record_id text null references public.payment_records (id) on delete set null,
+  payment_reference text null,
+  latest_summary text null,
+  assigned_to uuid null references public.profiles (id) on delete set null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.support_messages (
+  id text primary key,
+  case_id text not null references public.support_cases (id) on delete cascade,
+  author_type text not null check (author_type in ('customer', 'bot', 'staff', 'system')),
+  author_id uuid null references public.profiles (id) on delete set null,
+  message text not null,
+  metadata jsonb null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -346,6 +374,8 @@ alter table public.stock_movements enable row level security;
 alter table public.user_carts enable row level security;
 alter table public.user_wishlists enable row level security;
 alter table public.promotions enable row level security;
+alter table public.support_cases enable row level security;
+alter table public.support_messages enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -553,6 +583,80 @@ for select
 to authenticated
 using (public.is_backoffice_user());
 
+drop policy if exists "support_cases_select_backoffice" on public.support_cases;
+create policy "support_cases_select_backoffice"
+on public.support_cases
+for select
+to authenticated
+using (public.is_backoffice_user());
+
+drop policy if exists "support_cases_select_own" on public.support_cases;
+create policy "support_cases_select_own"
+on public.support_cases
+for select
+to authenticated
+using (customer_id = auth.uid());
+
+drop policy if exists "support_cases_insert_own" on public.support_cases;
+create policy "support_cases_insert_own"
+on public.support_cases
+for insert
+to authenticated
+with check (customer_id = auth.uid());
+
+drop policy if exists "support_cases_update_own" on public.support_cases;
+create policy "support_cases_update_own"
+on public.support_cases
+for update
+to authenticated
+using (customer_id = auth.uid() or public.is_backoffice_user())
+with check (customer_id = auth.uid() or public.is_backoffice_user());
+
+drop policy if exists "support_messages_select_backoffice" on public.support_messages;
+create policy "support_messages_select_backoffice"
+on public.support_messages
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.support_cases
+    where public.support_cases.id = case_id
+      and public.is_backoffice_user()
+  )
+);
+
+drop policy if exists "support_messages_select_own" on public.support_messages;
+create policy "support_messages_select_own"
+on public.support_messages
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.support_cases
+    where public.support_cases.id = case_id
+      and public.support_cases.customer_id = auth.uid()
+  )
+);
+
+drop policy if exists "support_messages_insert_own" on public.support_messages;
+create policy "support_messages_insert_own"
+on public.support_messages
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.support_cases
+    where public.support_cases.id = case_id
+      and (
+        public.support_cases.customer_id = auth.uid()
+        or public.is_backoffice_user()
+      )
+  )
+);
+
 alter table public.profiles replica identity full;
 alter table public.app_store_snapshots replica identity full;
 alter table public.public_store_snapshots replica identity full;
@@ -567,6 +671,8 @@ alter table public.stock_movements replica identity full;
 alter table public.user_carts replica identity full;
 alter table public.user_wishlists replica identity full;
 alter table public.promotions replica identity full;
+alter table public.support_cases replica identity full;
+alter table public.support_messages replica identity full;
 
 do $$
 declare
@@ -585,7 +691,9 @@ declare
     'stock_movements',
     'user_carts',
     'user_wishlists',
-    'promotions'
+    'promotions',
+    'support_cases',
+    'support_messages'
   ];
 begin
   foreach current_table in array realtime_tables loop

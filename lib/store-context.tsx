@@ -48,8 +48,10 @@ export type {
   CreatePosSaleInput,
   InventoryAvailability,
   InventoryRecord,
+  OrderActionAvailability,
   OnlinePaymentMethod,
   OrderRecord,
+  OrderPaymentSummary,
   OrderSource,
   OrderStatus,
   PaymentMethod,
@@ -99,6 +101,8 @@ interface StoreContextType extends StoreState {
   clearCart: () => Promise<StoreActionResult>
   placeOnlineOrder: (input: PlaceOnlineOrderInput) => Promise<StoreActionResult<OrderRecord>>
   createPosSale: (input: CreatePosSaleInput) => Promise<StoreActionResult<OrderRecord>>
+  cancelOwnOrder: (orderId: string) => Promise<StoreActionResult<OrderRecord>>
+  confirmOwnDelivery: (orderId: string) => Promise<StoreActionResult<OrderRecord>>
   updateOrderStatus: (
     orderId: string,
     status: OrderStatus,
@@ -346,6 +350,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       clearCart: () => callStoreAction({ type: 'clearCart' }),
       placeOnlineOrder: (input) => callStoreAction<OrderRecord>({ type: 'placeOnlineOrder', input }),
       createPosSale: (input) => callStoreAction<OrderRecord>({ type: 'createPosSale', input }),
+      cancelOwnOrder: (orderId) => callStoreAction<OrderRecord>({ type: 'cancelOwnOrder', orderId }),
+      confirmOwnDelivery: (orderId) =>
+        callStoreAction<OrderRecord>({ type: 'confirmOwnDelivery', orderId }),
       markOrderPaymentPaid: (orderId, actor, note) =>
         callStoreAction<OrderRecord>({ type: 'markOrderPaymentPaid', orderId, actor, note }),
       updateOrderStatus: (orderId, status, actor, note) =>

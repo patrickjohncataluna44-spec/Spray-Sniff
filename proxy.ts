@@ -20,11 +20,13 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Match only page/API routes. Explicitly skip:
+     * - _next/static  (JS/CSS bundles)
+     * - _next/image   (image optimiser)
+     * - favicon.ico
+     * - sw.js         (service-worker – served from /public)
+     * - public assets (images, icons, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\.js|.*\.(?:jpg|jpeg|png|gif|svg|webp|ico|woff2?|ttf|otf|css|js\.map)).*)',
   ],
 }

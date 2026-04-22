@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         message: result.message,
         data: result.data,
         source: 'supabase',
-        state: getVisibleStoreState(snapshot, actor, nextCart),
+        state: await getVisibleStoreState(snapshot, actor, nextCart),
       })
     }
 
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       message: result.message,
       data: result.data,
       source: 'supabase',
-      state: getVisibleStoreState(nextSnapshot, actor, nextCart),
+      state: await getVisibleStoreState(nextSnapshot, actor, nextCart),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to process the store action.'

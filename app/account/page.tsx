@@ -17,6 +17,10 @@ export default function AccountPage() {
       order.source === 'ONLINE' &&
       order.customerEmail.toLowerCase() === (user?.email ?? '').toLowerCase(),
   )
+  const activeOrders = userOrders.filter(
+    (order) => order.status !== 'Delivered' && order.status !== 'Cancelled',
+  )
+  const cancelledOrders = userOrders.filter((order) => order.status === 'Cancelled')
 
   return (
     <ProtectedRoute requiredRole="USER">
@@ -40,21 +44,19 @@ export default function AccountPage() {
                 </div>
                 <div className="rounded-[1.5rem] bg-muted/30 p-5">
                   <p className="text-sm font-medium text-foreground/55">Active Orders</p>
-                  <p className="mt-2 text-4xl text-foreground">
-                    {userOrders.filter((order) => order.status !== 'Delivered').length}
-                  </p>
+                  <p className="mt-2 text-4xl text-foreground">{activeOrders.length}</p>
                 </div>
                 <div className="rounded-[1.5rem] bg-muted/30 p-5">
-                  <p className="text-sm font-medium text-foreground/55">Delivered</p>
+                  <p className="text-sm font-medium text-foreground/55">Delivered / Cancelled</p>
                   <p className="mt-2 text-4xl text-foreground">
-                    {userOrders.filter((order) => order.status === 'Delivered').length}
+                    {userOrders.filter((order) => order.status === 'Delivered').length} / {cancelledOrders.length}
                   </p>
                 </div>
               </div>
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button className="h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
-                  <Link href="/orders">Track Orders</Link>
+                  <Link href="/orders">Manage Orders</Link>
                 </Button>
                 <Button variant="outline" className="h-11 rounded-2xl border-border/70 bg-white/70 px-6" asChild>
                   <Link href="/shop">Shop More</Link>

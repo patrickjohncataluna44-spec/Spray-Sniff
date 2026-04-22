@@ -3,11 +3,16 @@ import { products, type Product } from '@/lib/products'
 import {
   createSampleState,
   ensureInventoryRecordsForCatalog,
+  getCustomerOrderActionAvailability,
+  getOrderNeedsRefundFollowUp,
   normalizeState,
+  orderBelongsToActor,
   PAYMENT_TEST_PRODUCT_ID,
   type CartItem,
   type InventoryRecord,
+  type OrderActionAvailability,
   type OrderRecord,
+  type OrderPaymentSummary,
   type PosTransaction,
   type StockMovement,
   type StoreActor,
@@ -130,6 +135,15 @@ type PosTransactionRow = {
   items_count: number
 }
 
+type PaymentRecordRow = {
+  order_id: string
+  payment_gateway: string | null
+  payment_channel: string | null
+  reference: string | null
+  checkout_session_id: string | null
+  paid_at: string
+}
+
 type StockMovementRow = {
   id: string
   product_id: string
@@ -153,15 +167,84 @@ export function createPublicStoreState(state: StoreState): StoreState {
   }
 }
 
-export function getVisibleStoreState(
+function createOrderPaymentSummary(
+  order: OrderRecord,
+  paymentRecord?: PaymentRecordRow,
+): OrderPaymentSummary | undefined {
+  const metadata = parseOrderPaymentMetadata(order)
+  const paymentSummary: OrderPaymentSummary = {
+    paymentGateway: paymentRecord?.payment_gateway ?? undefined,
+    paymentChannel: paymentRecord?.payment_channel ?? metadata.paymentChannel ?? undefined,
+    reference: paymentRecord?.reference ?? metadata.reference ?? undefined,
+    checkoutSessionId: paymentRecord?.checkout_session_id ?? metadata.checkoutSessionId ?? undefined,
+    paidAt: paymentRecord?.paid_at ?? undefined,
+  }
+
+  return Object.values(paymentSummary).some((value) => Boolean(value)) ? paymentSummary : undefined
+}
+
+function createDerivedActionAvailability(
+  order: OrderRecord,
+  actor?: StoreActor | null,
+): OrderActionAvailability {
+  if (actor?.role === 'USER') {
+    return getCustomerOrderActionAvailability(order, actor)
+  }
+
+  return {
+    canCancel: false,
+    canConfirmReceived: false,
+    needsRefundFollowUp: getOrderNeedsRefundFollowUp(order),
+  }
+}
+
+function decorateOrder(
+  order: OrderRecord,
+  actor?: StoreActor | null,
+  paymentRecord?: PaymentRecordRow,
+): OrderRecord {
+  return {
+    ...order,
+    paymentSummary: createOrderPaymentSummary(order, paymentRecord),
+    actionAvailability: createDerivedActionAvailability(order, actor),
+  }
+}
+
+async function loadPaymentRecordsByOrderId(orderIds: string[]) {
+  const uniqueOrderIds = [...new Set(orderIds)]
+  if (uniqueOrderIds.length === 0) {
+    return new Map<string, PaymentRecordRow>()
+  }
+
+  const supabase = createSupabaseAdminClient()
+  const { data, error } = await supabase
+    .from('payment_records')
+    .select('order_id, payment_gateway, payment_channel, reference, checkout_session_id, paid_at')
+    .in('order_id', uniqueOrderIds)
+
+  if (error) {
+    throw error
+  }
+
+  return new Map(
+    ((data ?? []) as PaymentRecordRow[]).map((record) => [record.order_id, record]),
+  )
+}
+
+export async function getVisibleStoreState(
   state: StoreState,
   actor?: StoreActor | null,
   cart: CartItem[] = [],
-): StoreState {
+): Promise<StoreState> {
   if (isBackofficeActor(actor)) {
+    const paymentRecordsByOrderId = await loadPaymentRecordsByOrderId(state.orders.map((order) => order.id))
+
     return {
       ...state,
       cart,
+      orders: state.orders.map((order) =>
+        decorateOrder(order, actor, paymentRecordsByOrderId.get(order.id)),
+      ),
     }
   }
 
@@ -170,14 +253,19 @@ export function getVisibleStoreState(
       ? state.orders.filter(
           (order) =>
             order.source === 'ONLINE' &&
-            order.customerEmail.trim().toLowerCase() === actor.email.trim().toLowerCase(),
+            orderBelongsToActor(order, actor),
         )
       : []
+  const paymentRecordsByOrderId = await loadPaymentRecordsByOrderId(
+    customerOrders.map((order) => order.id),
+  )
 
   return {
     ...createPublicStoreState(state),
     cart,
-    orders: customerOrders,
+    orders: customerOrders.map((order) =>
+      decorateOrder(order, actor, paymentRecordsByOrderId.get(order.id)),
+    ),
   }
 }
 

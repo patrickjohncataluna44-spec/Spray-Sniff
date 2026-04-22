@@ -272,3 +272,41 @@ export function isPaymongoCheckoutPaid(session: Awaited<ReturnType<typeof retrie
 
   return paymentStatuses.includes('paid') || intentStatus === 'succeeded'
 }
+
+export interface PaymongoRefundRequest {
+  paymentId: string
+  amount: number
+  reason: 'duplicate' | 'fraudulent' | 'others'
+  notes?: string
+}
+
+export async function createPaymongoRefund(input: PaymongoRefundRequest) {
+  return paymongoRequest<{
+    data: {
+      id: string
+      attributes: {
+        amount: number
+        currency: string
+        status: string
+        reason: string
+        notes?: string
+        payment_id: string
+        created_at: number
+        updated_at: number
+      }
+    }
+  }>('/refunds', {
+    method: 'POST',
+    body: {
+      data: {
+        attributes: {
+          amount: input.amount,
+          payment_id: input.paymentId,
+          reason: input.reason,
+          notes: input.notes ?? 'Refund issued by store admin.',
+        },
+      },
+    },
+  })
+}
+
