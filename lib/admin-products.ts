@@ -5,11 +5,15 @@ import { SITE_NAME } from '@/lib/site'
 export const ADMIN_PRODUCTS_STORAGE_KEY = 'admin-products'
 
 export const PRODUCT_CATEGORIES = [
-  'Eau de Parfum',
-  'Eau de Toilette',
-  'Extrait de Parfum',
-  'Cologne',
-  'Body Mist',
+  'Bath & Body Works',
+  'Victoria\'s Secret',
+  'Katy Perry',
+  'Nicki Minaj',
+  'Britney Spears',
+  'Sarah Jessica Parker',
+  'Kim Kardashian',
+  'Mardussia',
+  'Charlie',
 ] as const
 
 export interface ProductFormValues {

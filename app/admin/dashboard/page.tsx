@@ -76,7 +76,7 @@ export default function AdminDashboard() {
   const fulfillmentQueueCount = orders.filter(
     (order) =>
       order.source === 'ONLINE' &&
-      ['Pending', 'Processing', 'Ready for Dispatch'].includes(order.status),
+      ['Pending', 'Processing', 'Shipped'].includes(order.status),
   ).length
   const todayPosTransactions = posTransactions.filter(
     (transaction) => new Date(transaction.createdAt).toDateString() === todayKey,

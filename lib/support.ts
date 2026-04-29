@@ -97,7 +97,7 @@ const DEFAULT_FAQS: SupportFaq[] = [
     id: 'faq-cancel',
     question: 'When can I cancel my order?',
     answer:
-      'You can cancel your order yourself as long as it is still in Pending or Processing status. Once it moves to Ready for Dispatch or Out for Delivery, cancellation is no longer available through self-service — please contact our support team as soon as possible.',
+      'You can cancel your order yourself as long as it is still in Pending or Processing status. Once it moves to Shipped or Out for Delivery, cancellation is no longer available through self-service — please contact our support team as soon as possible.',
   },
   {
     id: 'faq-refund',

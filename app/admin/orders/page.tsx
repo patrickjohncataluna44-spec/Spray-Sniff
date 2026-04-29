@@ -93,6 +93,19 @@ export default function AdminOrdersPage() {
   const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null)
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null)
 
+  const counts = useMemo(() => {
+    return {
+      all: orders.length,
+      pending: orders.filter((o) => o.status === 'Pending').length,
+      processing: orders.filter((o) => o.status === 'Processing').length,
+      shipped: orders.filter((o) => o.status === 'Shipped').length,
+      delivery: orders.filter((o) => o.status === 'Out for Delivery').length,
+      unpaid: orders.filter((o) => o.paymentStatus === 'Pending' && o.status !== 'Cancelled').length,
+      completed: orders.filter((o) => o.status === 'Completed' || o.status === 'Delivered').length,
+      cancelled: orders.filter((o) => o.status === 'Cancelled').length,
+    }
+  }, [orders])
+
   const filteredOrders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
 
@@ -104,8 +117,16 @@ export default function AdminOrdersPage() {
         order.customerEmail.toLowerCase().includes(query) ||
         order.paymentSummary?.reference?.toLowerCase().includes(query) ||
         order.paymentSummary?.checkoutSessionId?.toLowerCase().includes(query)
-      const matchesStatus =
-        statusFilter === 'All Status' || order.status === statusFilter
+
+      let matchesStatus = true
+      if (statusFilter === 'Pending') matchesStatus = order.status === 'Pending'
+      else if (statusFilter === 'Processing') matchesStatus = order.status === 'Processing'
+      else if (statusFilter === 'Shipped') matchesStatus = order.status === 'Shipped'
+      else if (statusFilter === 'Out for Delivery') matchesStatus = order.status === 'Out for Delivery'
+      else if (statusFilter === 'Unpaid') matchesStatus = order.paymentStatus === 'Pending' && order.status !== 'Cancelled'
+      else if (statusFilter === 'Completed') matchesStatus = order.status === 'Completed' || order.status === 'Delivered'
+      else if (statusFilter === 'Cancelled') matchesStatus = order.status === 'Cancelled'
+
       const matchesChannel =
         channelFilter === 'All Channels' || order.source === channelFilter
       const matchesPayment =
@@ -114,6 +135,17 @@ export default function AdminOrdersPage() {
       return matchesSearch && matchesStatus && matchesChannel && matchesPayment
     })
   }, [channelFilter, orders, paymentFilter, searchQuery, statusFilter])
+
+  const tabs = [
+    { id: 'All Status', label: 'All', count: counts.all },
+    { id: 'Pending', label: 'Pending', count: counts.pending },
+    { id: 'Processing', label: 'Processing', count: counts.processing },
+    { id: 'Shipped', label: 'Shipped', count: counts.shipped },
+    { id: 'Out for Delivery', label: 'Delivery', count: counts.delivery },
+    { id: 'Unpaid', label: 'Unpaid', count: counts.unpaid },
+    { id: 'Completed', label: 'Completed', count: counts.completed },
+    { id: 'Cancelled', label: 'Cancelled', count: counts.cancelled },
+  ]
 
   const handleStatusChange = async (orderId: string, nextStatus: string) => {
     try {
@@ -230,52 +262,71 @@ export default function AdminOrdersPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr] mb-6">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                aria-label="Search orders by order ID, customer, email, reference, or PayMongo session"
-                placeholder="Search by order ID, customer, email, or payment reference..."
-                className="px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-              <select
-                value={statusFilter}
-                aria-label="Filter orders by status"
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                {ALL_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={channelFilter}
-                aria-label="Filter orders by channel"
-                onChange={(event) => setChannelFilter(event.target.value)}
-                className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                  {ALL_CHANNELS.map((channel) => (
-                    <option key={channel} value={channel}>
-                      {channel}
-                    </option>
-                  ))}
-                </select>
-              <select
-                value={paymentFilter}
-                aria-label="Filter orders by payment state"
-                onChange={(event) => setPaymentFilter(event.target.value)}
-                className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                {ALL_PAYMENT_STATES.map((paymentState) => (
-                  <option key={paymentState} value={paymentState}>
-                    {paymentState}
-                  </option>
-                ))}
-              </select>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <div className="mb-8 space-y-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="relative flex-1 max-w-xl">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    aria-label="Search orders by order ID, customer, email, reference, or PayMongo session"
+                    placeholder="Search by order ID, customer, email, or payment reference..."
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <select
+                    value={channelFilter}
+                    aria-label="Filter orders by channel"
+                    onChange={(event) => setChannelFilter(event.target.value)}
+                    className="px-4 py-2 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                  >
+                    {ALL_CHANNELS.map((channel) => (
+                      <option key={channel} value={channel}>
+                        {channel}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={paymentFilter}
+                    aria-label="Filter orders by payment state"
+                    onChange={(event) => setPaymentFilter(event.target.value)}
+                    className="px-4 py-2 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                  >
+                    {ALL_PAYMENT_STATES.map((paymentState) => (
+                      <option key={paymentState} value={paymentState}>
+                        {paymentState}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {tabs.map((tab) => {
+                  const isActive = statusFilter === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setStatusFilter(tab.id)}
+                      className={`flex items-center gap-2.5 shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(var(--primary-rgb),0.25)]'
+                          : 'text-foreground/60 hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      {tab.label}
+                      <span className={`inline-flex items-center justify-center min-w-5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
+                      }`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="bg-card rounded-2xl border border-border overflow-hidden">

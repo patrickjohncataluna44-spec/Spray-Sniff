@@ -114,7 +114,7 @@ function getStatusTone(status: string) {
       return 'border-[#f1c8b6] bg-[#fff2ec] text-[#a65a44]'
     case 'Processing':
       return 'border-[#e9d08f] bg-[#fff7db] text-[#86631e]'
-    case 'Ready for Dispatch':
+    case 'Shipped':
       return 'border-[#eacdb7] bg-[#fff2e8] text-[#8f5f4b]'
     case 'Out for Delivery':
       return 'border-[#e9c18a] bg-[#fff0db] text-[#7b5920]'

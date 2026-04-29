@@ -35,7 +35,7 @@ export const POS_PAYMENT_METHODS = ['Cash', 'Card', 'GCash'] as const
 export const ONLINE_ORDER_STATUSES = [
   'Pending',
   'Processing',
-  'Ready for Dispatch',
+  'Shipped',
   'Out for Delivery',
   'Delivered',
 ] as const
@@ -351,7 +351,7 @@ export function getCustomerOrderActionAvailability(
       case 'Cancelled':
         cancelBlockedReason = 'This order has already been cancelled.'
         break
-      case 'Ready for Dispatch':
+      case 'Shipped':
       case 'Out for Delivery':
         cancelBlockedReason = 'This order is already in dispatch and can no longer be cancelled here.'
         break
@@ -572,7 +572,7 @@ export function createSampleState(catalog: Product[] = products): StoreState {
         { status: 'Pending', createdAt: isoFromNow(-2, -1), note: 'Order placed through the website.' },
         { status: 'Processing', createdAt: isoFromNow(-2), note: 'Store team confirmed stock allocation.' },
         {
-          status: 'Ready for Dispatch',
+          status: 'Shipped',
           createdAt: isoFromNow(-1, -6),
           note: 'Packed and turned over to courier.',
         },
@@ -602,7 +602,7 @@ export function createSampleState(catalog: Product[] = products): StoreState {
         { status: 'Pending', createdAt: isoFromNow(-5, -2), note: 'Order placed through the website.' },
         { status: 'Processing', createdAt: isoFromNow(-5, -1), note: 'Store team confirmed stock allocation.' },
         {
-          status: 'Ready for Dispatch',
+          status: 'Shipped',
           createdAt: isoFromNow(-4, -6),
           note: 'Packed and handed over to courier.',
         },

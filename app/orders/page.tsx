@@ -24,7 +24,7 @@ import { toast } from '@/hooks/use-toast'
 const statusTone: Record<string, string> = {
   Pending: 'bg-[#ffe5de] text-[#b85b48]',
   Processing: 'bg-[#fff0be] text-[#8f6b26]',
-  'Ready for Dispatch': 'bg-[#ffe8d9] text-[#9c624d]',
+  Shipped: 'bg-[#ffe8d9] text-[#9c624d]',
   'Out for Delivery': 'bg-[#ffd6a6] text-[#7d5a1f]',
   Delivered: 'bg-[#e6f4ea] text-[#2f7a4e]',
   Cancelled: 'bg-slate-200 text-slate-700',
@@ -34,7 +34,7 @@ const ORDER_STATUS_FILTERS = [
   'All Orders',
   'Pending',
   'Processing',
-  'Ready for Dispatch',
+  'Shipped',
   'Out for Delivery',
   'Delivered',
   'Cancelled',
