@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useEffectEvent } from '@/hooks/use-effect-event'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { AdminPromotionEditor } from '@/components/admin-promotion-editor'

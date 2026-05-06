@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useEffectEvent } from '@/hooks/use-effect-event'
 import { ArrowLeft, Eye, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProtectedRoute } from '@/components/protected-route'

@@ -90,7 +90,7 @@ function SignUpPageContent() {
 
       if (result.requiresEmailVerification) {
         setVerificationEmail(result.email)
-        setSuccessMessage(`We sent a verification link to ${result.email}. Verify your email before signing in.`)
+        setSuccessMessage(`We sent a verification email to ${result.email}. Verify it first, then sign in.`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')
@@ -151,8 +151,8 @@ function SignUpPageContent() {
                 <div className="rounded-[1.75rem] bg-muted/30 p-5">
                   <p className="text-sm leading-7 text-foreground/68">
                     Open the verification email we sent to{' '}
-                    <span className="font-semibold text-foreground">{verificationEmail}</span>. After confirming your
-                    address, you can sign in normally.
+                    <span className="font-semibold text-foreground">{verificationEmail}</span>. After clicking the
+                    verify button, go to sign in and enter your account details.
                   </p>
                 </div>
 

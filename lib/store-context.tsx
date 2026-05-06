@@ -1,6 +1,7 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffectEvent } from '@/hooks/use-effect-event'
 import { useAuth } from '@/lib/auth-context'
 import type { Product } from '@/lib/products'
 import {

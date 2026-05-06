@@ -84,7 +84,7 @@ export default function Home() {
                 src="/hero-banner.jpg"
                 alt="Luxury perfume collection"
                 fill
-                preload
+                priority
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="object-cover"
               />
@@ -126,39 +126,42 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.88fr_1.12fr]">
-          <div className="storefront-panel relative min-h-[340px] overflow-hidden rounded-[2rem]">
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[3rem] shadow-2xl lg:aspect-square">
             <Image
-              src="/collections/timeless-classics-banner.jpg"
-              alt="Perfume bottles from the Timeless Classics collection"
+              src="/why-choose-us.png"
+              alt="Premium perfume lifestyle"
               fill
-              sizes="(min-width: 1024px) 40vw, 100vw"
-              className="object-cover"
+              className="object-cover transition-transform duration-1000 hover:scale-105"
             />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(45,33,36,0.1),rgba(45,33,36,0.24))]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
           </div>
 
-          <div className="rounded-[2rem] bg-[linear-gradient(180deg,rgba(255,179,153,0.12),rgba(255,240,190,0.34))] p-6 sm:p-8">
-            <p className="storefront-eyebrow">Why Choose Us</p>
-            <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">A Warmer Way To Shop Perfume</h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-foreground/68 sm:text-base">
-              Every section is built around fragrance selection, note storytelling, gifting confidence,
-              and a checkout experience that stays polished from browse to order tracking.
+          <div className="flex flex-col justify-center">
+            <p className="storefront-eyebrow">The Signature Experience</p>
+            <h2 className="mt-5 font-serif text-4xl leading-tight text-foreground sm:text-5xl lg:text-6xl">
+              A Refined Way To Discover Scent
+            </h2>
+            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-foreground/70">
+              We curate more than just fragrances. Each bottle is part of a storytelling ritual, 
+              ensuring your signature scent is as personal as your own story.
             </p>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <div className="mt-12 grid gap-8 sm:grid-cols-2">
               {HOME_BENEFITS.map((benefit) => {
                 const Icon = benefitIcons[benefit.id]
 
                 return (
-                  <article key={benefit.id} className="storefront-panel rounded-[1.5rem] p-5">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,#ffd6a6,#ffb399)] text-foreground">
+                  <div key={benefit.id} className="flex flex-col gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-4 text-2xl text-foreground">{benefit.title}</h3>
-                    <p className="mt-2 text-sm leading-7 text-foreground/64">{benefit.description}</p>
-                  </article>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-foreground">{benefit.title}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-foreground/60">{benefit.description}</p>
+                    </div>
+                  </div>
                 )
               })}
             </div>
@@ -230,13 +233,13 @@ export default function Home() {
           <div className="grid gap-6 lg:grid-cols-3">
             {HOME_JOURNAL_ENTRIES.map((entry) => (
               <article key={entry.title} className="storefront-panel overflow-hidden rounded-[2rem]">
-                <div className="relative h-64">
+                <div className="relative h-64 bg-[radial-gradient(circle_at_30%_25%,rgba(255,214,194,0.14),transparent_24%),linear-gradient(145deg,#3d261e,#5b3427_55%,#2f1c17)]">
                   <Image
                     src={entry.image}
                     alt={entry.imageAlt}
                     fill
                     sizes="(min-width: 1024px) 30vw, 100vw"
-                    className="object-cover"
+                    className="scale-[0.86] object-contain object-center p-4"
                   />
                 </div>
                 <div className="p-6">

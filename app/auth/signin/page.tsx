@@ -25,6 +25,7 @@ function SignInPageContent() {
   const redirectTo = getSafeRedirectPath(searchParams.get('redirectTo'))
   const reason = searchParams.get('reason')
   const verified = searchParams.get('verified')
+  const verificationError = searchParams.get('error')
   const isCheckoutRedirect = reason === 'checkout'
   const isProductRedirect = redirectTo?.startsWith('/products/') ?? false
   const authQuery = new URLSearchParams()
@@ -54,6 +55,13 @@ function SignInPageContent() {
       setInfoMessage('Your email has been verified. You can sign in now.')
     }
   }, [verified])
+
+  useEffect(() => {
+    if (verificationError === 'invalid-verification-link') {
+      setError('That verification link is invalid or expired. Request a new verification email below.')
+      setNeedsVerification(true)
+    }
+  }, [verificationError])
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {

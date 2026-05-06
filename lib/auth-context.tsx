@@ -1,8 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useEffectEvent, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useEffectEvent } from '@/hooks/use-effect-event'
 import { subscribeToUserProfile } from '@/lib/supabase-realtime'
-import { getOptionalPublicBrowserEnv, getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 export type UserRole = 'ADMIN' | 'STAFF' | 'USER'
 
@@ -31,24 +32,6 @@ export interface AuthContextType {
 
 const AUTH_STORAGE_KEY = 'auth-user'
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-function getEmailRedirectTo() {
-  const configuredSiteUrl = getOptionalPublicBrowserEnv('NEXT_PUBLIC_SITE_URL')
-
-  if (configuredSiteUrl) {
-    try {
-      return new URL('/auth/signin?verified=1', configuredSiteUrl).toString()
-    } catch {
-      // Ignore invalid configured URLs and fall back to the current origin.
-    }
-  }
-
-  if (typeof window === 'undefined') {
-    return undefined
-  }
-
-  return new URL('/auth/signin?verified=1', window.location.origin).toString()
-}
 
 function normalizeAuthErrorMessage(error: unknown, fallback: string) {
   if (!(error instanceof Error)) {
@@ -239,23 +222,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = async (email: string, password: string, name: string) => {
     setIsLoading(true)
     try {
-      const supabase = getSupabaseBrowserClient()
       const normalizedEmail = email.trim().toLowerCase()
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          data: { name },
-          emailRedirectTo: getEmailRedirectTo(),
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+          name,
+        }),
       })
 
-      if (error) {
-        throw new Error(normalizeAuthErrorMessage(error, 'Unable to create your account.'))
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Unable to create your account.')
       }
 
       return {
-        requiresEmailVerification: !data.session,
+        requiresEmailVerification: true,
         email: normalizedEmail,
       }
     } finally {
@@ -270,17 +257,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Enter your email address first.')
     }
 
-    const supabase = getSupabaseBrowserClient()
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: normalizedEmail,
-      options: {
-        emailRedirectTo: getEmailRedirectTo(),
+    const response = await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ email: normalizedEmail }),
     })
 
-    if (error) {
-      throw new Error(normalizeAuthErrorMessage(error, 'Unable to resend the verification email.'))
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null
+
+    if (!response.ok) {
+      throw new Error(payload?.error ?? 'Unable to resend the verification email.')
     }
   }
 

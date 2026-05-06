@@ -196,6 +196,9 @@ where email = 'your-email@example.com';
 - The first app load seeds the store snapshot and starter promotions automatically if the tables are empty.
 - Realtime relies on the publication and RLS policies defined in `supabase/schema.sql` and the migration file.
 - Hosted Supabase projects do not read your local `supabase/config.toml` automatically. In the Supabase dashboard, turn on `Confirm email` and configure Custom SMTP with the same Gmail SMTP values.
+- If you use the app-managed Gmail verification flow, leave `Confirm email` on in `Supabase Dashboard -> Authentication -> Providers -> Email` so unverified users cannot sign in before clicking the email button.
+- For Gmail SMTP in Supabase Auth, use `smtp.gmail.com`, port `465`, username = your full Gmail address, and password = your Google App Password.
+- `SMTP_FROM` is for your app/config reference, but Supabase Auth will use the sender configured in the Supabase dashboard Custom SMTP settings.
 - For deployed email verification, set `NEXT_PUBLIC_SITE_URL` to your production domain on Vercel and in your local env when needed.
 - In Supabase Auth URL Configuration, set the Site URL to `https://sprayandsniff.vercel.app` and allow your deployed sign-in redirect URL there as well.
 - If you change `.env` or `.env.local`, restart the Next.js server.
