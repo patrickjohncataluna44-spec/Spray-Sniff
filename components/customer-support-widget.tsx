@@ -19,6 +19,7 @@ import {
   Truck,
   UserRound,
   X,
+  RefreshCw,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
@@ -40,9 +41,10 @@ type OrderSelectionMode = 'details' | 'payment' | 'cancel' | 'confirm' | 'refund
 
 type BaseChatMessage = {
   id: string
-  role: 'bot' | 'customer'
+  role: 'bot' | 'customer' | 'staff' | 'system'
   text: string
   createdAt: string
+  authorName?: string | null
 }
 
 type ChatMessage =
@@ -182,20 +184,36 @@ function getQuickActionIcon(actionId: SupportQuickAction['id']) {
 function MessageAvatar({
   role,
   customerName,
+  authorName,
 }: {
-  role: 'bot' | 'customer'
+  role: 'bot' | 'customer' | 'staff' | 'system'
   customerName?: string | null
+  authorName?: string | null
 }) {
+  if (role === 'system') return null
+
+  if (role === 'staff') {
+    return (
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 overflow-hidden shadow-sm">
+        <img 
+          src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop" 
+          alt={authorName || 'Admin'} 
+          className="h-full w-full object-cover"
+        />
+      </span>
+    )
+  }
+
   if (role === 'bot') {
     return (
-      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#f5d469] bg-[#ffe266] text-[#3c332a] shadow-[0_8px_18px_rgba(164,130,53,0.18)]">
-        <Bot className="h-3.5 w-3.5" />
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-[0_4px_10px_rgba(255,117,140,0.3)]">
+        <Bot className="h-4 w-4" />
       </span>
     )
   }
 
   return (
-    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/65 bg-[linear-gradient(135deg,#ffbaab,#ff928f)] text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(202,108,109,0.18)]">
+    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f4f4f5] to-[#e4e4e7] text-[11px] font-semibold text-[#3f3f46] shadow-sm">
       {getCustomerInitial(customerName)}
     </span>
   )
@@ -264,13 +282,14 @@ export function CustomerSupportWidget() {
     setMessages((currentMessages) => [...currentMessages, message])
   }
 
-  const appendTextMessage = (role: 'bot' | 'customer', text: string) => {
+  const appendTextMessage = (role: 'bot' | 'customer' | 'staff' | 'system', text: string, authorName?: string | null) => {
     appendMessage({
       id: createMessageId(),
       role,
       text,
       kind: 'text',
       createdAt: new Date().toISOString(),
+      authorName,
     })
   }
 
@@ -469,10 +488,35 @@ export function CustomerSupportWidget() {
 
       setActiveCaseId(payload.case.id)
       setComposerMode('reply')
-      appendCaseDetailMessage(
-        `Opening ${payload.case.id}. You can review the thread below and reply when you're ready.`,
-        payload.case,
-      )
+      
+      if (activeCaseId !== payload.case.id) {
+        appendTextMessage(
+          'system',
+          `Opened case ${payload.case.id}. You can review the thread below and reply when you're ready.`
+        )
+      }
+
+      const caseMessages = payload.case.messages
+      if (caseMessages && caseMessages.length > 0) {
+        setMessages((currentMessages) => {
+          const newMessages = [...currentMessages]
+          const existingIds = new Set(newMessages.map(m => m.id))
+          
+          caseMessages.forEach(msg => {
+            if (!existingIds.has(msg.id)) {
+              newMessages.push({
+                id: msg.id,
+                role: msg.authorType === 'bot' ? 'bot' : msg.authorType === 'staff' ? 'staff' : 'customer',
+                text: msg.message,
+                kind: 'text',
+                createdAt: msg.createdAt,
+                authorName: msg.authorName
+              })
+            }
+          })
+          return newMessages
+        })
+      }
     } catch (error) {
       toast({
         title: 'Unable to open case',
@@ -686,7 +730,7 @@ export function CustomerSupportWidget() {
         setActiveCaseId(result.case.id)
         setComposerMode('reply')
         await loadBootstrap()
-        appendCaseDetailMessage(result.message, result.case)
+        appendTextMessage('bot', result.message)
 
         // Show refund timeline reminder after case is created
         const isQrPh =
@@ -768,7 +812,7 @@ export function CustomerSupportWidget() {
         }
 
         setActiveCaseId(payload.case.id)
-        appendCaseDetailMessage('Your reply has been added to the support thread.', payload.case)
+        appendTextMessage('system', 'Your reply has been added to the support thread.')
       } else {
         const result = await callSupportAction({
           action: 'createSupportCase',
@@ -784,7 +828,7 @@ export function CustomerSupportWidget() {
         setActiveCaseId(result.case.id)
         setComposerMode('reply')
         await loadBootstrap()
-        appendCaseDetailMessage(result.message, result.case)
+        appendTextMessage('bot', result.message)
       }
     } catch (error) {
       appendTextMessage(
@@ -806,15 +850,9 @@ export function CustomerSupportWidget() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-3 rounded-full bg-[#3b3431] px-4 py-3 text-left text-white shadow-[0_24px_45px_rgba(63,48,45,0.28)] transition hover:-translate-y-0.5"
+          className="fixed bottom-5 right-5 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-xl transition hover:-translate-y-1 hover:shadow-2xl"
         >
-          <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#ffe266] text-[#3b332c] shadow-[0_10px_20px_rgba(164,130,53,0.24)]">
-            <MessageCircle className="h-5 w-5" />
-          </span>
-          <span className="hidden sm:block">
-            <span className="block text-[11px] uppercase tracking-[0.24em] text-white/52">Customer Support</span>
-            <span className="mt-1 block text-sm font-medium">Chat with Aria</span>
-          </span>
+          <MessageCircle className="h-6 w-6" />
         </button>
       ) : null}
 
@@ -827,45 +865,54 @@ export function CustomerSupportWidget() {
             onClick={() => setOpen(false)}
           />
 
-          <div className="absolute bottom-3 left-3 right-3 top-20 overflow-hidden rounded-[2rem] border border-[#e9ddd4] bg-[linear-gradient(180deg,rgba(122,118,108,0.88),rgba(145,140,131,0.82))] shadow-[0_28px_70px_rgba(73,59,54,0.28)] backdrop-blur-2xl md:bottom-5 md:left-auto md:right-5 md:top-auto md:h-[38rem] md:w-[22rem]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.15),transparent_28%),radial-gradient(circle_at_bottom,rgba(0,0,0,0.08),transparent_40%)]" />
-
-            <div className="relative flex h-full flex-col">
-              <div className="border-b border-white/12 bg-[rgba(78,75,67,0.88)] px-4 py-3 text-white">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ffe266] text-[#3b332c] shadow-[0_8px_16px_rgba(164,130,53,0.24)]">
-                      <Sparkles className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <p className="text-left text-sm font-semibold tracking-[0.01em] text-white">
-                        Aria - Spray & Sniff Assistant
-                      </p>
-                      <p className="mt-0.5 text-left text-xs text-white/62">
-                        Orders, payments, and customer help
-                      </p>
-                    </div>
+          <div className="absolute bottom-3 left-3 right-3 top-20 overflow-hidden rounded-[1.5rem] bg-[#fafafa] shadow-[0_10px_40px_rgba(0,0,0,0.15)] md:bottom-5 md:left-auto md:right-5 md:top-auto md:h-[42rem] md:w-[24rem] flex flex-col border border-slate-200">
+            <div className="bg-gradient-to-r from-[#FF758C] to-[#FF7EB3] px-5 py-4 text-white shrink-0 relative">
+              <div className="absolute inset-0 bg-white/10 opacity-50 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.4),transparent)]" />
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#FF758C] shadow-sm overflow-hidden p-1.5">
+                    <Bot className="h-full w-full" />
+                  </span>
+                  <div>
+                    <h2 className="text-[16px] font-bold tracking-tight text-white">Spray & Sniff</h2>
+                    <p className="text-[12px] text-white/90 font-medium mt-0.5">You can ask me anything</p>
                   </div>
-
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (activeCaseId) {
+                        await loadCaseDetail(activeCaseId)
+                      } else {
+                        await loadBootstrap()
+                      }
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                    aria-label="Refresh chat"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/8 text-white/72 transition hover:bg-white/14 hover:text-white"
-                    aria-label="Close support chat"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                    aria-label="Close"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-
-                <div className="mt-3 flex items-center gap-2 text-[11px] text-white/56">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  <span>
-                    {bootstrap?.isAuthenticated
-                      ? `Secure mode / ${recentOrders.length} online order${recentOrders.length === 1 ? '' : 's'} visible`
-                      : 'Guest mode / Sign in for order visibility'}
-                  </span>
-                </div>
               </div>
+
+              <div className="relative mt-3 flex items-center gap-2 text-[11px] text-white/80 font-medium">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>
+                  {bootstrap?.isAuthenticated
+                    ? `Secure mode / ${recentOrders.length} online order${recentOrders.length === 1 ? '' : 's'}`
+                    : 'Guest mode'}
+                </span>
+              </div>
+            </div>
 
               <ScrollArea className="min-h-0 flex-1 px-3 py-4">
                 <div className="space-y-4 pb-2">
@@ -882,20 +929,36 @@ export function CustomerSupportWidget() {
                   ) : null}
 
                   {messages.map((message) => {
-                    const isBot = message.role === 'bot'
+                    const isBotOrStaff = message.role === 'bot' || message.role === 'staff'
+                    const isSystem = message.role === 'system'
+
+                    if (isSystem) {
+                      return (
+                        <div key={message.id} className="flex justify-center my-4">
+                          <span className="text-[11px] font-medium text-slate-400 bg-slate-100/60 px-4 py-1.5 rounded-full shadow-sm">
+                            {message.text}
+                          </span>
+                        </div>
+                      )
+                    }
 
                     return (
                       <div
                         key={message.id}
-                        className={cn('flex items-end gap-2', isBot ? 'justify-start pr-8' : 'justify-end pl-8')}
+                        className={cn('flex items-end gap-2.5 mb-2', isBotOrStaff ? 'justify-start pr-8' : 'justify-end pl-8')}
                       >
-                        {isBot ? <MessageAvatar role="bot" customerName={user?.name} /> : null}
+                        {isBotOrStaff ? <MessageAvatar role={message.role} customerName={user?.name} authorName={message.authorName} /> : null}
 
-                        <div className={cn('min-w-0 max-w-[82%]', !isBot && 'items-end')}>
+                        <div className={cn('min-w-0 max-w-[85%]', !isBotOrStaff && 'items-end flex flex-col')}>
+                          {isBotOrStaff && message.authorName && message.role === 'staff' ? (
+                             <p className="text-[10px] font-medium text-slate-500 mb-1 ml-1">{message.authorName}</p>
+                          ) : null}
                           <div
                             className={cn(
-                              'rounded-[1.15rem] bg-white px-3 py-2.5 text-[13px] leading-5 text-[#2f2b29] shadow-[0_10px_22px_rgba(63,52,49,0.12)]',
-                              isBot ? 'rounded-bl-sm' : 'rounded-br-sm',
+                              'px-4 py-3 text-[14px] leading-relaxed shadow-sm',
+                              isBotOrStaff 
+                                ? 'rounded-[1.25rem] rounded-bl-[0.25rem] bg-white text-slate-800 border border-slate-100' 
+                                : 'rounded-[1.25rem] rounded-br-[0.25rem] bg-[#FF758C] text-white'
                             )}
                           >
                             <p className="whitespace-pre-line">{message.text}</p>
@@ -1108,50 +1171,31 @@ export function CustomerSupportWidget() {
                                   </div>
                                 ) : null}
 
-                                {message.supportCase.messages?.length ? (
-                                  <div className="mt-3 space-y-2">
-                                    {message.supportCase.messages.slice(-3).map((threadMessage) => (
-                                      <div key={threadMessage.id} className="rounded-[0.9rem] bg-white px-3 py-2.5">
-                                        <div className="flex items-center justify-between gap-3">
-                                          <p className="text-[12px] font-semibold text-[#2d2a27]">
-                                            {threadMessage.authorName}
-                                          </p>
-                                          <p className="text-[10px] text-[#8a7d78]">
-                                            {new Date(threadMessage.createdAt).toLocaleDateString()}
-                                          </p>
-                                        </div>
-                                        <p className="mt-1 text-[12px] leading-5 text-[#6d615e]">
-                                          {threadMessage.message}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : null}
                               </div>
                             ) : null}
                           </div>
 
-                          <p className={cn('mt-1 text-[10px] text-white/70', isBot ? 'pl-1' : 'pr-1 text-right')}>
+                          <p className={cn('mt-1 text-[10px] text-slate-400', isBotOrStaff ? 'pl-1' : 'pr-1 text-right')}>
                             {formatBubbleTime(message.createdAt)}
                           </p>
                         </div>
 
-                        {!isBot ? <MessageAvatar role="customer" customerName={user?.name} /> : null}
+                        {!isBotOrStaff && message.role === 'customer' ? <MessageAvatar role="customer" customerName={user?.name} /> : null}
                       </div>
                     )
                   })}
                 </div>
               </ScrollArea>
 
-              <div className="border-t border-white/12 bg-[rgba(243,240,235,0.92)] px-3 pb-3 pt-2">
+              <div className="border-t border-slate-200 bg-white px-4 pb-4 pt-3 shrink-0">
                 {showPrompts ? (
-                  <div className="mb-2.5 flex flex-wrap gap-2">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     {promptChips.map((chip) => (
                       <button
                         key={chip.id}
                         type="button"
                         onClick={() => void handlePromptChip(chip)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[#ddd3cb] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#5b5552] transition hover:bg-[#f8f4ef]"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#FF758C]/30 bg-white px-3 py-1.5 text-[12px] font-medium text-[#FF758C] transition hover:bg-[#FF758C]/5"
                       >
                         {chip.actionId ? getQuickActionIcon(chip.actionId) : <Sparkles className="h-3.5 w-3.5" />}
                         {chip.label}
@@ -1160,54 +1204,55 @@ export function CustomerSupportWidget() {
                   </div>
                 ) : null}
 
-                <div className="rounded-full border border-[#ded5cd] bg-white px-2 py-2 shadow-[0_10px_18px_rgba(74,63,59,0.08)]">
-                  <div className="flex items-end gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-inner flex items-center transition-colors focus-within:bg-white focus-within:border-[#FF758C]/50 focus-within:ring-1 focus-within:ring-[#FF758C]/50">
                     <button
                       type="button"
                       onClick={() => setShowPrompts((currentValue) => !currentValue)}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#6a625f] transition hover:bg-[#f6f2ed]"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-200/50 hover:text-slate-600"
                       aria-label="Toggle support shortcuts"
                     >
                       <Paperclip className="h-4 w-4" />
                     </button>
 
-                    <div className="min-w-0 flex-1">
-                      <Textarea
+                    <div className="min-w-0 flex-1 px-1">
+                      <input
+                        type="text"
                         value={draftMessage}
                         onChange={(event) => setDraftMessage(event.target.value)}
                         onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
+                          if (event.key === 'Enter') {
                             event.preventDefault()
                             void handleComposerSubmit()
                           }
                         }}
                         placeholder={composerPlaceholder}
                         disabled={composerLocked}
-                        className="min-h-0 border-0 bg-transparent px-0 py-1 text-sm leading-5 shadow-none focus-visible:ring-0"
+                        className="w-full bg-transparent border-0 text-[14px] leading-relaxed shadow-none focus-visible:ring-0 px-1 py-1.5 outline-none disabled:opacity-50"
                       />
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => void handleComposerSubmit()}
-                      disabled={
-                        composerLocked ||
-                        pendingAction === 'composer' ||
-                        draftMessage.trim().length === 0
-                      }
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1d4055] text-white transition hover:bg-[#285068] disabled:opacity-60"
-                      aria-label="Send support message"
-                    >
-                      {pendingAction === 'composer' ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <SendHorizonal className="h-4 w-4" />
-                      )}
-                    </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleComposerSubmit()}
+                    disabled={
+                      composerLocked ||
+                      pendingAction === 'composer' ||
+                      draftMessage.trim().length === 0
+                    }
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:hover:translate-y-0"
+                    aria-label="Send support message"
+                  >
+                    {pendingAction === 'composer' ? (
+                      <LoaderCircle className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <SendHorizonal className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
 
-                <div className="mt-2 flex items-center justify-between gap-3 px-1 text-[10px] text-[#6b625f]">
+                <div className="mt-3 flex items-center justify-between px-1 text-[11px] text-slate-400">
                   <span>{composerCaption}</span>
                   <span>
                     {bootstrap?.isAuthenticated
@@ -1216,7 +1261,6 @@ export function CustomerSupportWidget() {
                   </span>
                 </div>
               </div>
-            </div>
           </div>
         </div>
       ) : null}
