@@ -1,14 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
+import { sendPaymongoReceiptEmail } from '@/lib/mailer'
 import { getRequestActor } from '@/lib/server-auth'
 import {
+  createPublicStoreState,
   getVisibleStoreState,
   loadStoreStateForActor,
+  loadStoreSnapshot,
   loadUserCart,
   saveStoreSnapshot,
   saveUserCart,
 } from '@/lib/store-persistence'
 import {
   performStoreAction,
+  type OrderRecord,
   type StoreAction,
 } from '@/lib/store-engine'
 
@@ -27,6 +31,36 @@ const CART_ONLY_ACTIONS = new Set<StoreAction['type']>([
   'clearCart',
 ])
 
+const FULL_SNAPSHOT_ACTIONS = new Set<StoreAction['type']>([
+  'placeOnlineOrder',
+  'createPosSale',
+  'cancelOwnOrder',
+  'confirmOwnDelivery',
+  'markOrderPaymentPaid',
+  'updateOrderStatus',
+  'addCatalogProduct',
+  'updateCatalogProduct',
+  'removeCatalogProduct',
+  'updateInventory',
+  'adjustInventory',
+  'archiveInventoryItem',
+  'restoreInventoryItem',
+])
+
+function schedulePaymongoReceiptEmail(order: OrderRecord) {
+  after(async () => {
+    try {
+      await sendPaymongoReceiptEmail({ order })
+    } catch (error) {
+      console.error('Failed to send PayMongo receipt email', {
+        orderId: order.id,
+        customerEmail: order.customerEmail,
+        error: error instanceof Error ? error.message : error,
+      })
+    }
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const actor = await getRequestActor(request)
@@ -37,9 +71,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A valid store action is required.' }, { status: 400 })
     }
 
+    const snapshotLoader = FULL_SNAPSHOT_ACTIONS.has(action.type)
+      ? loadStoreSnapshot()
+      : loadStoreStateForActor(actor)
+
     const [snapshot, cart] = actor && CART_ACTIONS.has(action.type)
-      ? await Promise.all([loadStoreStateForActor(actor), loadUserCart(actor.id)])
-      : await Promise.all([loadStoreStateForActor(actor), Promise.resolve([])])
+      ? await Promise.all([snapshotLoader, loadUserCart(actor.id)])
+      : await Promise.all([snapshotLoader, Promise.resolve([])])
     const workingState = {
       ...snapshot,
       cart: CART_ACTIONS.has(action.type) ? cart : snapshot.cart,
@@ -59,17 +97,22 @@ export async function POST(request: NextRequest) {
 
     const nextCart = CART_ACTIONS.has(action.type) ? nextState.cart : cart
 
-    if (actor && CART_ACTIONS.has(action.type)) {
-      await saveUserCart(actor.id, nextCart)
-    }
-
     if (CART_ONLY_ACTIONS.has(action.type)) {
+      if (actor && CART_ACTIONS.has(action.type)) {
+        await saveUserCart(actor.id, nextCart)
+      }
+
+      const visibleCartState =
+        actor?.role === 'USER'
+          ? { ...snapshot, cart: nextCart }
+          : { ...createPublicStoreState(snapshot), cart: nextCart }
+
       return NextResponse.json({
         ok: true,
         message: result.message,
         data: result.data,
         source: 'supabase',
-        state: await getVisibleStoreState(snapshot, actor, nextCart),
+        state: visibleCartState,
       })
     }
 
@@ -77,6 +120,27 @@ export async function POST(request: NextRequest) {
       ...nextState,
       cart: [],
     })
+
+    if (actor && CART_ACTIONS.has(action.type)) {
+      await saveUserCart(actor.id, nextCart)
+    }
+
+    if (action.type === 'placeOnlineOrder') {
+      const createdOrderId = typeof result.data?.id === 'string' ? result.data.id : null
+      const persistedOrder =
+        createdOrderId
+          ? nextSnapshot.orders.find((order) => order.id === createdOrderId)
+          : undefined
+
+      if (
+        persistedOrder &&
+        persistedOrder.source === 'ONLINE' &&
+        persistedOrder.paymentMethod === 'PayMongo' &&
+        persistedOrder.paymentStatus === 'Paid'
+      ) {
+        schedulePaymongoReceiptEmail(persistedOrder)
+      }
+    }
 
     return NextResponse.json({
       ok: true,

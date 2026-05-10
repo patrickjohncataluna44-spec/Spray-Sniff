@@ -1,8 +1,11 @@
+import { SITE_NAME } from '@/lib/site'
+
 const PAYMONGO_API_BASE_URL = 'https://api.paymongo.com/v1'
 const PAYMONGO_GCASH_METHOD = 'gcash'
 const PAYMONGO_QRPH_METHOD = 'qrph'
 // Prefer QR Ph when it is available, then fall back to GCash.
 const PAYMONGO_SUPPORTED_CHECKOUT_METHODS = [PAYMONGO_QRPH_METHOD, PAYMONGO_GCASH_METHOD] as const
+export const PAYMONGO_ORDER_CHECKOUT_DESCRIPTION = `${SITE_NAME} order checkout`
 
 export type PaymongoHostedCheckoutMethod = (typeof PAYMONGO_SUPPORTED_CHECKOUT_METHODS)[number]
 export type PaymongoEnvironment = 'live' | 'test'
@@ -214,7 +217,7 @@ export async function createPaymongoCheckoutSession(input: PaymongoCheckoutSessi
             images: item.images,
           })),
           payment_method_types: [checkoutMethod.paymentMethodType],
-          send_email_receipt: true,
+          send_email_receipt: false,
           show_description: true,
           show_line_items: true,
           success_url: input.successUrl,
@@ -309,4 +312,3 @@ export async function createPaymongoRefund(input: PaymongoRefundRequest) {
     },
   })
 }
-

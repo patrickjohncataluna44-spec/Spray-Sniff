@@ -803,16 +803,33 @@ export function normalizeState(storedState: Partial<StoreState> | null, currentC
 
   const seedState = createSampleState(catalogSource)
   const inventory = ensureInventoryRecords(catalogSource, storedState?.inventory ?? seedState.inventory)
+  const orders =
+    storedState?.orders && storedState.orders.length > 0 ? storedState.orders : seedState.orders
+  const posTransactions =
+    storedState?.posTransactions && storedState.posTransactions.length > 0
+      ? storedState.posTransactions
+      : seedState.posTransactions
+  const ordersById = new Map(orders.map((order) => [order.id, order]))
+
+  posTransactions.forEach((transaction) => {
+    if (ordersById.has(transaction.orderId)) {
+      return
+    }
+
+    const seededOrder = seedState.orders.find((order) => order.id === transaction.orderId)
+    if (seededOrder) {
+      ordersById.set(seededOrder.id, seededOrder)
+    }
+  })
 
   return {
     catalog: syncCatalogStock(catalogSource, inventory),
     inventory,
     cart: normalizeCart(storedState?.cart, catalogSource),
-    orders: storedState?.orders && storedState.orders.length > 0 ? storedState.orders : seedState.orders,
-    posTransactions:
-      storedState?.posTransactions && storedState.posTransactions.length > 0
-        ? storedState.posTransactions
-        : seedState.posTransactions,
+    orders: [...ordersById.values()].sort(
+      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    ),
+    posTransactions,
     stockMovements:
       storedState?.stockMovements && storedState.stockMovements.length > 0
         ? storedState.stockMovements

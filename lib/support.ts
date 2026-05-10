@@ -3,6 +3,7 @@ import 'server-only'
 import { randomUUID } from 'crypto'
 import {
   getVisibleStoreState,
+  loadStoreSnapshot,
   loadStoreStateForActor,
   saveStoreSnapshot,
 } from '@/lib/store-persistence'
@@ -699,7 +700,7 @@ export async function runSupportAction(
 
     case 'cancelOwnOrder':
     case 'confirmOwnDelivery': {
-      const snapshot = await loadStoreStateForActor(actor)
+      const snapshot = await loadStoreSnapshot()
       const storeAction =
         request.action === 'cancelOwnOrder'
           ? { type: 'cancelOwnOrder' as const, orderId: request.orderId }

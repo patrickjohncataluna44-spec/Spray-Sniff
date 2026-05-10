@@ -183,10 +183,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setWishlistIds(Array.isArray(payload.wishlistIds) ? payload.wishlistIds : [])
       setLastSyncedAt(new Date().toISOString())
     } catch {
-      if (!background) {
-        setState(createSampleState())
-        setWishlistIds([])
-      }
+      // Keep the last known store state instead of wiping the cart on a transient bootstrap failure.
     } finally {
       refreshInFlightRef.current = false
 

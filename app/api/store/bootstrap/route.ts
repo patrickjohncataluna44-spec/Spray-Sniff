@@ -18,9 +18,17 @@ export async function GET(request: NextRequest) {
         ])
       : await Promise.all([loadStoreStateForActor(actor), Promise.resolve([]), Promise.resolve([])])
 
+    const state =
+      actor?.role === 'ADMIN' || actor?.role === 'STAFF'
+        ? await getVisibleStoreState(snapshot, actor, cart)
+        : {
+            ...snapshot,
+            cart,
+          }
+
     return NextResponse.json({
       source: 'supabase',
-      state: await getVisibleStoreState(snapshot, actor, cart),
+      state,
       wishlistIds,
     })
   } catch (error) {

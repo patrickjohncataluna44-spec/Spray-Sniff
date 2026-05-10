@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import {
   assertPaymongoConfigured,
+  PAYMONGO_ORDER_CHECKOUT_DESCRIPTION,
   createPaymongoCheckoutSession,
 } from '@/lib/paymongo'
 
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     const payload = await createPaymongoCheckoutSession({
       customerEmail,
       customerName,
-      description: 'SPRAY & SNIFF order checkout',
+      description: PAYMONGO_ORDER_CHECKOUT_DESCRIPTION,
       lineItems,
       successUrl: `${getBaseUrl(request)}/checkout?paymongo=success`,
       metadata: {

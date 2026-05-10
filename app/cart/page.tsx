@@ -6,6 +6,7 @@ import { Trash2 } from 'lucide-react'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
@@ -21,6 +22,7 @@ export default function CartPage() {
     getAvailableStock,
     getInventoryRecord,
     getProductById,
+    isStoreLoading,
     removeFromCart,
     updateCartQuantity,
   } = useStore()
@@ -49,6 +51,21 @@ export default function CartPage() {
         variant: 'destructive',
       })
     }
+  }
+
+  if (authLoading || isStoreLoading) {
+    return (
+      <StorefrontShell>
+        <section className="px-4 py-20 sm:px-6 lg:px-8">
+          <div className="mx-auto flex min-h-[36vh] max-w-3xl items-center justify-center">
+            <div className="flex items-center gap-3 text-foreground/70">
+              <Spinner className="h-5 w-5" />
+              <p>{authLoading ? 'Checking your account...' : 'Loading your cart...'}</p>
+            </div>
+          </div>
+        </section>
+      </StorefrontShell>
+    )
   }
 
   if (cart.length === 0) {

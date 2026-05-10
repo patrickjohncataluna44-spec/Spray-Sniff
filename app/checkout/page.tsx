@@ -40,7 +40,7 @@ function getCheckoutPaymentLabel(method: string) {
 function CheckoutContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { cart, getAvailableStock, getInventoryRecord, getProductById, placeOnlineOrder } = useStore()
+  const { cart, getAvailableStock, getInventoryRecord, getProductById, isStoreLoading, placeOnlineOrder } = useStore()
   const { user, isAuthenticated, canAccessBackoffice, isLoading: authLoading } = useAuth()
   const [step, setStep] = useState(0)
   const [orderPlaced, setOrderPlaced] = useState(false)
@@ -48,6 +48,7 @@ function CheckoutContent() {
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false)
   const paymentVerificationStarted = useRef(false)
+  const checkoutSubmissionLock = useRef(false)
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -131,6 +132,21 @@ function CheckoutContent() {
     `${formData.address}, ${formData.city}, ${formData.state} ${formData.zip}, ${formData.country}`
 
   const buildFullName = () => `${formData.firstName} ${formData.lastName}`.trim()
+
+  const beginCheckoutSubmission = () => {
+    if (checkoutSubmissionLock.current) {
+      return false
+    }
+
+    checkoutSubmissionLock.current = true
+    setIsSubmittingPayment(true)
+    return true
+  }
+
+  const endCheckoutSubmission = () => {
+    checkoutSubmissionLock.current = false
+    setIsSubmittingPayment(false)
+  }
 
   const storePendingPaymongoCheckout = (checkout: PendingPaymongoCheckout) => {
     if (typeof window === 'undefined') {
@@ -274,13 +290,15 @@ function CheckoutContent() {
       return
     }
 
+    if (!beginCheckoutSubmission()) {
+      return
+    }
+
     const shippingAddress = buildShippingAddress()
     const fullName = buildFullName()
 
-    if (isPaymongoCheckoutMethod(formData.paymentMethod)) {
-      try {
-        setIsSubmittingPayment(true)
-
+    try {
+      if (isPaymongoCheckoutMethod(formData.paymentMethod)) {
         const response = await fetch('/api/paymongo/checkout', {
           method: 'POST',
           headers: {
@@ -348,47 +366,48 @@ function CheckoutContent() {
 
         window.location.href = payload.checkoutUrl
         return
-      } catch (error) {
+      }
+
+      const result = await placeOnlineOrder({
+        customerEmail: user.email,
+        customerName: fullName,
+        notes: [formData.reference, formData.notes].filter(Boolean).join(' | '),
+        paymentMethod: formData.paymentMethod as (typeof ONLINE_PAYMENT_METHODS)[number],
+        shippingAddress,
+      })
+
+      if (!result.ok || !result.data) {
         toast({
-          title: 'PayMongo checkout failed',
-          description:
-            error instanceof Error
-              ? error.message
-              : 'We could not open the PayMongo checkout.',
+          title: 'Checkout failed',
+          description: result.message,
           variant: 'destructive',
         })
         return
-      } finally {
-        setIsSubmittingPayment(false)
       }
-    }
 
-    const result = await placeOnlineOrder({
-      customerEmail: user.email,
-      customerName: fullName,
-      notes: [formData.reference, formData.notes].filter(Boolean).join(' | '),
-      paymentMethod: formData.paymentMethod as (typeof ONLINE_PAYMENT_METHODS)[number],
-      shippingAddress,
-    })
-
-    if (!result.ok || !result.data) {
+      setOrderNumber(result.data.id)
+      setOrderPlaced(true)
       toast({
-        title: 'Checkout failed',
-        description: result.message,
+        title: 'Order placed',
+        description: `${result.data.id} is now in processing.`,
+      })
+    } catch (error) {
+      toast({
+        title: isPaymongoCheckoutMethod(formData.paymentMethod) ? 'PayMongo checkout failed' : 'Checkout failed',
+        description:
+          error instanceof Error
+            ? error.message
+            : isPaymongoCheckoutMethod(formData.paymentMethod)
+              ? 'We could not open the PayMongo checkout.'
+              : 'We could not place your order.',
         variant: 'destructive',
       })
-      return
+    } finally {
+      endCheckoutSubmission()
     }
-
-    setOrderNumber(result.data.id)
-    setOrderPlaced(true)
-    toast({
-      title: 'Order placed',
-      description: `${result.data.id} is now in processing.`,
-    })
   }
 
-  if (authLoading || !isAuthenticated || !user || user.role !== 'USER' || isVerifyingPayment) {
+  if (authLoading || isStoreLoading || !isAuthenticated || !user || user.role !== 'USER' || isVerifyingPayment) {
     return (
       <StorefrontShell>
         <div className="flex min-h-[42vh] items-center justify-center px-4">
@@ -399,7 +418,9 @@ function CheckoutContent() {
                 ? 'Verifying your PayMongo payment...'
                 : authLoading
                   ? 'Checking your account...'
-                  : 'Redirecting to sign in...'}
+                  : isStoreLoading
+                    ? 'Loading your checkout...'
+                    : 'Redirecting to sign in...'}
             </p>
           </div>
         </div>
@@ -710,6 +731,7 @@ function CheckoutContent() {
                     type="button"
                     variant="outline"
                     className="h-11 rounded-2xl border-border/70 bg-white/70"
+                    disabled={isSubmittingPayment}
                     onClick={() => setStep((current) => current - 1)}
                   >
                     Back
@@ -724,7 +746,7 @@ function CheckoutContent() {
                     isSubmittingPayment ? (
                       <span className="inline-flex items-center gap-2">
                         <Spinner className="h-4 w-4" />
-                        Opening PayMongo...
+                        {isPaymongoCheckoutMethod(formData.paymentMethod) ? 'Opening PayMongo...' : 'Placing Order...'}
                       </span>
                     ) : isPaymongoCheckoutMethod(formData.paymentMethod) ? (
                       <span className="inline-flex items-center gap-2">

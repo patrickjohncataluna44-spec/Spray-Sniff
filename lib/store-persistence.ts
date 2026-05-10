@@ -21,6 +21,13 @@ import {
 import { createSupabaseAdminClient } from '@/lib/supabase-server'
 
 const DEFAULT_STORE_ID = 'default'
+const STORE_SEED_CACHE_TTL_MS = 5 * 60 * 1000
+const PUBLIC_SNAPSHOT_CACHE_TTL_MS = 10 * 1000
+
+let storeSeedCacheExpiresAt = 0
+let storeSeedInFlight: Promise<void> | null = null
+let publicStoreSnapshotCacheExpiresAt = 0
+let publicStoreSnapshotCache: StoreState | null = null
 
 interface EnsureSupabaseStoreSeededOptions {
   syncNormalizedTables?: boolean
@@ -167,6 +174,22 @@ export function createPublicStoreState(state: StoreState): StoreState {
   }
 }
 
+function cachePublicStoreSnapshot(state: StoreState) {
+  publicStoreSnapshotCache = {
+    ...state,
+    cart: [],
+    orders: [],
+    posTransactions: [],
+    stockMovements: [],
+  }
+  publicStoreSnapshotCacheExpiresAt = Date.now() + PUBLIC_SNAPSHOT_CACHE_TTL_MS
+}
+
+function clearPublicStoreSnapshotCache() {
+  publicStoreSnapshotCache = null
+  publicStoreSnapshotCacheExpiresAt = 0
+}
+
 function createOrderPaymentSummary(
   order: OrderRecord,
   paymentRecord?: PaymentRecordRow,
@@ -271,11 +294,14 @@ export async function getVisibleStoreState(
 
 async function syncPublicStoreSnapshot(state: StoreState) {
   const supabase = createSupabaseAdminClient()
+  const publicState = createPublicStoreState(state)
 
   await supabase.from('public_store_snapshots').upsert({
     id: DEFAULT_STORE_ID,
-    state: createPublicStoreState(state),
+    state: publicState,
   })
+
+  cachePublicStoreSnapshot(publicState)
 }
 
 function getOrderUpdatedAt(order: OrderRecord) {
@@ -731,6 +757,19 @@ export async function ensureSupabaseStoreSeeded(
   options: EnsureSupabaseStoreSeededOptions = {},
 ) {
   const { syncNormalizedTables = false } = options
+
+  if (!syncNormalizedTables && Date.now() < storeSeedCacheExpiresAt) {
+    return
+  }
+
+  if (storeSeedInFlight) {
+    await storeSeedInFlight
+    if (!syncNormalizedTables && Date.now() < storeSeedCacheExpiresAt) {
+      return
+    }
+  }
+
+  const seedOperation = (async () => {
   const supabase = createSupabaseAdminClient()
   let fullState: StoreState
   let shouldUpsertSnapshot = false
@@ -838,6 +877,18 @@ export async function ensureSupabaseStoreSeeded(
       cart: [],
     })
   }
+  })()
+
+  storeSeedInFlight = seedOperation
+
+  try {
+    await seedOperation
+    storeSeedCacheExpiresAt = Date.now() + STORE_SEED_CACHE_TTL_MS
+  } finally {
+    if (storeSeedInFlight === seedOperation) {
+      storeSeedInFlight = null
+    }
+  }
 }
 
 export async function loadStoreSnapshot() {
@@ -853,17 +904,153 @@ export async function loadStoreSnapshot() {
   return normalizeState((data?.state as Partial<StoreState> | null) ?? null)
 }
 
+export async function loadPublicStoreSnapshot() {
+  if (publicStoreSnapshotCache && Date.now() < publicStoreSnapshotCacheExpiresAt) {
+    return publicStoreSnapshotCache
+  }
+
+  await ensureSupabaseStoreSeeded()
+
+  const supabase = createSupabaseAdminClient()
+  const { data } = await supabase
+    .from('public_store_snapshots')
+    .select('state')
+    .eq('id', DEFAULT_STORE_ID)
+    .single()
+
+  const state = normalizeState((data?.state as Partial<StoreState> | null) ?? null)
+
+  const publicState = {
+    ...state,
+    cart: [],
+    orders: [],
+    posTransactions: [],
+    stockMovements: [],
+  } satisfies StoreState
+
+  cachePublicStoreSnapshot(publicState)
+
+  return publicState
+}
+
+async function loadOrdersForCustomer(actor: StoreActor) {
+  const supabase = createSupabaseAdminClient()
+  const { data: orderRows, error: ordersError } = await supabase
+    .from('store_orders')
+    .select(
+      'id, source, customer_id, customer_name, customer_email, status, payment_method, payment_status, created_at, subtotal, tax, shipping, total, shipping_address, notes',
+    )
+    .eq('source', 'ONLINE')
+    .eq('customer_id', actor.id)
+
+  if (ordersError) throw ordersError
+
+  const customerOrderIds = new Set(((orderRows ?? []) as StoreOrderRow[]).map((row) => row.id))
+  if (customerOrderIds.size === 0) {
+    return []
+  }
+
+  const [
+    { data: orderItemRows, error: orderItemsError },
+    { data: orderTimelineRows, error: timelineError },
+  ] = await Promise.all([
+    supabase
+      .from('store_order_items')
+      .select('order_id, product_id, product_name, size_ml, quantity, unit_price')
+      .in('order_id', [...customerOrderIds]),
+    supabase
+      .from('order_timeline_entries')
+      .select('order_id, status, created_at, note')
+      .in('order_id', [...customerOrderIds]),
+  ])
+
+  if (orderItemsError) throw orderItemsError
+  if (timelineError) throw timelineError
+
+  const orderItemsByOrderId = new Map<string, OrderRecord['items']>()
+  for (const row of (orderItemRows ?? []) as StoreOrderItemRow[]) {
+    const items = orderItemsByOrderId.get(row.order_id) ?? []
+    items.push({
+      productId: row.product_id,
+      productName: row.product_name,
+      size: Number(row.size_ml),
+      quantity: Number(row.quantity),
+      unitPrice: Number(row.unit_price),
+    })
+    orderItemsByOrderId.set(row.order_id, items)
+  }
+
+  const timelineByOrderId = new Map<string, OrderRecord['timeline']>()
+  for (const row of (orderTimelineRows ?? []) as OrderTimelineEntryRow[]) {
+    const timeline = timelineByOrderId.get(row.order_id) ?? []
+    timeline.push({
+      status: row.status,
+      createdAt: row.created_at,
+      note: row.note,
+    })
+    timelineByOrderId.set(row.order_id, timeline)
+  }
+
+  const paymentRecordsByOrderId = await loadPaymentRecordsByOrderId([...customerOrderIds])
+
+  return ((orderRows ?? []) as StoreOrderRow[])
+    .map((row) =>
+      decorateOrder(
+        {
+          id: row.id,
+          source: row.source,
+          customerId: row.customer_id,
+          customerName: row.customer_name,
+          customerEmail: row.customer_email,
+          status: row.status,
+          paymentMethod: row.payment_method,
+          paymentStatus: row.payment_status,
+          createdAt: row.created_at,
+          subtotal: Number(row.subtotal),
+          tax: Number(row.tax),
+          shipping: Number(row.shipping),
+          total: Number(row.total),
+          shippingAddress: row.shipping_address ?? undefined,
+          notes: row.notes ?? undefined,
+          items: (orderItemsByOrderId.get(row.id) ?? []).sort((left, right) =>
+            left.productName.localeCompare(right.productName),
+          ),
+          timeline: (timelineByOrderId.get(row.id) ?? []).sort(
+            (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+          ),
+        },
+        actor,
+        paymentRecordsByOrderId.get(row.id),
+      ),
+    )
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+}
+
 export async function loadStoreStateForActor(actor?: StoreActor | null) {
   if (isBackofficeActor(actor)) {
     return loadBackofficeStoreState()
   }
 
-  return loadStoreSnapshot()
+  if (actor?.role === 'USER') {
+    const [publicState, customerOrders] = await Promise.all([
+      loadPublicStoreSnapshot(),
+      loadOrdersForCustomer(actor),
+    ])
+
+    return {
+      ...publicState,
+      orders: customerOrders,
+    }
+  }
+
+  return loadPublicStoreSnapshot()
 }
 
 export async function saveStoreSnapshot(state: StoreState) {
   const supabase = createSupabaseAdminClient()
   const normalized = normalizeState({ ...state, cart: [] })
+
+  clearPublicStoreSnapshotCache()
 
   await supabase.from('app_store_snapshots').upsert({
     id: DEFAULT_STORE_ID,
