@@ -1,13 +1,12 @@
 import { seedPromotions, type StoredPromotion } from '@/lib/admin-promotions'
-import { products, type Product } from '@/lib/products'
+import type { Product } from '@/lib/products'
+import { ADMIN_EMAIL, ADMIN_PASSWORD } from '@/lib/site'
 import {
   createSampleState,
-  ensureInventoryRecordsForCatalog,
   getCustomerOrderActionAvailability,
   getOrderNeedsRefundFollowUp,
   normalizeState,
   orderBelongsToActor,
-  PAYMENT_TEST_PRODUCT_ID,
   type CartItem,
   type InventoryRecord,
   type OrderActionAvailability,
@@ -23,38 +22,110 @@ import { createSupabaseAdminClient } from '@/lib/supabase-server'
 const DEFAULT_STORE_ID = 'default'
 const STORE_SEED_CACHE_TTL_MS = 5 * 60 * 1000
 const PUBLIC_SNAPSHOT_CACHE_TTL_MS = 10 * 1000
+const ADMIN_ACCOUNT_CACHE_TTL_MS = 30 * 60 * 1000
 
 let storeSeedCacheExpiresAt = 0
 let storeSeedInFlight: Promise<void> | null = null
 let publicStoreSnapshotCacheExpiresAt = 0
 let publicStoreSnapshotCache: StoreState | null = null
+let defaultAdminCacheExpiresAt = 0
+let defaultAdminInFlight: Promise<void> | null = null
 
 interface EnsureSupabaseStoreSeededOptions {
   syncNormalizedTables?: boolean
 }
 
-function isBackofficeActor(actor?: StoreActor | null) {
-  return actor?.role === 'ADMIN' || actor?.role === 'STAFF'
+async function ensureDefaultAdminAccount() {
+  if (Date.now() < defaultAdminCacheExpiresAt) {
+    return
+  }
+
+  if (defaultAdminInFlight) {
+    await defaultAdminInFlight
+    return
+  }
+
+  const operation = (async () => {
+  const supabase = createSupabaseAdminClient()
+  const normalizedAdminEmail = ADMIN_EMAIL.trim().toLowerCase()
+
+  const { data: existingProfile, error: profileLookupError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', normalizedAdminEmail)
+    .maybeSingle()
+
+  if (profileLookupError) {
+    throw profileLookupError
+  }
+
+  let adminUserId = existingProfile?.id
+
+  if (!adminUserId) {
+    const { data: usersData, error: listUsersError } = await supabase.auth.admin.listUsers()
+
+    if (listUsersError) {
+      throw listUsersError
+    }
+
+    const existingAdminUser = usersData.users.find(
+      (user) => user.email?.trim().toLowerCase() === normalizedAdminEmail,
+    )
+
+    adminUserId = existingAdminUser?.id
+  }
+
+  if (!adminUserId) {
+    const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+      email: normalizedAdminEmail,
+      password: ADMIN_PASSWORD,
+      email_confirm: true,
+      user_metadata: {
+        name: 'Spray & Sniff Admin',
+      },
+    })
+
+    if (createUserError) {
+      throw createUserError
+    }
+
+    adminUserId = createdUser.user?.id
+  }
+
+  if (!adminUserId) {
+    throw new Error('Unable to provision the default admin account.')
+  }
+
+  const { error: profileError } = await supabase.from('profiles').upsert(
+    {
+      id: adminUserId,
+      email: normalizedAdminEmail,
+      name: 'Spray & Sniff Admin',
+      role: 'ADMIN',
+    },
+    { onConflict: 'id' },
+  )
+
+  if (profileError) {
+    throw profileError
+  }
+
+  defaultAdminCacheExpiresAt = Date.now() + ADMIN_ACCOUNT_CACHE_TTL_MS
+  })()
+
+  defaultAdminInFlight = operation
+
+  try {
+    await operation
+  } finally {
+    if (defaultAdminInFlight === operation) {
+      defaultAdminInFlight = null
+    }
+  }
 }
 
-function ensurePaymentTestProduct(state: StoreState): StoreState {
-  if (state.catalog.some((product) => product.id === PAYMENT_TEST_PRODUCT_ID)) {
-    return state
-  }
-
-  const testProduct = products.find((product) => product.id === PAYMENT_TEST_PRODUCT_ID)
-  if (!testProduct) {
-    return state
-  }
-
-  const nextCatalog = [testProduct, ...state.catalog]
-  const nextInventory = ensureInventoryRecordsForCatalog(nextCatalog, state.inventory)
-
-  return {
-    ...state,
-    catalog: nextCatalog,
-    inventory: nextInventory,
-  }
+function isBackofficeActor(actor?: StoreActor | null) {
+  return actor?.role === 'ADMIN' || actor?.role === 'STAFF'
 }
 
 type CatalogProductRow = {
@@ -735,22 +806,28 @@ async function syncRowsByKey(
 }
 
 async function syncNormalizedStoreTables(state: StoreState) {
-  await syncRowsByKey('catalog_products', 'id', state.catalog.map(mapCatalogProductRow))
-  await syncRowsByKey('inventory_items', 'product_id', state.inventory.map(mapInventoryRow))
+  await Promise.all([
+    syncRowsByKey('catalog_products', 'id', state.catalog.map(mapCatalogProductRow)),
+    syncRowsByKey('inventory_items', 'product_id', state.inventory.map(mapInventoryRow)),
+    syncRowsByKey(
+      'stock_movements',
+      'id',
+      state.stockMovements.map(mapStockMovementRow),
+    ),
+  ])
+
   await syncRowsByKey('store_orders', 'id', state.orders.map(mapStoreOrderRow))
-  await syncRowsByKey('store_order_items', 'id', mapStoreOrderItemRows(state.orders))
-  await syncRowsByKey('order_timeline_entries', 'id', mapOrderTimelineRows(state.orders))
-  await syncRowsByKey('payment_records', 'id', mapPaymentRecordRows(state.orders))
-  await syncRowsByKey(
-    'pos_transactions',
-    'id',
-    state.posTransactions.map(mapPosTransactionRow),
-  )
-  await syncRowsByKey(
-    'stock_movements',
-    'id',
-    state.stockMovements.map(mapStockMovementRow),
-  )
+
+  await Promise.all([
+    syncRowsByKey('store_order_items', 'id', mapStoreOrderItemRows(state.orders)),
+    syncRowsByKey('order_timeline_entries', 'id', mapOrderTimelineRows(state.orders)),
+    syncRowsByKey('payment_records', 'id', mapPaymentRecordRows(state.orders)),
+    syncRowsByKey(
+      'pos_transactions',
+      'id',
+      state.posTransactions.map(mapPosTransactionRow),
+    ),
+  ])
 }
 
 export async function ensureSupabaseStoreSeeded(
@@ -806,6 +883,8 @@ export async function ensureSupabaseStoreSeeded(
     throw promotionError
   }
 
+  await ensureDefaultAdminAccount()
+
   if (!storeRow) {
     const seedState = createSampleState()
     fullState = seedState
@@ -814,14 +893,6 @@ export async function ensureSupabaseStoreSeeded(
     shouldSyncNormalizedTables = true
   } else {
     fullState = normalizeState((storeRow.state as Partial<StoreState> | null) ?? null)
-  }
-
-  const hydratedState = ensurePaymentTestProduct(fullState)
-  if (hydratedState !== fullState) {
-    fullState = hydratedState
-    shouldUpsertSnapshot = true
-    shouldSyncPublicSnapshot = true
-    shouldSyncNormalizedTables = true
   }
 
   if (!publicStoreRow) {
@@ -1028,7 +1099,7 @@ async function loadOrdersForCustomer(actor: StoreActor) {
 
 export async function loadStoreStateForActor(actor?: StoreActor | null) {
   if (isBackofficeActor(actor)) {
-    return loadBackofficeStoreState()
+    return loadStoreSnapshot()
   }
 
   if (actor?.role === 'USER') {
@@ -1052,13 +1123,14 @@ export async function saveStoreSnapshot(state: StoreState) {
 
   clearPublicStoreSnapshotCache()
 
-  await supabase.from('app_store_snapshots').upsert({
-    id: DEFAULT_STORE_ID,
-    state: { ...normalized, cart: [] },
-  })
-
-  await syncPublicStoreSnapshot(normalized)
-  await syncNormalizedStoreTables(normalized)
+  await Promise.all([
+    supabase.from('app_store_snapshots').upsert({
+      id: DEFAULT_STORE_ID,
+      state: { ...normalized, cart: [] },
+    }),
+    syncPublicStoreSnapshot(normalized),
+    syncNormalizedStoreTables(normalized),
+  ])
 
   return normalized
 }

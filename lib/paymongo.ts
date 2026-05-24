@@ -268,12 +268,22 @@ export async function retrievePaymongoCheckoutSession(sessionId: string) {
   }>(`/checkout_sessions/${sessionId}`)
 }
 
-export function isPaymongoCheckoutPaid(session: Awaited<ReturnType<typeof retrievePaymongoCheckoutSession>>) {
-  const paymentStatuses =
-    session.data.attributes.payments?.map((payment) => payment.attributes?.status).filter(Boolean) ?? []
-  const intentStatus = session.data.attributes.payment_intent?.attributes?.status
+export type RetrievedPaymongoCheckoutSession = Awaited<ReturnType<typeof retrievePaymongoCheckoutSession>>
 
-  return paymentStatuses.includes('paid') || intentStatus === 'succeeded'
+export function getPaymongoPaidPayment(session: RetrievedPaymongoCheckoutSession) {
+  return session.data.attributes.payments?.find((payment) => payment.attributes?.status === 'paid') ?? null
+}
+
+export function getPaymongoCheckoutPaidAmount(session: RetrievedPaymongoCheckoutSession) {
+  return getPaymongoPaidPayment(session)?.attributes?.amount ?? null
+}
+
+export function getPaymongoCheckoutPaidCurrency(session: RetrievedPaymongoCheckoutSession) {
+  return getPaymongoPaidPayment(session)?.attributes?.currency ?? null
+}
+
+export function isPaymongoCheckoutPaid(session: RetrievedPaymongoCheckoutSession) {
+  return Boolean(getPaymongoPaidPayment(session))
 }
 
 export interface PaymongoRefundRequest {

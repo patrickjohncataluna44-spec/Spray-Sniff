@@ -61,6 +61,17 @@ function schedulePaymongoReceiptEmail(order: OrderRecord) {
   })
 }
 
+function getPaymongoSessionIdFromNotes(notes?: string) {
+  const segments =
+    notes
+      ?.split('|')
+      .map((value) => value.trim())
+      .filter(Boolean) ?? []
+
+  const sessionSegment = segments.find((segment) => segment.startsWith('PayMongo session:'))
+  return sessionSegment?.replace('PayMongo session:', '').trim() || null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const actor = await getRequestActor(request)
@@ -81,6 +92,37 @@ export async function POST(request: NextRequest) {
     const workingState = {
       ...snapshot,
       cart: CART_ACTIONS.has(action.type) ? cart : snapshot.cart,
+    }
+
+    if (action.type === 'placeOnlineOrder' && action.input.paymentMethod === 'PayMongo') {
+      const checkoutSessionId = getPaymongoSessionIdFromNotes(action.input.notes)
+
+      if (checkoutSessionId) {
+        const existingOrder = snapshot.orders.find(
+          (order) =>
+            order.source === 'ONLINE' &&
+            order.paymentMethod === 'PayMongo' &&
+            getPaymongoSessionIdFromNotes(order.notes) === checkoutSessionId,
+        )
+
+        if (existingOrder) {
+          if (actor) {
+            await saveUserCart(actor.id, [])
+          }
+
+          const visibleState = await getVisibleStoreState(snapshot, actor, [])
+          const visibleOrder =
+            visibleState.orders.find((order) => order.id === existingOrder.id) ?? existingOrder
+
+          return NextResponse.json({
+            ok: true,
+            message: 'This PayMongo payment was already recorded.',
+            data: visibleOrder,
+            source: 'supabase',
+            state: visibleState,
+          })
+        }
+      }
     }
 
     const { nextState, result } = performStoreAction(workingState, action, actor)

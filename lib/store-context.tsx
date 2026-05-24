@@ -12,7 +12,7 @@ import {
 } from '@/lib/supabase-realtime'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
-  createSampleState,
+  createEmptyStoreState,
   getAvailabilityStatusFromState,
   getAvailableStockFromState,
   getInventoryRecordFromState,
@@ -141,7 +141,7 @@ async function getAuthHeaders() {
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth()
-  const [state, setState] = useState<StoreState>(() => createSampleState())
+  const [state, setState] = useState<StoreState>(() => createEmptyStoreState())
   const [wishlistIds, setWishlistIds] = useState<string[]>([])
   const [isStoreLoading, setIsStoreLoading] = useState(true)
   const [isRealtimeRefreshing, setIsRealtimeRefreshing] = useState(false)

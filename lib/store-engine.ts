@@ -235,6 +235,17 @@ export interface StoreState {
   stockMovements: StockMovement[]
 }
 
+export function createEmptyStoreState(): StoreState {
+  return {
+    catalog: [],
+    inventory: [],
+    cart: [],
+    orders: [],
+    posTransactions: [],
+    stockMovements: [],
+  }
+}
+
 export type StoreAction =
   | { type: 'addCatalogProduct'; product: Product; options?: AddCatalogProductOptions }
   | {
@@ -794,15 +805,17 @@ export function createSampleState(catalog: Product[] = products): StoreState {
 }
 
 export function normalizeState(storedState: Partial<StoreState> | null, currentCatalog: Product[] = products) {
-  const catalogSource =
-    storedState?.catalog && storedState.catalog.length > 0
-      ? storedState.catalog
-      : currentCatalog.length > 0
-        ? currentCatalog
-        : products
+  const hasStoredCatalog = Array.isArray(storedState?.catalog)
+  const catalogSource = hasStoredCatalog
+    ? storedState?.catalog ?? []
+    : currentCatalog.length > 0
+      ? currentCatalog
+      : products
 
   const seedState = createSampleState(catalogSource)
-  const inventory = ensureInventoryRecords(catalogSource, storedState?.inventory ?? seedState.inventory)
+  const inventory = hasStoredCatalog
+    ? ensureInventoryRecords(catalogSource, storedState?.inventory ?? [])
+    : ensureInventoryRecords(catalogSource, storedState?.inventory ?? seedState.inventory)
   const orders =
     storedState?.orders && storedState.orders.length > 0 ? storedState.orders : seedState.orders
   const posTransactions =

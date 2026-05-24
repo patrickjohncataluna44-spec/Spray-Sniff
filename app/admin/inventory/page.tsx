@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Archive, ArrowLeft, Boxes, PackagePlus, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Boxes, PackagePlus, RotateCcw, Trash2 } from 'lucide-react'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { ProtectedRoute } from '@/components/protected-route'
 import {
@@ -30,7 +30,7 @@ import { useStore } from '@/lib/store-context'
 import { toast } from '@/hooks/use-toast'
 
 type DraftMap = Record<string, { stock: string; reorderPoint: string; location: string }>
-type InventoryView = 'active' | 'archived'
+type InventoryView = 'active' | 'trash'
 
 type RestockDraft = {
   productId: string
@@ -81,6 +81,7 @@ export default function InventoryPage() {
     catalog,
     getAvailabilityStatus,
     inventory,
+    removeCatalogProduct,
     restoreInventoryItem,
     updateInventory,
   } = useStore()
@@ -90,6 +91,7 @@ export default function InventoryPage() {
   const [isRestockDialogOpen, setIsRestockDialogOpen] = useState(false)
   const [restockDraft, setRestockDraft] = useState<RestockDraft>(EMPTY_RESTOCK_DRAFT)
   const [archiveTarget, setArchiveTarget] = useState<InventoryRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<InventoryRow | null>(null)
 
   useEffect(() => {
     setDrafts(
@@ -140,14 +142,14 @@ export default function InventoryPage() {
     () => inventoryRows.filter((row) => !row.isArchived),
     [inventoryRows],
   )
-  const archivedInventory = useMemo(
+  const trashedInventory = useMemo(
     () => inventoryRows.filter((row) => row.isArchived),
     [inventoryRows],
   )
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const source = activeTab === 'active' ? activeInventory : archivedInventory
+    const source = activeTab === 'active' ? activeInventory : trashedInventory
 
     if (!query) {
       return source
@@ -162,7 +164,7 @@ export default function InventoryPage() {
         row.location,
       ].some((value) => value.toLowerCase().includes(query)),
     )
-  }, [activeInventory, activeTab, archivedInventory, searchQuery])
+  }, [activeInventory, activeTab, searchQuery, trashedInventory])
 
   const lowStockCount = activeInventory.filter(
     (item) => item.stock > 0 && item.stock <= item.reorderPoint,
@@ -317,6 +319,24 @@ export default function InventoryPage() {
     })
   }
 
+  const handlePermanentDelete = async () => {
+    if (!deleteTarget) {
+      return
+    }
+
+    const result = await removeCatalogProduct(deleteTarget.productId)
+
+    toast({
+      title: result.ok ? 'Item deleted' : 'Unable to delete item',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    })
+
+    if (result.ok) {
+      setDeleteTarget(null)
+    }
+  }
+
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
       <div className="flex min-h-screen bg-background">
@@ -337,7 +357,7 @@ export default function InventoryPage() {
                 <div>
                   <h1 className="font-serif text-3xl text-foreground">Inventory</h1>
                   <p className="mt-2 text-sm text-foreground/60">
-                    Manage active stock, archive products safely, and keep availability in sync across POS and online sales.
+                    Manage active stock, move products to trash safely, and restore them later when needed.
                   </p>
                 </div>
 
@@ -349,7 +369,7 @@ export default function InventoryPage() {
                     {outOfStockCount} out of stock
                   </span>
                   <span className="rounded-full bg-slate-200 px-3 py-1 text-sm text-slate-700">
-                    {archivedInventory.length} archived
+                    {trashedInventory.length} in trash
                   </span>
                   <Button
                     onClick={openRestockDialog}
@@ -380,8 +400,8 @@ export default function InventoryPage() {
                 <p className="mt-2 font-serif text-3xl text-foreground">{outOfStockCount}</p>
               </div>
               <div className="rounded-2xl border border-border bg-card p-6">
-                <p className="text-sm font-medium text-foreground/60">Archived Items</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{archivedInventory.length}</p>
+                <p className="text-sm font-medium text-foreground/60">Trash Items</p>
+                <p className="mt-2 font-serif text-3xl text-foreground">{trashedInventory.length}</p>
               </div>
             </div>
 
@@ -393,14 +413,14 @@ export default function InventoryPage() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <TabsList>
                   <TabsTrigger value="active">Active Inventory ({activeInventory.length})</TabsTrigger>
-                  <TabsTrigger value="archived">Archived ({archivedInventory.length})</TabsTrigger>
+                  <TabsTrigger value="trash">Trash ({trashedInventory.length})</TabsTrigger>
                 </TabsList>
 
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={`Search ${activeTab === 'active' ? 'active' : 'archived'} inventory...`}
+                  placeholder={`Search ${activeTab === 'active' ? 'active' : 'trash'} inventory...`}
                   className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent lg:max-w-sm"
                 />
               </div>
@@ -504,8 +524,8 @@ export default function InventoryPage() {
                                       className="gap-2 text-slate-700"
                                       onClick={() => setArchiveTarget(row)}
                                     >
-                                      <Archive className="h-4 w-4" />
-                                      Archive
+                                      <Trash2 className="h-4 w-4" />
+                                      Move to Trash
                                     </Button>
                                   </div>
                                 </td>
@@ -519,8 +539,11 @@ export default function InventoryPage() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="archived">
+              <TabsContent value="trash">
                 <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="border-b border-border bg-muted/30 px-6 py-4 text-sm text-foreground/65">
+                    Trashed products stay here until you restore them. Use <span className="font-semibold text-foreground">Restore</span> to bring an item back, or <span className="font-semibold text-foreground">Delete Permanently</span> to remove it for good.
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -530,7 +553,7 @@ export default function InventoryPage() {
                           <th className="px-6 py-4 text-left font-medium text-foreground/60">Stored Stock</th>
                           <th className="px-6 py-4 text-left font-medium text-foreground/60">Reorder Point</th>
                           <th className="px-6 py-4 text-left font-medium text-foreground/60">Location</th>
-                          <th className="px-6 py-4 text-left font-medium text-foreground/60">Archived</th>
+                          <th className="px-6 py-4 text-left font-medium text-foreground/60">Moved to Trash</th>
                           <th className="px-6 py-4 text-left font-medium text-foreground/60">Action</th>
                         </tr>
                       </thead>
@@ -538,7 +561,7 @@ export default function InventoryPage() {
                         {filteredRows.length === 0 ? (
                           <tr>
                             <td colSpan={7} className="px-6 py-12 text-center text-foreground/60">
-                              No archived inventory items matched your search.
+                              No trashed inventory items matched your search.
                             </td>
                           </tr>
                         ) : (
@@ -552,7 +575,7 @@ export default function InventoryPage() {
                               </td>
                               <td className="px-6 py-4 align-top">
                                 <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                                  Archived
+                                  In Trash
                                 </span>
                               </td>
                               <td className="px-6 py-4 align-top text-foreground">{row.stock}</td>
@@ -563,15 +586,26 @@ export default function InventoryPage() {
                                 <p className="text-xs">{row.archivedBy || 'Store team'}</p>
                               </td>
                               <td className="px-6 py-4 align-top">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => handleRestore(row.productId)}
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                  Restore
-                                </Button>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-2"
+                                    onClick={() => handleRestore(row.productId)}
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                    Restore
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-2 text-red-600"
+                                    onClick={() => setDeleteTarget(row)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete Permanently
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -687,16 +721,40 @@ export default function InventoryPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive inventory item?</AlertDialogTitle>
+            <AlertDialogTitle>Move item to trash?</AlertDialogTitle>
             <AlertDialogDescription>
               {archiveTarget
-                ? `${archiveTarget.productName} will be removed from active inventory operations and become unavailable in POS and online checkout. Historical orders and reports will stay intact.`
-                : 'Archive this inventory item.'}
+                ? `${archiveTarget.productName} will be moved to trash, removed from active inventory operations, and become unavailable in POS and online checkout. You can restore it later from the Trash tab. Historical orders and reports will stay intact.`
+                : 'Move this inventory item to trash.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleArchive}>Archive</AlertDialogAction>
+            <AlertDialogAction onClick={handleArchive}>Move to Trash</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete item permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `${deleteTarget.productName} will be removed permanently from the catalog and inventory. This cannot be undone from the Trash tab.`
+                : 'Delete this inventory item permanently.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePermanentDelete}>Delete Permanently</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -161,7 +161,7 @@ This repo now includes:
 To link and push with the Supabase CLI:
 
 ```bash
-npx supabase link --project-ref axnbkdaooluehoxtduke
+npx supabase link --project-ref jrzlbvvqjiwdpkgjvoix
 npx supabase db push
 ```
 

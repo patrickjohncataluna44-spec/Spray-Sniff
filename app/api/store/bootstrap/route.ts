@@ -32,7 +32,12 @@ export async function GET(request: NextRequest) {
       wishlistIds,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to load store data.'
+    const rawMessage = error instanceof Error ? error.message : 'Unable to load store data.'
+    const normalized = rawMessage.toLowerCase()
+    const message =
+      normalized.includes('relation') || normalized.includes('schema')
+        ? 'Your new Supabase project is missing the app database schema. Run supabase/schema.sql or `supabase db push`, then reload the app.'
+        : rawMessage
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

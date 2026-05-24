@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { buildVerificationUrl, createVerificationToken } from '@/lib/auth-email'
 import { sendAccountVerificationEmail } from '@/lib/mailer'
+import { ADMIN_EMAIL } from '@/lib/site'
 import { createSupabaseAdminClient } from '@/lib/supabase-server'
 
 function normalizeEmail(value: string) {
@@ -14,6 +15,37 @@ function normalizeName(value: string) {
 function isDuplicateUserError(message: string) {
   const normalized = message.toLowerCase()
   return normalized.includes('already been registered') || normalized.includes('already registered')
+}
+
+function getSignupErrorResponse(message: string) {
+  const normalized = message.toLowerCase()
+
+  if (isDuplicateUserError(message)) {
+    return {
+      body: { error: 'That email address is already registered.' },
+      status: 400,
+    }
+  }
+
+  if (
+    normalized.includes('database error') ||
+    normalized.includes('relation') ||
+    normalized.includes('schema') ||
+    normalized.includes('trigger')
+  ) {
+    return {
+      body: {
+        error:
+          'Your new Supabase project is missing the app database schema. Run supabase/schema.sql or `supabase db push`, then try signing up again.',
+      },
+      status: 500,
+    }
+  }
+
+  return {
+    body: { error: message || 'Unable to create your account.' },
+    status: 400,
+  }
 }
 
 export async function POST(request: Request) {
@@ -40,20 +72,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Enter your full name.' }, { status: 400 })
     }
 
+    const isAdminSignup = email === ADMIN_EMAIL.trim().toLowerCase()
     const supabase = createSupabaseAdminClient()
     const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: false,
+      email_confirm: isAdminSignup,
       user_metadata: { name },
     })
 
     if (createUserError) {
       const message = createUserError.message || 'Unable to create your account.'
-      return NextResponse.json(
-        { error: isDuplicateUserError(message) ? 'That email address is already registered.' : message },
-        { status: 400 },
-      )
+      const response = getSignupErrorResponse(message)
+      return NextResponse.json(response.body, { status: response.status })
     }
 
     const userId = createdUser.user?.id
@@ -67,32 +98,39 @@ export async function POST(request: Request) {
         id: userId,
         email,
         name,
+        role: isAdminSignup ? 'ADMIN' : 'USER',
       },
       { onConflict: 'id' },
     )
 
     if (profileError) {
       await supabase.auth.admin.deleteUser(userId)
-      return NextResponse.json({ error: 'Unable to save your profile.' }, { status: 500 })
+      const message = profileError.message?.toLowerCase() ?? ''
+      const error = message.includes('relation') || message.includes('schema')
+        ? 'Your new Supabase project is missing the app database schema. Run supabase/schema.sql or `supabase db push`, then try signing up again.'
+        : 'Unable to save your profile.'
+      return NextResponse.json({ error }, { status: 500 })
     }
 
-    try {
-      const token = createVerificationToken(userId, email)
-      const verificationUrl = buildVerificationUrl({
-        token,
-        requestOrigin: new URL(request.url).origin,
-      })
+    if (!isAdminSignup) {
+      try {
+        const token = createVerificationToken(userId, email)
+        const verificationUrl = buildVerificationUrl({
+          token,
+          requestOrigin: new URL(request.url).origin,
+        })
 
-      await sendAccountVerificationEmail({ email, name, verificationUrl })
-    } catch {
-      await supabase.auth.admin.deleteUser(userId)
-      return NextResponse.json({ error: 'Unable to send the verification email.' }, { status: 500 })
+        await sendAccountVerificationEmail({ email, name, verificationUrl })
+      } catch {
+        await supabase.auth.admin.deleteUser(userId)
+        return NextResponse.json({ error: 'Unable to send the verification email.' }, { status: 500 })
+      }
     }
 
     return NextResponse.json({
       email,
-      requiresEmailVerification: true,
-      message: 'Verification email sent.',
+      requiresEmailVerification: !isAdminSignup,
+      message: isAdminSignup ? 'Admin account created.' : 'Verification email sent.',
     })
   } catch (error) {
     return NextResponse.json(

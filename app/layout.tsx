@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth-context'
 import { CustomerSupportWidget } from '@/components/customer-support-widget'
@@ -8,21 +7,6 @@ import { StoreProvider } from '@/lib/store-context'
 import { Toaster } from '@/components/ui/toaster'
 import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site'
 import './globals.css'
-
-const geistSans = Geist({
-  subsets: ['latin'],
-  variable: '--font-geist-sans',
-})
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
-})
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-playfair',
-})
 
 export const metadata: Metadata = {
   title: `${SITE_NAME} - Luxury Fragrances`,
@@ -63,10 +47,7 @@ export default function RootLayout({
   const publicEnv = getPublicRuntimeEnv()
 
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable}`}
-    >
+    <html lang="en">
       <body className="font-sans antialiased">
         <script
           dangerouslySetInnerHTML={{

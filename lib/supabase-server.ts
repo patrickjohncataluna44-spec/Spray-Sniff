@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { getRequiredServerEnv } from '@/lib/server-runtime-env'
+import { getOptionalServerEnv, getRequiredServerEnv } from '@/lib/server-runtime-env'
 
 function getRequiredEnv(
   name:
@@ -11,9 +11,12 @@ function getRequiredEnv(
 }
 
 export function createSupabaseAdminClient() {
+  const serverKey =
+    getOptionalServerEnv('SUPABASE_SECRET_KEY') ?? getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY')
+
   return createClient(
     getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    serverKey,
     {
       auth: {
         autoRefreshToken: false,

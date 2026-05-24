@@ -1,4 +1,4 @@
-import 'server-only'
+import '@/lib/server-only'
 
 import nodemailer from 'nodemailer'
 import { formatPHP } from '@/lib/currency'

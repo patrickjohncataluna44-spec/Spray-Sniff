@@ -1,4 +1,4 @@
-import 'server-only'
+import '@/lib/server-only'
 
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
@@ -14,6 +14,7 @@ const OPTIONAL_SERVER_ENV_NAMES = [
   'SMTP_PASS',
   'SMTP_FROM',
   'AUTH_EMAIL_SECRET',
+  'SUPABASE_SECRET_KEY',
 ] as const
 const SERVER_ENV_NAMES = [
   ...REQUIRED_PUBLIC_ENV_NAMES,

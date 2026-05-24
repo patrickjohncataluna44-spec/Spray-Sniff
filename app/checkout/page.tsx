@@ -24,6 +24,7 @@ interface PendingPaymongoCheckout {
   shippingAddress: string
   customerName: string
   customerEmail: string
+  expectedAmount?: number
   reference: string
   notes: string
   paymentMethodLabel?: string
@@ -35,6 +36,12 @@ function isPaymongoCheckoutMethod(method: string) {
 
 function getCheckoutPaymentLabel(method: string) {
   return isPaymongoCheckoutMethod(method) ? PAYMONGO_PAYMENT_METHOD_LABEL : method
+}
+
+function waitForNextVerificationAttempt(durationMs: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, durationMs)
+  })
 }
 
 function CheckoutContent() {
@@ -182,6 +189,75 @@ function CheckoutContent() {
     window.sessionStorage.removeItem(PAYMONGO_PENDING_CHECKOUT_KEY)
   }
 
+  const verifyPaymongoCheckout = async (pendingCheckout: PendingPaymongoCheckout) => {
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await fetch(`/api/paymongo/checkout/${pendingCheckout.checkoutSessionId}`, {
+        method: 'GET',
+        cache: 'no-store',
+      })
+
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Unable to verify the PayMongo payment.')
+      }
+
+      const metadata =
+        payload.metadata && typeof payload.metadata === 'object'
+          ? (payload.metadata as Record<string, unknown>)
+          : {}
+      const metadataExpectedAmount =
+        typeof metadata.expected_amount === 'string' ? Number.parseInt(metadata.expected_amount, 10) : Number.NaN
+      const expectedAmount =
+        typeof pendingCheckout.expectedAmount === 'number' && Number.isFinite(pendingCheckout.expectedAmount)
+          ? pendingCheckout.expectedAmount
+          : Number.isFinite(metadataExpectedAmount)
+            ? metadataExpectedAmount
+            : null
+
+      if (payload.paid) {
+        if (typeof expectedAmount === 'number' && payload.paidAmount !== expectedAmount) {
+          throw new Error(
+            `PayMongo confirmed a payment of ${payload.paidAmount ?? 'unknown'} centavos, but this checkout expected ${expectedAmount} centavos. The order was not recorded.`,
+          )
+        }
+
+        if (
+          typeof payload.billingEmail === 'string' &&
+          payload.billingEmail.trim().length > 0 &&
+          payload.billingEmail.trim().toLowerCase() !== pendingCheckout.customerEmail.trim().toLowerCase()
+        ) {
+          throw new Error('The paid PayMongo session belongs to a different email address. The order was not recorded.')
+        }
+
+        return
+      }
+
+      const paymentStatuses = Array.isArray(payload.paymentStatuses)
+        ? payload.paymentStatuses
+            .map((entry) =>
+              entry && typeof entry === 'object' && 'status' in entry ? String(entry.status ?? '').toLowerCase() : '',
+            )
+            .filter(Boolean)
+        : []
+      const sessionStatus = typeof payload.status === 'string' ? payload.status.toLowerCase() : ''
+
+      if (sessionStatus === 'expired' || paymentStatuses.includes('failed')) {
+        throw new Error('Your PayMongo payment did not complete successfully. Please try the checkout again.')
+      }
+
+      lastError = new Error('Your PayMongo payment is still pending or was not completed.')
+
+      if (attempt < 4) {
+        await waitForNextVerificationAttempt(1500)
+      }
+    }
+
+    throw lastError ?? new Error('We could not confirm your PayMongo payment yet.')
+  }
+
   const finalizeOrder = async (pendingCheckout: PendingPaymongoCheckout) => {
     const result = await placeOnlineOrder({
       customerEmail: pendingCheckout.customerEmail,
@@ -239,21 +315,8 @@ function CheckoutContent() {
     paymentVerificationStarted.current = true
     setIsVerifyingPayment(true)
 
-    fetch(`/api/paymongo/checkout/${pendingCheckout.checkoutSessionId}`, {
-      method: 'GET',
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}))
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? 'Unable to verify the PayMongo payment.')
-        }
-
-        if (!payload.paid) {
-          throw new Error('Your PayMongo payment is still pending or was not completed.')
-        }
-
+    verifyPaymongoCheckout(pendingCheckout)
+      .then(async () => {
         await finalizeOrder(pendingCheckout)
       })
       .catch((error) => {
@@ -307,6 +370,7 @@ function CheckoutContent() {
           body: JSON.stringify({
             customerEmail: user.email,
             customerName: fullName,
+            expectedAmount: Math.round(total * 100),
             reference: formData.reference,
             shippingAddress,
             lineItems: orderItems
@@ -321,7 +385,33 @@ function CheckoutContent() {
                   item.product?.images?.[0] && item.product.images[0].startsWith('http')
                     ? [item.product.images[0]]
                     : undefined,
-              })),
+              }))
+              .concat(
+                shipping > 0
+                  ? [
+                      {
+                        name: 'Shipping Fee',
+                        amount: Math.round(shipping * 100),
+                        quantity: 1,
+                        currency: 'PHP' as const,
+                        description: 'Order delivery charge.',
+                      },
+                    ]
+                  : [],
+              )
+              .concat(
+                tax > 0
+                  ? [
+                      {
+                        name: 'VAT (12%)',
+                        amount: Math.round(tax * 100),
+                        quantity: 1,
+                        currency: 'PHP' as const,
+                        description: 'Tax applied to this order.',
+                      },
+                    ]
+                  : [],
+              ),
           }),
         })
 
@@ -358,6 +448,7 @@ function CheckoutContent() {
           checkoutSessionId: payload.checkoutSessionId,
           customerEmail: user.email,
           customerName: fullName,
+          expectedAmount: Math.round(total * 100),
           notes: formData.notes,
           paymentMethodLabel,
           reference: formData.reference,

@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       customerEmail,
       customerName,
       lineItems,
+      expectedAmount,
       reference,
       shippingAddress,
     } = body ?? {}
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       metadata: {
         customer_email: customerEmail,
         customer_name: customerName,
+        expected_amount: typeof expectedAmount === 'number' ? String(expectedAmount) : '',
         reference: reference || '',
         shipping_address: shippingAddress || '',
       },

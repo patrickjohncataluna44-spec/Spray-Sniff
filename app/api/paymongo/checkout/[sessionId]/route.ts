@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import {
   assertPaymongoConfigured,
+  getPaymongoCheckoutPaidAmount,
+  getPaymongoCheckoutPaidCurrency,
+  getPaymongoPaidPayment,
   isPaymongoCheckoutPaid,
   retrievePaymongoCheckoutSession,
 } from '@/lib/paymongo'
@@ -20,13 +23,21 @@ export async function GET(
 
     const session = await retrievePaymongoCheckoutSession(sessionId)
     const paid = isPaymongoCheckoutPaid(session)
+    const paidPayment = getPaymongoPaidPayment(session)
 
     return NextResponse.json({
       checkoutSessionId: session.data.id,
       paid,
       status: session.data.attributes.status ?? null,
+      billingEmail: session.data.attributes.billing?.email ?? null,
+      billingName: session.data.attributes.billing?.name ?? null,
+      metadata: session.data.attributes.metadata ?? {},
       paymentMethodTypes: session.data.attributes.payment_method_types ?? [],
       paymentIntentStatus: session.data.attributes.payment_intent?.attributes?.status ?? null,
+      paidAmount: getPaymongoCheckoutPaidAmount(session),
+      paidCurrency: getPaymongoCheckoutPaidCurrency(session),
+      paidPaymentId: paidPayment?.id ?? null,
+      paidSourceType: paidPayment?.attributes?.source?.type ?? null,
       paymentStatuses:
         session.data.attributes.payments?.map((payment) => ({
           id: payment.id,

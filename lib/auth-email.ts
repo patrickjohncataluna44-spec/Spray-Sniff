@@ -1,4 +1,4 @@
-import 'server-only'
+import '@/lib/server-only'
 
 import crypto from 'crypto'
 import { getOptionalServerEnv, getRequiredServerEnv } from '@/lib/server-runtime-env'

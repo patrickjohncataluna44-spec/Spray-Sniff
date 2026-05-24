@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-clean.cjs",
+    "dev:fast": "next dev",
+    "dev:clean": "node scripts/dev-clean.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
