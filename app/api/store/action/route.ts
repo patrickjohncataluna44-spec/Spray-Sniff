@@ -5,6 +5,7 @@ import {
   createPublicStoreState,
   getVisibleStoreState,
   loadBootstrapStoreStateForActor,
+  loadStoreSnapshot,
   loadStoreStateForActor,
   loadUserCart,
   saveStoreMutation,
@@ -62,6 +63,15 @@ const FULL_SNAPSHOT_ACTIONS = new Set<StoreAction['type']>([
   'markOrderPaymentPaid',
   'updateOrderStatus',
   'addCatalogProduct',
+  'updateCatalogProduct',
+  'removeCatalogProduct',
+  'updateInventory',
+  'adjustInventory',
+  'archiveInventoryItem',
+  'restoreInventoryItem',
+])
+
+const BACKOFFICE_CATALOG_ACTIONS = new Set<StoreAction['type']>([
   'updateCatalogProduct',
   'removeCatalogProduct',
   'updateInventory',
@@ -149,7 +159,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { nextState, result } = performStoreAction(workingState, action, actor)
+    let actionState = workingState
+    let { nextState, result } = performStoreAction(actionState, action, actor)
+
+    const shouldRetryAgainstFreshBackofficeState =
+      (actor?.role === 'ADMIN' || actor?.role === 'STAFF') &&
+      BACKOFFICE_CATALOG_ACTIONS.has(action.type) &&
+      !result.ok &&
+      result.message === 'Product not found.'
+
+    if (shouldRetryAgainstFreshBackofficeState) {
+      actionState = {
+        ...(await loadStoreSnapshot()),
+        cart: CART_ACTIONS.has(action.type) ? cart : [],
+      }
+      ;({ nextState, result } = performStoreAction(actionState, action, actor))
+    }
 
     if (!result.ok) {
       return NextResponse.json(
@@ -185,7 +210,7 @@ export async function POST(request: NextRequest) {
 
     const writeResult = await saveStoreMutation(
       action,
-      snapshot,
+      actionState,
       {
         ...nextState,
         cart: [],

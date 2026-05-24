@@ -806,11 +806,21 @@ export function createSampleState(catalog: Product[] = products): StoreState {
 
 export function normalizeState(storedState: Partial<StoreState> | null, currentCatalog: Product[] = products) {
   const hasStoredCatalog = Array.isArray(storedState?.catalog)
-  const catalogSource = hasStoredCatalog
+  const baseCatalog = hasStoredCatalog
     ? storedState?.catalog ?? []
     : currentCatalog.length > 0
       ? currentCatalog
       : products
+  const canonicalPaymentTestProduct = currentCatalog.find(
+    (product) => product.id === PAYMENT_TEST_PRODUCT_ID,
+  )
+  const catalogWithoutTestProduct = baseCatalog.filter(
+    (product) => product.id !== PAYMENT_TEST_PRODUCT_ID,
+  )
+  const catalogSource =
+    canonicalPaymentTestProduct
+      ? [canonicalPaymentTestProduct, ...catalogWithoutTestProduct]
+      : baseCatalog
 
   const seedState = createSampleState(catalogSource)
   const inventory = hasStoredCatalog

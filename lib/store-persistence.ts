@@ -1,5 +1,5 @@
 import { seedPromotions, type StoredPromotion } from '@/lib/admin-promotions'
-import type { Product } from '@/lib/products'
+import { products, type Product } from '@/lib/products'
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from '@/lib/site'
 import {
   createSampleState,
@@ -7,6 +7,7 @@ import {
   getOrderNeedsRefundFollowUp,
   normalizeState,
   orderBelongsToActor,
+  PAYMENT_TEST_PRODUCT_ID,
   type CartItem,
   type InventoryRecord,
   type OrderActionAvailability,
@@ -41,6 +42,35 @@ const DEFAULT_STORE_SYNC_META: StoreSyncMetaRow = {
   public_state_version: 0,
   backoffice_snapshot_version: 0,
   public_snapshot_version: 0,
+}
+
+function needsCanonicalPaymentTestProductSync(state: StoreState) {
+  const canonicalProduct = products.find((product) => product.id === PAYMENT_TEST_PRODUCT_ID)
+  if (!canonicalProduct) {
+    return false
+  }
+
+  const currentProduct = state.catalog.find((product) => product.id === PAYMENT_TEST_PRODUCT_ID)
+  if (!currentProduct) {
+    return true
+  }
+
+  const currentInventory = state.inventory.find(
+    (record) => record.productId === PAYMENT_TEST_PRODUCT_ID,
+  )
+
+  return (
+    currentProduct.name !== canonicalProduct.name ||
+    currentProduct.description !== canonicalProduct.description ||
+    currentProduct.category !== canonicalProduct.category ||
+    currentProduct.price !== canonicalProduct.price ||
+    JSON.stringify(currentProduct.scentFamily) !== JSON.stringify(canonicalProduct.scentFamily) ||
+    JSON.stringify(currentProduct.topNotes) !== JSON.stringify(canonicalProduct.topNotes) ||
+    JSON.stringify(currentProduct.middleNotes) !== JSON.stringify(canonicalProduct.middleNotes) ||
+    JSON.stringify(currentProduct.baseNotes) !== JSON.stringify(canonicalProduct.baseNotes) ||
+    JSON.stringify(currentProduct.sizes) !== JSON.stringify(canonicalProduct.sizes) ||
+    !currentInventory
+  )
 }
 
 interface EnsureSupabaseStoreSeededOptions {
@@ -1248,6 +1278,13 @@ export async function ensureSupabaseStoreSeeded(
     shouldSyncNormalizedTables = true
   } else {
     fullState = normalizeState((storeRow.state as Partial<StoreState> | null) ?? null)
+  }
+
+  if (needsCanonicalPaymentTestProductSync(fullState)) {
+    fullState = normalizeState(fullState)
+    shouldUpsertSnapshot = true
+    shouldSyncPublicSnapshot = true
+    shouldSyncNormalizedTables = true
   }
 
   if (!publicStoreRow) {
