@@ -4,8 +4,8 @@ import { getRequestActor } from '@/lib/server-auth'
 import {
   createPublicStoreState,
   getVisibleStoreState,
+  loadBootstrapStoreStateForActor,
   loadStoreStateForActor,
-  loadStoreSnapshot,
   loadUserCart,
   saveStoreMutation,
   syncStoreSnapshots,
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     const snapshotLoader = FULL_SNAPSHOT_ACTIONS.has(action.type)
-      ? loadStoreSnapshot()
+      ? loadBootstrapStoreStateForActor(actor)
       : loadStoreStateForActor(actor)
 
     const [snapshot, cart] = actor && CART_ACTIONS.has(action.type)

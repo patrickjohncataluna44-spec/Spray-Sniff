@@ -1136,10 +1136,12 @@ export async function saveStoreMutation(
 
     case 'removeCatalogProduct': {
       await deleteCatalogAndInventory(action.productId)
+      const syncMeta = await bumpStoreStateVersions({ backoffice: true, publicState: true })
+      await syncStoreSnapshots(normalized, syncMeta)
       return {
         state: normalized,
-        snapshotSync: 'skip',
-        syncMeta: await bumpStoreStateVersions({ backoffice: true, publicState: true }),
+        snapshotSync: 'inline',
+        syncMeta,
       }
     }
 
