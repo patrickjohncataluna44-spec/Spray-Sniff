@@ -200,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return subscribeToUserProfile(user.id, () => {
       void handleProfileRefresh(user.id)
     })
-  }, [user?.id])
+  }, [handleProfileRefresh, user?.id])
 
   const login = async (email: string, password: string) => {
     setIsLoading(true)

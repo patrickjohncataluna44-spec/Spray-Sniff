@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useEffectEvent } from '@/hooks/use-effect-event'
 import { useAuth } from '@/lib/auth-context'
 import type { Product } from '@/lib/products'
@@ -200,9 +200,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   })
 
-  const refreshStore = async () => {
+  const refreshStore = useCallback(async () => {
     await performRefresh(false)
-  }
+  }, [performRefresh])
 
   const handleRealtimeSync = useEffectEvent(() => {
     if (refreshTimerRef.current) {
@@ -220,7 +220,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     void refreshStore()
-  }, [authLoading, user?.id])
+  }, [authLoading, refreshStore])
 
   useEffect(() => {
     if (authLoading) {
@@ -247,7 +247,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       cleanups.forEach((cleanup) => cleanup())
     }
-  }, [authLoading, user?.id, user?.role])
+  }, [authLoading, handleRealtimeSync, user?.id, user?.role])
 
   const callStoreAction = async <T,>(action: StoreAction) => {
     const response = await fetch('/api/store/action', {
@@ -309,11 +309,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } satisfies StoreActionResult<{ isWishlisted: boolean }>
   }
 
-  const getProductById = (productId: string) => getProductByIdFromState(state, productId)
-  const getInventoryRecord = (productId: string) => getInventoryRecordFromState(state, productId)
-  const getAvailableStock = (productId: string) => getAvailableStockFromState(state, productId)
-  const getAvailabilityStatus = (productId: string) => getAvailabilityStatusFromState(state, productId)
-  const isWishlisted = (productId: string) => wishlistIds.includes(productId)
+  const getProductById = useCallback((productId: string) => getProductByIdFromState(state, productId), [state])
+  const getInventoryRecord = useCallback(
+    (productId: string) => getInventoryRecordFromState(state, productId),
+    [state],
+  )
+  const getAvailableStock = useCallback(
+    (productId: string) => getAvailableStockFromState(state, productId),
+    [state],
+  )
+  const getAvailabilityStatus = useCallback(
+    (productId: string) => getAvailabilityStatusFromState(state, productId),
+    [state],
+  )
+  const isWishlisted = useCallback((productId: string) => wishlistIds.includes(productId), [wishlistIds])
 
   const cartCount = useMemo(
     () => state.cart.reduce((sum, item) => sum + item.quantity, 0),
@@ -362,7 +371,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       isWishlisted,
       toggleWishlist,
     }),
-    [state, cartCount, wishlistIds, isStoreLoading, isRealtimeRefreshing, lastSyncedAt],
+    [
+      state,
+      cartCount,
+      wishlistIds,
+      isStoreLoading,
+      isRealtimeRefreshing,
+      lastSyncedAt,
+      refreshStore,
+      getProductById,
+      getInventoryRecord,
+      getAvailableStock,
+      getAvailabilityStatus,
+      isWishlisted,
+    ],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

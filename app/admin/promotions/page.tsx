@@ -52,7 +52,7 @@ export default function AdminPromotionsPage() {
     return subscribeToPromotions(() => {
       void loadPromotions()
     })
-  }, [])
+  }, [loadPromotions])
 
   const sortedPromotions = useMemo(
     () =>

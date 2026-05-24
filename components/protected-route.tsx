@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth, type UserRole } from '@/lib/auth-context'
 import { Spinner } from '@/components/ui/spinner'
@@ -18,11 +18,15 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const router = useRouter()
   const { isAuthenticated, canAccessBackoffice, isLoading, user } = useAuth()
-  const requiredRoles = Array.isArray(requiredRole)
-    ? requiredRole
-    : requiredRole
-      ? [requiredRole]
-      : undefined
+  const requiredRoles = useMemo(
+    () =>
+      Array.isArray(requiredRole)
+        ? requiredRole
+        : requiredRole
+          ? [requiredRole]
+          : undefined,
+    [requiredRole],
+  )
 
   useEffect(() => {
     if (isLoading) return

@@ -46,7 +46,7 @@ export default function EditPromotionPage() {
     return subscribeToPromotions(() => {
       void loadPromotions()
     })
-  }, [])
+  }, [loadPromotions])
 
   const promotion = useMemo(
     () => promotions?.find((item) => item.id === promotionId),

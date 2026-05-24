@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, LoaderCircle, LifeBuoy, RefreshCw, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -84,7 +84,7 @@ export default function AdminSupportPage() {
     })
   }, [activeFilter, cases])
 
-  const loadCases = async () => {
+  const loadCases = useCallback(async () => {
     setIsLoadingCases(true)
 
     try {
@@ -120,9 +120,9 @@ export default function AdminSupportPage() {
     } finally {
       setIsLoadingCases(false)
     }
-  }
+  }, [selectedCaseId])
 
-  const loadCaseDetail = async (caseId: string) => {
+  const loadCaseDetail = useCallback(async (caseId: string) => {
     setIsLoadingDetail(true)
 
     try {
@@ -152,11 +152,11 @@ export default function AdminSupportPage() {
     } finally {
       setIsLoadingDetail(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadCases()
-  }, [])
+  }, [loadCases])
 
   useEffect(() => {
     if (!selectedCaseId) {
@@ -165,7 +165,7 @@ export default function AdminSupportPage() {
     }
 
     void loadCaseDetail(selectedCaseId)
-  }, [selectedCaseId])
+  }, [loadCaseDetail, selectedCaseId])
 
   useEffect(() => {
     if (filteredCases.length === 0) {

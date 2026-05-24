@@ -111,7 +111,7 @@ export default function AdminCustomersPage() {
     return () => {
       cleanups.forEach((cleanup) => cleanup())
     }
-  }, [])
+  }, [loadCustomers])
 
   const updateStaffForm = (field: keyof StaffFormState, value: string) => {
     setStaffForm((current) => ({

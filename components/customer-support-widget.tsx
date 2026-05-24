@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { useEffectEvent } from '@/hooks/use-effect-event'
 import {
   Bot,
   ChevronRight,
@@ -194,12 +195,15 @@ function MessageAvatar({
 
   if (role === 'staff') {
     return (
-      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 overflow-hidden shadow-sm">
-        <img 
-          src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop" 
-          alt={authorName || 'Admin'} 
-          className="h-full w-full object-cover"
-        />
+      <span
+        role="img"
+        aria-label={authorName || 'Admin'}
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 bg-cover bg-center shadow-sm"
+        style={{
+          backgroundImage:
+            'url("https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop")',
+        }}
+      >
       </span>
     )
   }
@@ -378,7 +382,7 @@ export function CustomerSupportWidget() {
     setMessages(nextMessages)
   }
 
-  const loadBootstrap = async (
+  const loadBootstrap = useEffectEvent(async (
     options: {
       reset?: boolean
     } = {},
@@ -418,7 +422,7 @@ export function CustomerSupportWidget() {
     } finally {
       setLoadingBootstrap(false)
     }
-  }
+  })
 
   useEffect(() => {
     if (!open || hidden || isLoading) {
@@ -433,7 +437,7 @@ export function CustomerSupportWidget() {
     if (needsRefresh) {
       void loadBootstrap({ reset: true })
     }
-  }, [bootstrap, hidden, isAuthenticated, isLoading, open, user?.id])
+  }, [bootstrap, hidden, isAuthenticated, isLoading, loadBootstrap, open, user?.id])
 
   const callSupportAction = async (action: Record<string, unknown>) => {
     const response = await fetch('/api/support/action', {

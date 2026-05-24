@@ -671,15 +671,11 @@ export function AdminProductEditor({
                             </p>
                           </div>
                         ) : (
-                          <img
-                            src={previewImage}
-                            alt={formValues.name || 'Product preview'}
-                            className="h-full w-full object-cover"
-                            onError={(event) => {
-                              if (!event.currentTarget.src.endsWith('/placeholder.jpg')) {
-                                event.currentTarget.src = '/placeholder.jpg'
-                              }
-                            }}
+                          <div
+                            role="img"
+                            aria-label={formValues.name || 'Product preview'}
+                            className="h-full w-full bg-cover bg-center"
+                            style={{ backgroundImage: `url("${previewImage}")` }}
                           />
                         )}
                       </div>
