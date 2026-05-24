@@ -749,7 +749,7 @@ function CheckoutContent() {
                   {isPaymongoCheckoutMethod(formData.paymentMethod) && (
                     <div className="rounded-[1.5rem] border border-primary/25 bg-primary/8 p-4 text-sm text-foreground/75">
                       You will be redirected to the secure PayMongo-hosted checkout after you confirm the order.
-                      The checkout uses your account's enabled payment channels and prefers QR Ph when it is available.
+                      The checkout uses your account&apos;s enabled payment channels and prefers QR Ph when it is available.
                       If the account is still using test keys and only QR Ph is enabled, the app will ask for
                       confirmation before opening the hosted checkout.
                     </div>
