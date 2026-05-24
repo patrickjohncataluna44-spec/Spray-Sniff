@@ -7,7 +7,8 @@ import {
   loadStoreStateForActor,
   loadStoreSnapshot,
   loadUserCart,
-  saveStoreSnapshot,
+  saveStoreMutation,
+  syncStoreSnapshots,
   saveUserCart,
 } from '@/lib/store-persistence'
 import {
@@ -142,6 +143,7 @@ export async function POST(request: NextRequest) {
             data: visibleOrder,
             source: 'supabase',
             state: visibleState,
+            syncedAt: new Date().toISOString(),
           })
         }
       }
@@ -177,16 +179,36 @@ export async function POST(request: NextRequest) {
         data: result.data,
         source: 'supabase',
         state: visibleCartState,
+        syncedAt: new Date().toISOString(),
       })
     }
 
-    const nextSnapshot = await saveStoreSnapshot({
-      ...nextState,
-      cart: [],
-    })
+    const writeResult = await saveStoreMutation(
+      action,
+      snapshot,
+      {
+        ...nextState,
+        cart: [],
+      },
+    )
+
+    const nextSnapshot = writeResult.state
 
     if (actor && CART_ACTIONS.has(action.type)) {
       await saveUserCart(actor.id, nextCart)
+    }
+
+    if (writeResult.snapshotSync === 'deferred') {
+      after(async () => {
+        try {
+          await syncStoreSnapshots(nextSnapshot, writeResult.syncMeta)
+        } catch (error) {
+          console.error('Deferred store snapshot sync failed', {
+            action: action.type,
+            error: error instanceof Error ? error.message : error,
+          })
+        }
+      })
     }
 
     if (action.type === 'placeOnlineOrder') {
@@ -212,6 +234,7 @@ export async function POST(request: NextRequest) {
       data: result.data,
       source: 'supabase',
       state: await getVisibleStoreState(nextSnapshot, actor, nextCart),
+      syncedAt: new Date().toISOString(),
     })
   } catch (error) {
     const message = getErrorMessage(error)

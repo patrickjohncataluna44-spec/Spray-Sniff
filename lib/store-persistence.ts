@@ -14,6 +14,7 @@ import {
   type OrderPaymentSummary,
   type PosTransaction,
   type StockMovement,
+  type StoreAction,
   type StoreActor,
   type StoreState,
 } from '@/lib/store-engine'
@@ -21,15 +22,26 @@ import { createSupabaseAdminClient } from '@/lib/supabase-server'
 
 const DEFAULT_STORE_ID = 'default'
 const STORE_SEED_CACHE_TTL_MS = 5 * 60 * 1000
+const BACKOFFICE_SNAPSHOT_CACHE_TTL_MS = 10 * 1000
 const PUBLIC_SNAPSHOT_CACHE_TTL_MS = 10 * 1000
 const ADMIN_ACCOUNT_CACHE_TTL_MS = 30 * 60 * 1000
 
 let storeSeedCacheExpiresAt = 0
 let storeSeedInFlight: Promise<void> | null = null
+let backofficeStoreSnapshotCacheExpiresAt = 0
+let backofficeStoreSnapshotCache: StoreState | null = null
 let publicStoreSnapshotCacheExpiresAt = 0
 let publicStoreSnapshotCache: StoreState | null = null
 let defaultAdminCacheExpiresAt = 0
 let defaultAdminInFlight: Promise<void> | null = null
+
+const DEFAULT_STORE_SYNC_META: StoreSyncMetaRow = {
+  id: DEFAULT_STORE_ID,
+  backoffice_state_version: 0,
+  public_state_version: 0,
+  backoffice_snapshot_version: 0,
+  public_snapshot_version: 0,
+}
 
 interface EnsureSupabaseStoreSeededOptions {
   syncNormalizedTables?: boolean
@@ -234,6 +246,14 @@ type StockMovementRow = {
   note: string | null
 }
 
+type StoreSyncMetaRow = {
+  id: string
+  backoffice_state_version: number
+  public_state_version: number
+  backoffice_snapshot_version: number
+  public_snapshot_version: number
+}
+
 export function createPublicStoreState(state: StoreState): StoreState {
   return {
     catalog: state.catalog,
@@ -245,6 +265,14 @@ export function createPublicStoreState(state: StoreState): StoreState {
   }
 }
 
+function cacheBackofficeStoreSnapshot(state: StoreState) {
+  backofficeStoreSnapshotCache = {
+    ...state,
+    cart: [],
+  }
+  backofficeStoreSnapshotCacheExpiresAt = Date.now() + BACKOFFICE_SNAPSHOT_CACHE_TTL_MS
+}
+
 function cachePublicStoreSnapshot(state: StoreState) {
   publicStoreSnapshotCache = {
     ...state,
@@ -254,6 +282,11 @@ function cachePublicStoreSnapshot(state: StoreState) {
     stockMovements: [],
   }
   publicStoreSnapshotCacheExpiresAt = Date.now() + PUBLIC_SNAPSHOT_CACHE_TTL_MS
+}
+
+function clearBackofficeStoreSnapshotCache() {
+  backofficeStoreSnapshotCache = null
+  backofficeStoreSnapshotCacheExpiresAt = 0
 }
 
 function clearPublicStoreSnapshotCache() {
@@ -576,7 +609,7 @@ async function loadBackofficeStoreState() {
     .map(mapStockMovementStateRow)
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
 
-  return {
+  const state = {
     catalog,
     inventory,
     cart: [],
@@ -584,6 +617,10 @@ async function loadBackofficeStoreState() {
     posTransactions,
     stockMovements,
   } satisfies StoreState
+
+  cacheBackofficeStoreSnapshot(state)
+
+  return state
 }
 
 function mapCatalogProductRow(product: Product) {
@@ -809,6 +846,151 @@ async function syncRowsByKey(
   }
 }
 
+async function upsertRow(
+  table: string,
+  row: Record<string, unknown>,
+  onConflict: string,
+) {
+  const supabase = createSupabaseAdminClient()
+  const { error } = await supabase.from(table).upsert([row], { onConflict })
+
+  if (error) {
+    throw error
+  }
+}
+
+async function upsertRows(
+  table: string,
+  rows: Record<string, unknown>[],
+  onConflict: string,
+) {
+  if (rows.length === 0) {
+    return
+  }
+
+  const supabase = createSupabaseAdminClient()
+  const { error } = await supabase.from(table).upsert(rows, { onConflict })
+
+  if (error) {
+    throw error
+  }
+}
+
+async function deleteRows(
+  table: string,
+  column: string,
+  values: string[],
+) {
+  if (values.length === 0) {
+    return
+  }
+
+  const supabase = createSupabaseAdminClient()
+  const { error } = await supabase.from(table).delete().in(column, values)
+
+  if (error) {
+    throw error
+  }
+}
+
+function normalizeStoreSyncMetaRow(row?: Partial<StoreSyncMetaRow> | null): StoreSyncMetaRow {
+  return {
+    id: row?.id ?? DEFAULT_STORE_ID,
+    backoffice_state_version: Number(row?.backoffice_state_version ?? 0),
+    public_state_version: Number(row?.public_state_version ?? 0),
+    backoffice_snapshot_version: Number(row?.backoffice_snapshot_version ?? 0),
+    public_snapshot_version: Number(row?.public_snapshot_version ?? 0),
+  }
+}
+
+function isMissingRelationError(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const code = 'code' in error ? error.code : null
+  const message = 'message' in error ? error.message : null
+
+  return (
+    code === '42P01' ||
+    (typeof message === 'string' &&
+      (
+        message.toLowerCase().includes('relation') ||
+        message.toLowerCase().includes('schema cache') ||
+        message.toLowerCase().includes('could not find the table')
+      ))
+  )
+}
+
+async function loadStoreSyncMeta() {
+  const supabase = createSupabaseAdminClient()
+  const { data, error } = await supabase
+    .from('store_sync_meta')
+    .select(
+      'id, backoffice_state_version, public_state_version, backoffice_snapshot_version, public_snapshot_version',
+    )
+    .eq('id', DEFAULT_STORE_ID)
+    .maybeSingle()
+
+  if (error) {
+    if (isMissingRelationError(error)) {
+      return normalizeStoreSyncMetaRow(DEFAULT_STORE_SYNC_META)
+    }
+    throw error
+  }
+
+  if (data) {
+    return normalizeStoreSyncMetaRow(data as Partial<StoreSyncMetaRow>)
+  }
+
+  const defaultRow = normalizeStoreSyncMetaRow(DEFAULT_STORE_SYNC_META)
+  await upsertRow('store_sync_meta', defaultRow as unknown as Record<string, unknown>, 'id')
+  return defaultRow
+}
+
+async function saveStoreSyncMeta(meta: StoreSyncMetaRow) {
+  try {
+    await upsertRow('store_sync_meta', meta as unknown as Record<string, unknown>, 'id')
+  } catch (error) {
+    if (isMissingRelationError(error)) {
+      return meta
+    }
+    throw error
+  }
+  return meta
+}
+
+async function bumpStoreStateVersions({
+  backoffice,
+  publicState,
+}: {
+  backoffice: boolean
+  publicState: boolean
+}) {
+  const currentMeta = await loadStoreSyncMeta()
+  const nextMeta = normalizeStoreSyncMetaRow({
+    ...currentMeta,
+    backoffice_state_version:
+      currentMeta.backoffice_state_version + (backoffice ? 1 : 0),
+    public_state_version:
+      currentMeta.public_state_version + (publicState ? 1 : 0),
+  })
+
+  return saveStoreSyncMeta(nextMeta)
+}
+
+async function markSnapshotsFresh(meta?: StoreSyncMetaRow) {
+  const currentMeta = meta ?? (await loadStoreSyncMeta())
+
+  return saveStoreSyncMeta(
+    normalizeStoreSyncMetaRow({
+      ...currentMeta,
+      backoffice_snapshot_version: currentMeta.backoffice_state_version,
+      public_snapshot_version: currentMeta.public_state_version,
+    }),
+  )
+}
+
 async function syncNormalizedStoreTables(state: StoreState) {
   // Persist parent catalog rows first so inventory foreign keys always resolve.
   await syncRowsByKey('catalog_products', 'id', state.catalog.map(mapCatalogProductRow))
@@ -836,6 +1018,159 @@ async function syncNormalizedStoreTables(state: StoreState) {
   ])
 }
 
+type SnapshotSyncMode = 'inline' | 'deferred' | 'skip'
+
+interface StoreWriteResult {
+  snapshotSync: SnapshotSyncMode
+  state: StoreState
+  syncMeta?: StoreSyncMetaRow
+}
+
+function getInventoryActionProductId(
+  action:
+    | Extract<StoreAction, { type: 'updateInventory' }>
+    | Extract<StoreAction, { type: 'adjustInventory' }>
+    | Extract<StoreAction, { type: 'archiveInventoryItem' }>
+    | Extract<StoreAction, { type: 'restoreInventoryItem' }>,
+) {
+  return action.input.productId
+}
+
+function getNewStockMovements(previousState: StoreState, nextState: StoreState) {
+  const previousIds = new Set(previousState.stockMovements.map((movement) => movement.id))
+  return nextState.stockMovements.filter((movement) => !previousIds.has(movement.id))
+}
+
+async function persistCatalogProduct(product: Product) {
+  await upsertRow('catalog_products', mapCatalogProductRow(product), 'id')
+}
+
+async function persistInventoryRecord(record: InventoryRecord) {
+  await upsertRow('inventory_items', mapInventoryRow(record), 'product_id')
+}
+
+async function persistCatalogAndInventory(
+  state: StoreState,
+  productId: string,
+) {
+  const product = state.catalog.find((entry) => entry.id === productId)
+  const inventoryRecord = state.inventory.find((entry) => entry.productId === productId)
+
+  if (!product) {
+    throw new Error('The catalog product could not be found after saving.')
+  }
+
+  await persistCatalogProduct(product)
+
+  if (inventoryRecord) {
+    await persistInventoryRecord(inventoryRecord)
+  }
+}
+
+async function deleteCatalogAndInventory(productId: string) {
+  await deleteRows('inventory_items', 'product_id', [productId])
+  await deleteRows('catalog_products', 'id', [productId])
+}
+
+export async function syncStoreSnapshots(
+  state: StoreState,
+  syncMeta?: StoreSyncMetaRow,
+) {
+  const supabase = createSupabaseAdminClient()
+  const normalized = normalizeState({ ...state, cart: [] })
+
+  cacheBackofficeStoreSnapshot(normalized)
+  clearPublicStoreSnapshotCache()
+
+  const [appSnapshotResult, publicSnapshotResult] = await Promise.allSettled([
+    supabase.from('app_store_snapshots').upsert({
+      id: DEFAULT_STORE_ID,
+      state: { ...normalized, cart: [] },
+    }),
+    syncPublicStoreSnapshot(normalized),
+  ])
+
+  if (appSnapshotResult.status === 'rejected') {
+    throw appSnapshotResult.reason
+  }
+
+  if (publicSnapshotResult.status === 'rejected') {
+    throw publicSnapshotResult.reason
+  }
+
+  if (appSnapshotResult.value.error) {
+    throw appSnapshotResult.value.error
+  }
+
+  await markSnapshotsFresh(syncMeta)
+}
+
+export async function saveStoreMutation(
+  action: StoreAction,
+  previousState: StoreState,
+  nextState: StoreState,
+): Promise<StoreWriteResult> {
+  const normalized = normalizeState({ ...nextState, cart: [] })
+
+  cacheBackofficeStoreSnapshot(normalized)
+  clearPublicStoreSnapshotCache()
+
+  switch (action.type) {
+    case 'addCatalogProduct': {
+      await persistCatalogAndInventory(normalized, action.product.id)
+      return {
+        state: normalized,
+        snapshotSync: 'deferred',
+        syncMeta: await bumpStoreStateVersions({ backoffice: true, publicState: true }),
+      }
+    }
+
+    case 'updateCatalogProduct': {
+      await persistCatalogAndInventory(normalized, action.productId)
+      return {
+        state: normalized,
+        snapshotSync: 'deferred',
+        syncMeta: await bumpStoreStateVersions({ backoffice: true, publicState: true }),
+      }
+    }
+
+    case 'removeCatalogProduct': {
+      await deleteCatalogAndInventory(action.productId)
+      return {
+        state: normalized,
+        snapshotSync: 'skip',
+        syncMeta: await bumpStoreStateVersions({ backoffice: true, publicState: true }),
+      }
+    }
+
+    case 'updateInventory':
+    case 'adjustInventory':
+    case 'archiveInventoryItem':
+    case 'restoreInventoryItem': {
+      const productId = getInventoryActionProductId(action)
+      await persistCatalogAndInventory(normalized, productId)
+      await upsertRows(
+        'stock_movements',
+        getNewStockMovements(previousState, normalized).map(mapStockMovementRow),
+        'id',
+      )
+
+      return {
+        state: normalized,
+        snapshotSync: 'deferred',
+        syncMeta: await bumpStoreStateVersions({ backoffice: true, publicState: true }),
+      }
+    }
+
+    default: {
+      return {
+        state: await saveStoreSnapshot(normalized),
+        snapshotSync: 'inline',
+      }
+    }
+  }
+}
+
 export async function ensureSupabaseStoreSeeded(
   options: EnsureSupabaseStoreSeededOptions = {},
 ) {
@@ -858,6 +1193,7 @@ export async function ensureSupabaseStoreSeeded(
   let shouldUpsertSnapshot = false
   let shouldSyncPublicSnapshot = false
   let shouldSyncNormalizedTables = false
+  let promotionTableAvailable = true
 
   const [
     { data: storeRow, error: storeError },
@@ -886,10 +1222,21 @@ export async function ensureSupabaseStoreSeeded(
   }
 
   if (promotionError) {
-    throw promotionError
+    if (isMissingRelationError(promotionError)) {
+      promotionTableAvailable = false
+    } else {
+      throw promotionError
+    }
   }
 
-  await ensureDefaultAdminAccount()
+  try {
+    await ensureDefaultAdminAccount()
+  } catch (error) {
+    console.error('Unable to provision the default admin account during store bootstrap.', {
+      error: error instanceof Error ? error.message : error,
+    })
+  }
+  await loadStoreSyncMeta()
 
   if (!storeRow) {
     const seedState = createSampleState()
@@ -905,7 +1252,7 @@ export async function ensureSupabaseStoreSeeded(
     shouldSyncPublicSnapshot = true
   }
 
-  if (!promotionCount) {
+  if (promotionTableAvailable && !promotionCount) {
     await supabase.from('promotions').upsert(
       seedPromotions.map((promotion) => ({
         id: promotion.id,
@@ -968,6 +1315,50 @@ export async function ensureSupabaseStoreSeeded(
   }
 }
 
+async function loadBackofficeStoreSnapshot() {
+  if (backofficeStoreSnapshotCache && Date.now() < backofficeStoreSnapshotCacheExpiresAt) {
+    return backofficeStoreSnapshotCache
+  }
+
+  await ensureSupabaseStoreSeeded()
+  const syncMeta = await loadStoreSyncMeta()
+
+  const supabase = createSupabaseAdminClient()
+  const { data, error } = await supabase
+    .from('app_store_snapshots')
+    .select('state, updated_at')
+    .eq('id', DEFAULT_STORE_ID)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  const snapshot = data?.state
+    ? normalizeState((data.state as Partial<StoreState> | null) ?? null)
+    : null
+
+  if (!snapshot) {
+    return loadBackofficeStoreState()
+  }
+
+  if (syncMeta.backoffice_snapshot_version < syncMeta.backoffice_state_version) {
+    try {
+      return await loadBackofficeStoreState()
+    } catch (snapshotRefreshError) {
+      console.error('Falling back to the last stored backoffice snapshot.', {
+        error:
+          snapshotRefreshError instanceof Error
+            ? snapshotRefreshError.message
+            : snapshotRefreshError,
+      })
+    }
+  }
+
+  cacheBackofficeStoreSnapshot(snapshot)
+  return snapshot
+}
+
 export async function loadStoreSnapshot() {
   return loadBackofficeStoreState()
 }
@@ -977,11 +1368,67 @@ export async function loadPublicStoreSnapshot() {
     return publicStoreSnapshotCache
   }
 
-  const publicState = createPublicStoreState(await loadBackofficeStoreState())
+  await ensureSupabaseStoreSeeded()
+  const syncMeta = await loadStoreSyncMeta()
+
+  const supabase = createSupabaseAdminClient()
+  const { data, error } = await supabase
+    .from('public_store_snapshots')
+    .select('state, updated_at')
+    .eq('id', DEFAULT_STORE_ID)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  const snapshot = data?.state
+    ? normalizeState((data.state as Partial<StoreState> | null) ?? null)
+    : null
+
+  let publicState = snapshot
+
+  if (!publicState || syncMeta.public_snapshot_version < syncMeta.public_state_version) {
+    try {
+      publicState = createPublicStoreState(await loadBackofficeStoreSnapshot())
+    } catch (snapshotRefreshError) {
+      if (!snapshot) {
+        throw snapshotRefreshError
+      }
+
+      console.error('Falling back to the last stored public snapshot.', {
+        error:
+          snapshotRefreshError instanceof Error
+            ? snapshotRefreshError.message
+            : snapshotRefreshError,
+      })
+      publicState = snapshot
+    }
+  }
 
   cachePublicStoreSnapshot(publicState)
 
   return publicState
+}
+
+export async function loadBootstrapStoreStateForActor(actor?: StoreActor | null) {
+  if (isBackofficeActor(actor)) {
+    return loadBackofficeStoreSnapshot()
+  }
+
+  if (actor?.role === 'USER') {
+    const [publicState, customerOrders] = await Promise.all([
+      loadPublicStoreSnapshot(),
+      loadOrdersForCustomer(actor),
+    ])
+
+    return {
+      ...publicState,
+      orders: customerOrders,
+    }
+  }
+
+  return loadPublicStoreSnapshot()
 }
 
 async function loadOrdersForCustomer(actor: StoreActor) {
@@ -1098,20 +1545,12 @@ export async function loadStoreStateForActor(actor?: StoreActor | null) {
 }
 
 export async function saveStoreSnapshot(state: StoreState) {
-  const supabase = createSupabaseAdminClient()
   const normalized = normalizeState({ ...state, cart: [] })
-
-  clearPublicStoreSnapshotCache()
 
   await syncNormalizedStoreTables(normalized)
 
-  await Promise.allSettled([
-    supabase.from('app_store_snapshots').upsert({
-      id: DEFAULT_STORE_ID,
-      state: { ...normalized, cart: [] },
-    }),
-    syncPublicStoreSnapshot(normalized),
-  ])
+  const syncMeta = await bumpStoreStateVersions({ backoffice: true, publicState: true })
+  await syncStoreSnapshots(normalized, syncMeta)
 
   return normalized
 }

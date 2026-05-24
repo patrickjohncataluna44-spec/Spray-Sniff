@@ -53,7 +53,7 @@ function isOpenCase(status: SupportCase['status']) {
 }
 
 export default function AdminSupportPage() {
-  const { user } = useAuth()
+  const { user, isLoading: isAuthLoading } = useAuth()
   const [cases, setCases] = useState<SupportCase[]>([])
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([])
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
@@ -85,6 +85,15 @@ export default function AdminSupportPage() {
   }, [activeFilter, cases])
 
   const loadCases = useCallback(async () => {
+    if (isAuthLoading) {
+      return
+    }
+
+    if (!user) {
+      setIsLoadingCases(false)
+      return
+    }
+
     setIsLoadingCases(true)
 
     try {
@@ -120,9 +129,13 @@ export default function AdminSupportPage() {
     } finally {
       setIsLoadingCases(false)
     }
-  }, [selectedCaseId])
+  }, [isAuthLoading, selectedCaseId, user])
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
+    if (isAuthLoading || !user) {
+      return
+    }
+
     setIsLoadingDetail(true)
 
     try {
@@ -152,20 +165,28 @@ export default function AdminSupportPage() {
     } finally {
       setIsLoadingDetail(false)
     }
-  }, [])
+  }, [isAuthLoading, user])
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return
+    }
+
     void loadCases()
-  }, [loadCases])
+  }, [isAuthLoading, loadCases])
 
   useEffect(() => {
+    if (isAuthLoading || !user) {
+      return
+    }
+
     if (!selectedCaseId) {
       setSelectedCase(null)
       return
     }
 
     void loadCaseDetail(selectedCaseId)
-  }, [loadCaseDetail, selectedCaseId])
+  }, [isAuthLoading, loadCaseDetail, selectedCaseId, user])
 
   useEffect(() => {
     if (filteredCases.length === 0) {

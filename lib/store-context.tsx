@@ -125,6 +125,20 @@ interface StoreContextType extends StoreState {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
 
+function getPayloadSyncedAt(payload: unknown) {
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'syncedAt' in payload &&
+    typeof payload.syncedAt === 'string' &&
+    payload.syncedAt.trim()
+  ) {
+    return payload.syncedAt
+  }
+
+  return new Date().toISOString()
+}
+
 async function getAuthHeaders() {
   const supabase = getSupabaseBrowserClient()
   const { data } = await supabase.auth.getSession()
@@ -181,7 +195,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       setState(payload.state as StoreState)
       setWishlistIds(Array.isArray(payload.wishlistIds) ? payload.wishlistIds : [])
-      setLastSyncedAt(new Date().toISOString())
+      setLastSyncedAt(getPayloadSyncedAt(payload))
     } catch {
       // Keep the last known store state instead of wiping the cart on a transient bootstrap failure.
     } finally {
@@ -270,7 +284,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (payload.state) {
       setState(payload.state as StoreState)
-      setLastSyncedAt(new Date().toISOString())
+      setLastSyncedAt(getPayloadSyncedAt(payload))
     }
 
     return {
