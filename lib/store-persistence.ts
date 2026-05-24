@@ -367,10 +367,14 @@ async function syncPublicStoreSnapshot(state: StoreState) {
   const supabase = createSupabaseAdminClient()
   const publicState = createPublicStoreState(state)
 
-  await supabase.from('public_store_snapshots').upsert({
+  const { error } = await supabase.from('public_store_snapshots').upsert({
     id: DEFAULT_STORE_ID,
     state: publicState,
   })
+
+  if (error) {
+    throw error
+  }
 
   cachePublicStoreSnapshot(publicState)
 }
@@ -806,8 +810,10 @@ async function syncRowsByKey(
 }
 
 async function syncNormalizedStoreTables(state: StoreState) {
+  // Persist parent catalog rows first so inventory foreign keys always resolve.
+  await syncRowsByKey('catalog_products', 'id', state.catalog.map(mapCatalogProductRow))
+
   await Promise.all([
-    syncRowsByKey('catalog_products', 'id', state.catalog.map(mapCatalogProductRow)),
     syncRowsByKey('inventory_items', 'product_id', state.inventory.map(mapInventoryRow)),
     syncRowsByKey(
       'stock_movements',
@@ -963,16 +969,7 @@ export async function ensureSupabaseStoreSeeded(
 }
 
 export async function loadStoreSnapshot() {
-  await ensureSupabaseStoreSeeded()
-
-  const supabase = createSupabaseAdminClient()
-  const { data } = await supabase
-    .from('app_store_snapshots')
-    .select('state')
-    .eq('id', DEFAULT_STORE_ID)
-    .single()
-
-  return normalizeState((data?.state as Partial<StoreState> | null) ?? null)
+  return loadBackofficeStoreState()
 }
 
 export async function loadPublicStoreSnapshot() {
@@ -980,24 +977,7 @@ export async function loadPublicStoreSnapshot() {
     return publicStoreSnapshotCache
   }
 
-  await ensureSupabaseStoreSeeded()
-
-  const supabase = createSupabaseAdminClient()
-  const { data } = await supabase
-    .from('public_store_snapshots')
-    .select('state')
-    .eq('id', DEFAULT_STORE_ID)
-    .single()
-
-  const state = normalizeState((data?.state as Partial<StoreState> | null) ?? null)
-
-  const publicState = {
-    ...state,
-    cart: [],
-    orders: [],
-    posTransactions: [],
-    stockMovements: [],
-  } satisfies StoreState
+  const publicState = createPublicStoreState(await loadBackofficeStoreState())
 
   cachePublicStoreSnapshot(publicState)
 
@@ -1123,13 +1103,14 @@ export async function saveStoreSnapshot(state: StoreState) {
 
   clearPublicStoreSnapshotCache()
 
-  await Promise.all([
+  await syncNormalizedStoreTables(normalized)
+
+  await Promise.allSettled([
     supabase.from('app_store_snapshots').upsert({
       id: DEFAULT_STORE_ID,
       state: { ...normalized, cart: [] },
     }),
     syncPublicStoreSnapshot(normalized),
-    syncNormalizedStoreTables(normalized),
   ])
 
   return normalized
@@ -1149,10 +1130,14 @@ export async function loadUserCart(userId: string) {
 export async function saveUserCart(userId: string, items: CartItem[]) {
   const supabase = createSupabaseAdminClient()
 
-  await supabase.from('user_carts').upsert({
+  const { error } = await supabase.from('user_carts').upsert({
     user_id: userId,
     items,
   })
+
+  if (error) {
+    throw error
+  }
 }
 
 export async function loadUserWishlist(userId: string) {
@@ -1169,10 +1154,14 @@ export async function loadUserWishlist(userId: string) {
 export async function saveUserWishlist(userId: string, productIds: string[]) {
   const supabase = createSupabaseAdminClient()
 
-  await supabase.from('user_wishlists').upsert({
+  const { error } = await supabase.from('user_wishlists').upsert({
     user_id: userId,
     product_ids: productIds,
   })
+
+  if (error) {
+    throw error
+  }
 }
 
 export function mapPromotionRow(row: {

@@ -20,11 +20,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { PRODUCT_CATEGORIES, type ProductFormValues } from '@/lib/admin-products'
 import { type UserRole } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
+import { optimizeProductImage } from '@/lib/product-image'
 import { SITE_NAME } from '@/lib/site'
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024
-const MAX_IMAGE_DIMENSION = 1400
 
 type FormErrors = Partial<Record<keyof ProductFormValues, string>>
 
@@ -39,61 +39,6 @@ interface AdminProductEditorProps {
   submitLabel: string
   title: string
   onSubmit: (values: ProductFormValues) => Promise<void>
-}
-
-function resizeToFit(width: number, height: number) {
-  const largestSide = Math.max(width, height)
-
-  if (largestSide <= MAX_IMAGE_DIMENSION) {
-    return { width, height }
-  }
-
-  const scale = MAX_IMAGE_DIMENSION / largestSide
-
-  return {
-    width: Math.round(width * scale),
-    height: Math.round(height * scale),
-  }
-}
-
-function optimizeProductImage(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file)
-    const image = new Image()
-
-    image.onload = () => {
-      try {
-        const { width, height } = resizeToFit(image.width, image.height)
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-
-        const context = canvas.getContext('2d')
-
-        if (!context) {
-          reject(new Error('Unable to prepare the image for upload.'))
-          return
-        }
-
-        context.fillStyle = '#ffffff'
-        context.fillRect(0, 0, width, height)
-        context.drawImage(image, 0, 0, width, height)
-
-        resolve(canvas.toDataURL('image/jpeg', 0.88))
-      } catch {
-        reject(new Error('Unable to optimize the selected image.'))
-      } finally {
-        URL.revokeObjectURL(objectUrl)
-      }
-    }
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('The selected file could not be read as an image.'))
-    }
-
-    image.src = objectUrl
-  })
 }
 
 function validateForm(values: ProductFormValues): FormErrors {

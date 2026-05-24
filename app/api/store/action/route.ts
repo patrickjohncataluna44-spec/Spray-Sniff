@@ -16,6 +16,28 @@ import {
   type StoreAction,
 } from '@/lib/store-engine'
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  if (error && typeof error === 'object') {
+    if ('message' in error && typeof error.message === 'string' && error.message.trim()) {
+      return error.message
+    }
+
+    if ('details' in error && typeof error.details === 'string' && error.details.trim()) {
+      return error.details
+    }
+
+    if ('hint' in error && typeof error.hint === 'string' && error.hint.trim()) {
+      return error.hint
+    }
+  }
+
+  return 'Unable to process the store action.'
+}
+
 const CART_ACTIONS = new Set<StoreAction['type']>([
   'addToCart',
   'updateCartQuantity',
@@ -192,7 +214,7 @@ export async function POST(request: NextRequest) {
       state: await getVisibleStoreState(nextSnapshot, actor, nextCart),
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to process the store action.'
+    const message = getErrorMessage(error)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
