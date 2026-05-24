@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ChevronLeft, ExternalLink } from 'lucide-react'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Spinner } from '@/components/ui/spinner'
 import { formatPHP } from '@/lib/currency'
+import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
 import { isPaymentTestCart } from '@/lib/store-engine'
 import { useAuth } from '@/lib/auth-context'
@@ -235,12 +236,12 @@ function CheckoutContent() {
         return
       }
 
-      const paymentStatuses = Array.isArray(payload.paymentStatuses)
+      const paymentStatuses: string[] = Array.isArray(payload.paymentStatuses)
         ? payload.paymentStatuses
-            .map((entry) =>
+            .map((entry: unknown) =>
               entry && typeof entry === 'object' && 'status' in entry ? String(entry.status ?? '').toLowerCase() : '',
             )
-            .filter(Boolean)
+            .filter((status: string): status is string => Boolean(status))
         : []
       const sessionStatus = typeof payload.status === 'string' ? payload.status.toLowerCase() : ''
 
@@ -258,7 +259,7 @@ function CheckoutContent() {
     throw lastError ?? new Error('We could not confirm your PayMongo payment yet.')
   }
 
-  const finalizeOrder = async (pendingCheckout: PendingPaymongoCheckout) => {
+  const finalizeOrder = useCallback(async (pendingCheckout: PendingPaymongoCheckout) => {
     const result = await placeOnlineOrder({
       customerEmail: pendingCheckout.customerEmail,
       customerName: pendingCheckout.customerName,
@@ -286,7 +287,7 @@ function CheckoutContent() {
       title: 'Payment confirmed',
       description: `${result.data.id} has been recorded as a paid ${pendingCheckout.paymentMethodLabel ?? 'PayMongo'} order.`,
     })
-  }
+  }, [placeOnlineOrder, router])
 
   useEffect(() => {
     if (
@@ -333,7 +334,7 @@ function CheckoutContent() {
       .finally(() => {
         setIsVerifyingPayment(false)
       })
-  }, [authLoading, isAuthenticated, paymentFlow, placeOnlineOrder, router, user])
+  }, [authLoading, finalizeOrder, isAuthenticated, paymentFlow, router, user])
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -359,6 +360,45 @@ function CheckoutContent() {
 
     const shippingAddress = buildShippingAddress()
     const fullName = buildFullName()
+    const checkoutLineItems = orderItems.reduce<PaymongoCheckoutLineItem[]>((items, item) => {
+      if (!item.product) {
+        return items
+      }
+
+      items.push({
+        name: `${item.product.name} ${item.size}ml`,
+        amount: Math.round(item.unitPrice * 100),
+        quantity: item.quantity,
+        currency: 'PHP',
+        description: item.product.description,
+        images:
+          item.product.images?.[0] && item.product.images[0].startsWith('http')
+            ? [item.product.images[0]]
+            : undefined,
+      })
+
+      return items
+    }, [])
+
+    if (shipping > 0) {
+      checkoutLineItems.push({
+        name: 'Shipping Fee',
+        amount: Math.round(shipping * 100),
+        quantity: 1,
+        currency: 'PHP',
+        description: 'Order delivery charge.',
+      })
+    }
+
+    if (tax > 0) {
+      checkoutLineItems.push({
+        name: 'VAT (12%)',
+        amount: Math.round(tax * 100),
+        quantity: 1,
+        currency: 'PHP',
+        description: 'Tax applied to this order.',
+      })
+    }
 
     try {
       if (isPaymongoCheckoutMethod(formData.paymentMethod)) {
@@ -373,45 +413,7 @@ function CheckoutContent() {
             expectedAmount: Math.round(total * 100),
             reference: formData.reference,
             shippingAddress,
-            lineItems: orderItems
-              .filter((item) => item.product)
-              .map((item) => ({
-                name: `${item.product?.name ?? 'Product'} ${item.size}ml`,
-                amount: Math.round(item.unitPrice * 100),
-                quantity: item.quantity,
-                currency: 'PHP',
-                description: item.product?.description,
-                images:
-                  item.product?.images?.[0] && item.product.images[0].startsWith('http')
-                    ? [item.product.images[0]]
-                    : undefined,
-              }))
-              .concat(
-                shipping > 0
-                  ? [
-                      {
-                        name: 'Shipping Fee',
-                        amount: Math.round(shipping * 100),
-                        quantity: 1,
-                        currency: 'PHP' as const,
-                        description: 'Order delivery charge.',
-                      },
-                    ]
-                  : [],
-              )
-              .concat(
-                tax > 0
-                  ? [
-                      {
-                        name: 'VAT (12%)',
-                        amount: Math.round(tax * 100),
-                        quantity: 1,
-                        currency: 'PHP' as const,
-                        description: 'Tax applied to this order.',
-                      },
-                    ]
-                  : [],
-              ),
+            lineItems: checkoutLineItems,
           }),
         })
 
