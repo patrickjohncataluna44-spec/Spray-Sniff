@@ -2,6 +2,7 @@
 const config = {
   plugins: {
     '@tailwindcss/postcss': {},
+    './postcss-unwrap-cascade-layers.cjs': {},
   },
 }
 
