@@ -27,22 +27,22 @@ export default function Home() {
 
   return (
     <StorefrontShell>
-      <section className="px-4 pb-10 pt-8 sm:px-6 lg:px-8 lg:pt-10">
-        <div className="mx-auto grid max-w-7xl gap-8 overflow-hidden rounded-[2.5rem] bg-[linear-gradient(140deg,#ffd2c9_0%,#ffbfa8_42%,#fff0be_100%)] px-7 py-10 shadow-[0_32px_90px_rgba(182,104,86,0.18)] sm:px-10 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-14">
+      <section className="px-3 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8 lg:pt-10">
+        <div className="mx-auto grid max-w-7xl gap-6 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(140deg,#ffd2c9_0%,#ffbfa8_42%,#fff0be_100%)] px-6 py-8 shadow-[0_32px_90px_rgba(182,104,86,0.18)] sm:gap-8 sm:rounded-[2.5rem] sm:px-10 sm:py-10 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-14">
           <div className="relative z-10 flex flex-col justify-center">
             <p className="storefront-eyebrow">Perfume-Only Curation</p>
-            <h1 className="mt-5 max-w-xl font-serif text-5xl leading-[0.98] text-foreground sm:text-6xl lg:text-7xl">
+            <h1 className="mt-4 max-w-full text-balance font-serif text-[clamp(2rem,7vw,2.65rem)] leading-[1.05] text-foreground sm:mt-5 sm:max-w-xl sm:text-6xl lg:text-7xl">
               Find A Signature Scent That Feels Personal.
             </h1>
-            <p className="mt-6 max-w-xl text-base leading-8 text-foreground/70 sm:text-lg">
+            <p className="mt-5 max-w-xl text-sm leading-7 text-foreground/70 sm:mt-6 sm:text-lg sm:leading-8">
               Explore editor-style fragrance collections, rich note stories, and long-wear perfume
               picks designed for daily rituals, gifting moments, and evening statements.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row">
               <Button
                 size="lg"
-                className="h-12 rounded-2xl bg-primary px-7 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.34)] hover:bg-[#ff8a73]"
+                className="h-12 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.34)] hover:bg-[#ff8a73] sm:px-7"
                 asChild
               >
                 <Link href="/shop">
@@ -53,14 +53,14 @@ export default function Home() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-2xl border-border/70 bg-white/60 px-7"
+                className="h-12 rounded-2xl border-border/70 bg-white/60 px-5 sm:px-7"
                 asChild
               >
                 <Link href="/discovery">Take The Discovery Quiz</Link>
               </Button>
             </div>
 
-            <div className="mt-10 grid max-w-xl gap-4 sm:grid-cols-3">
+            <div className="mt-8 grid max-w-xl gap-3 sm:mt-10 sm:grid-cols-3 sm:gap-4">
               <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
                 <p className="text-2xl font-semibold text-foreground">Curated</p>
                 <p className="mt-1 text-sm text-foreground/65">Perfume-only collections</p>
@@ -76,10 +76,10 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="relative flex min-h-[360px] items-end justify-center lg:min-h-[560px]">
+          <div className="relative flex min-h-[280px] items-end justify-center sm:min-h-[360px] lg:min-h-[560px]">
             <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.38),transparent_56%)]" />
             <div className="absolute right-2 top-4 h-[76%] w-[78%] rounded-full bg-[linear-gradient(180deg,rgba(255,154,134,0.18),rgba(255,255,255,0.08))] blur-[1px]" />
-            <div className="relative h-[320px] w-full max-w-[560px] overflow-hidden rounded-[2.25rem] border border-white/40 bg-white/28 shadow-[0_40px_80px_rgba(135,77,70,0.18)] sm:h-[420px]">
+            <div className="relative h-[280px] w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-white/40 bg-white/28 shadow-[0_40px_80px_rgba(135,77,70,0.18)] sm:h-[420px] sm:rounded-[2.25rem]">
               <Image
                 src="/hero-banner.jpg"
                 alt="Luxury perfume collection"

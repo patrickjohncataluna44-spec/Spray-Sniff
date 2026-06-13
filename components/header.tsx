@@ -39,15 +39,15 @@ export function Header() {
   const { cartCount } = useStore()
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/82 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/95 backdrop-blur-xl">
       <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
-        <div className="grid h-20 grid-cols-[auto_1fr_auto] items-center gap-4 xl:gap-6">
-          <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,#ffb399,#ff9a86)] text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,154,134,0.35)]">
+        <div className="grid h-16 grid-cols-[auto_1fr_auto] items-center gap-2 sm:h-20 sm:gap-4 xl:gap-6">
+          <Link href="/" className="flex min-w-0 max-w-[9rem] shrink-0 items-center gap-2 sm:max-w-none sm:gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,#ffb399,#ff9a86)] text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,154,134,0.35)] sm:h-11 sm:w-11">
               SS
             </span>
             <span className="min-w-0">
-              <span className="block font-serif text-lg text-foreground sm:text-xl xl:text-2xl">
+              <span className="block truncate whitespace-nowrap font-serif text-base leading-tight text-foreground sm:text-xl xl:text-2xl">
                 {SITE_NAME}
               </span>
               <span className="hidden text-[10px] uppercase tracking-[0.24em] text-foreground/45 lg:block">
@@ -79,13 +79,13 @@ export function Header() {
             </nav>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
               type="button"
               suppressHydrationWarning
               aria-label="Search"
               onClick={() => router.push('/shop')}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted sm:h-11 sm:w-11"
             >
               <Search className="h-5 w-5 text-foreground" />
             </button>
@@ -93,7 +93,7 @@ export function Header() {
             <Link
               href="/wishlist"
               aria-label="Wishlist"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted sm:h-11 sm:w-11"
             >
               <Heart className="h-5 w-5 text-foreground" />
             </Link>
@@ -101,7 +101,7 @@ export function Header() {
             <Link
               href="/cart"
               aria-label="Cart"
-              className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted sm:h-11 sm:w-11"
             >
               <ShoppingBag className="h-5 w-5 text-foreground" />
               {cartCount > 0 && (
@@ -119,7 +119,7 @@ export function Header() {
               type="button"
               suppressHydrationWarning
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-white/75 transition hover:bg-muted sm:h-11 sm:w-11 lg:hidden"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? (
@@ -132,7 +132,7 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <nav className="space-y-4 border-t border-border/70 py-5 lg:hidden">
+          <nav className="space-y-4 border-t border-border/70 py-4 sm:py-5 lg:hidden">
             <div className="grid gap-2 sm:grid-cols-2">
               {STOREFRONT_NAV_ITEMS.map((item) => (
                 <Link
