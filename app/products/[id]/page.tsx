@@ -152,7 +152,7 @@ export default function ProductPage({
           <div className="space-y-6">
             <div className="storefront-panel rounded-[2.25rem] p-7 sm:p-9">
               <p className="storefront-eyebrow">{product.brand}</p>
-              <h1 className="mt-3 text-5xl leading-tight text-foreground sm:text-6xl">{product.name}</h1>
+              <h1 className="mt-3 text-[clamp(1.875rem,6vw,3.5rem)] leading-tight text-foreground sm:text-5xl lg:text-6xl">{product.name}</h1>
 
               <div className="mt-5 flex flex-wrap items-center gap-4">
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${availabilityTone}`}>
@@ -304,7 +304,7 @@ export default function ProductPage({
 
             <div className="storefront-panel rounded-[2rem] p-7 sm:p-9">
               <p className="storefront-eyebrow">Scent Profile</p>
-              <div className="mt-6 grid gap-6 md:grid-cols-3">
+              <div className="mt-6 grid gap-6 sm:grid-cols-3">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">Top Notes</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -382,7 +382,7 @@ export default function ProductPage({
         <div className="mx-auto max-w-7xl">
           <div className="mb-8">
             <p className="storefront-eyebrow">You May Also Like</p>
-            <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Related Fragrances</h2>
+            <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">Related Fragrances</h2>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
             {relatedProducts.map(

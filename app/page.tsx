@@ -27,19 +27,20 @@ export default function Home() {
 
   return (
     <StorefrontShell>
+      {/* ── Hero ──────────────────────────────────────────────── */}
       <section className="px-3 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8 lg:pt-10">
-        <div className="mx-auto grid max-w-7xl gap-6 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(140deg,#ffd2c9_0%,#ffbfa8_42%,#fff0be_100%)] px-6 py-8 shadow-[0_32px_90px_rgba(182,104,86,0.18)] sm:gap-8 sm:rounded-[2.5rem] sm:px-10 sm:py-10 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-14">
+        <div className="mx-auto grid max-w-7xl gap-5 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(140deg,#ffd2c9_0%,#ffbfa8_42%,#fff0be_100%)] px-5 py-7 shadow-[0_32px_90px_rgba(182,104,86,0.18)] sm:gap-8 sm:rounded-[2.5rem] sm:px-10 sm:py-10 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-14">
           <div className="relative z-10 flex flex-col justify-center">
             <p className="storefront-eyebrow">Perfume-Only Curation</p>
-            <h1 className="mt-4 max-w-full text-balance font-serif text-[clamp(2rem,7vw,2.65rem)] leading-[1.05] text-foreground sm:mt-5 sm:max-w-xl sm:text-6xl lg:text-7xl">
+            <h1 className="mt-4 max-w-full text-balance font-serif text-[clamp(1.75rem,6vw,2.65rem)] leading-[1.1] text-foreground sm:mt-5 sm:max-w-xl sm:text-5xl lg:text-7xl">
               Find A Signature Scent That Feels Personal.
             </h1>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-foreground/70 sm:mt-6 sm:text-lg sm:leading-8">
+            <p className="mt-4 max-w-xl text-sm leading-7 text-foreground/70 sm:mt-6 sm:text-base sm:leading-8 lg:text-lg">
               Explore editor-style fragrance collections, rich note stories, and long-wear perfume
               picks designed for daily rituals, gifting moments, and evening statements.
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
               <Button
                 size="lg"
                 className="h-12 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.34)] hover:bg-[#ff8a73] sm:px-7"
@@ -60,26 +61,26 @@ export default function Home() {
               </Button>
             </div>
 
-            <div className="mt-8 grid max-w-xl gap-3 sm:mt-10 sm:grid-cols-3 sm:gap-4">
-              <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
-                <p className="text-2xl font-semibold text-foreground">Curated</p>
-                <p className="mt-1 text-sm text-foreground/65">Perfume-only collections</p>
+            <div className="mt-6 grid grid-cols-3 gap-2 sm:mt-10 sm:max-w-xl sm:gap-4">
+              <div className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4">
+                <p className="text-base font-semibold text-foreground sm:text-2xl">Curated</p>
+                <p className="mt-0.5 text-[11px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">Perfume-only collections</p>
               </div>
-              <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
-                <p className="text-2xl font-semibold text-foreground">Notes</p>
-                <p className="mt-1 text-sm text-foreground/65">Top, heart, and base clarity</p>
+              <div className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4">
+                <p className="text-base font-semibold text-foreground sm:text-2xl">Notes</p>
+                <p className="mt-0.5 text-[11px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">Top, heart &amp; base</p>
               </div>
-              <div className="rounded-[1.5rem] border border-white/55 bg-white/45 px-4 py-4 backdrop-blur">
-                <p className="text-2xl font-semibold text-foreground">Fast</p>
-                <p className="mt-1 text-sm text-foreground/65">Smooth order tracking</p>
+              <div className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4">
+                <p className="text-base font-semibold text-foreground sm:text-2xl">Fast</p>
+                <p className="mt-0.5 text-[11px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">Smooth tracking</p>
               </div>
             </div>
           </div>
 
-          <div className="relative flex min-h-[280px] items-end justify-center sm:min-h-[360px] lg:min-h-[560px]">
+          <div className="relative flex min-h-[220px] items-end justify-center sm:min-h-[360px] lg:min-h-[560px]">
             <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.38),transparent_56%)]" />
             <div className="absolute right-2 top-4 h-[76%] w-[78%] rounded-full bg-[linear-gradient(180deg,rgba(255,154,134,0.18),rgba(255,255,255,0.08))] blur-[1px]" />
-            <div className="relative h-[280px] w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-white/40 bg-white/28 shadow-[0_40px_80px_rgba(135,77,70,0.18)] sm:h-[420px] sm:rounded-[2.25rem]">
+            <div className="relative h-[220px] w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-white/40 bg-white/28 shadow-[0_40px_80px_rgba(135,77,70,0.18)] sm:h-[420px] sm:rounded-[2.25rem]">
               <Image
                 src="/hero-banner.jpg"
                 alt="Luxury perfume collection"
@@ -106,12 +107,13 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Featured Fragrances ──────────────────────────────── */}
       <section className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
               <p className="storefront-eyebrow">Featured Fragrances</p>
-              <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Curated Signatures</h2>
+              <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">Curated Signatures</h2>
             </div>
             <Link href="/shop" className="hidden text-sm font-semibold text-foreground/65 transition hover:text-foreground sm:inline-flex">
               Browse all scents
@@ -123,12 +125,20 @@ export default function Home() {
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
+
+          {/* Mobile browse link */}
+          <div className="mt-6 text-center sm:hidden">
+            <Link href="/shop" className="text-sm font-semibold text-foreground/65 transition hover:text-foreground">
+              Browse all scents →
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[3rem] shadow-2xl lg:aspect-square">
+      {/* ── Why Choose Us ───────────────────────────────────── */}
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2 lg:gap-12">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[2.5rem] shadow-2xl sm:aspect-[4/5] lg:aspect-square">
             <Image
               src="/why-choose-us.png"
               alt="Premium perfume lifestyle"
@@ -140,25 +150,25 @@ export default function Home() {
 
           <div className="flex flex-col justify-center">
             <p className="storefront-eyebrow">The Signature Experience</p>
-            <h2 className="mt-5 font-serif text-4xl leading-tight text-foreground sm:text-5xl lg:text-6xl">
+            <h2 className="mt-5 font-serif text-3xl leading-tight text-foreground sm:text-4xl lg:text-5xl xl:text-6xl">
               A Refined Way To Discover Scent
             </h2>
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-foreground/70">
-              We curate more than just fragrances. Each bottle is part of a storytelling ritual, 
+            <p className="mt-5 max-w-2xl text-sm leading-relaxed text-foreground/70 sm:text-base lg:text-lg">
+              We curate more than just fragrances. Each bottle is part of a storytelling ritual,
               ensuring your signature scent is as personal as your own story.
             </p>
 
-            <div className="mt-12 grid gap-8 sm:grid-cols-2">
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 sm:gap-8">
               {HOME_BENEFITS.map((benefit) => {
                 const Icon = benefitIcons[benefit.id]
 
                 return (
-                  <div key={benefit.id} className="flex flex-col gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div key={benefit.id} className="flex flex-col gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold text-foreground">{benefit.title}</h3>
+                      <h3 className="text-lg font-semibold text-foreground sm:text-xl">{benefit.title}</h3>
                       <p className="mt-2 text-sm leading-relaxed text-foreground/60">{benefit.description}</p>
                     </div>
                   </div>
@@ -169,12 +179,13 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Best Sellers ─────────────────────────────────────── */}
       <section className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
               <p className="storefront-eyebrow">Best Sellers</p>
-              <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Most-Loved Bottles</h2>
+              <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">Most-Loved Bottles</h2>
             </div>
             <Button
               variant="outline"
@@ -190,19 +201,27 @@ export default function Home() {
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
+
+          {/* Mobile browse link */}
+          <div className="mt-6 text-center sm:hidden">
+            <Link href="/collections" className="text-sm font-semibold text-foreground/65 transition hover:text-foreground">
+              Explore Collections →
+            </Link>
+          </div>
         </div>
       </section>
 
+      {/* ── Testimonials ─────────────────────────────────────── */}
       <section id="reviews" className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="text-center">
             <p className="storefront-eyebrow">Customer Reviews</p>
-            <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">What Perfume Buyers Are Saying</h2>
+            <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">What Perfume Buyers Are Saying</h2>
           </div>
 
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             {HOME_TESTIMONIALS.map((testimonial) => (
-              <article key={testimonial.name} className="storefront-panel rounded-[2rem] p-7">
+              <article key={testimonial.name} className="storefront-panel rounded-[2rem] p-6 sm:p-7">
                 <div className="flex gap-1 text-primary">
                   {Array.from({ length: 5 }).map((_, index) => (
                     <span key={`${testimonial.name}-${index}`}>★</span>
@@ -221,19 +240,20 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Journal ──────────────────────────────────────────── */}
       <section id="journal" className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>
               <p className="storefront-eyebrow">Journal</p>
-              <h2 className="mt-3 text-4xl text-foreground sm:text-5xl">Scent Notes And Buying Guides</h2>
+              <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">Scent Notes And Buying Guides</h2>
             </div>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
             {HOME_JOURNAL_ENTRIES.map((entry) => (
               <article key={entry.title} className="storefront-panel overflow-hidden rounded-[2rem]">
-                <div className="relative h-64 bg-[radial-gradient(circle_at_30%_25%,rgba(255,214,194,0.14),transparent_24%),linear-gradient(145deg,#3d261e,#5b3427_55%,#2f1c17)]">
+                <div className="relative h-56 bg-[radial-gradient(circle_at_30%_25%,rgba(255,214,194,0.14),transparent_24%),linear-gradient(145deg,#3d261e,#5b3427_55%,#2f1c17)] sm:h-64">
                   <Image
                     src={entry.image}
                     alt={entry.imageAlt}
@@ -242,13 +262,13 @@ export default function Home() {
                     className="scale-[0.86] object-contain object-center p-4"
                   />
                 </div>
-                <div className="p-6">
+                <div className="p-5 sm:p-6">
                   <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-foreground/45">
                     <span>{entry.label}</span>
                     <span className="h-1 w-1 rounded-full bg-foreground/25" />
                     <span>{entry.date}</span>
                   </div>
-                  <h3 className="mt-4 text-2xl leading-tight text-foreground">{entry.title}</h3>
+                  <h3 className="mt-4 text-xl leading-tight text-foreground sm:text-2xl">{entry.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-foreground/65">{entry.excerpt}</p>
                   <Link
                     href={entry.href}

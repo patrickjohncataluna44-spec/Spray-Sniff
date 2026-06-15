@@ -10,7 +10,7 @@ export function StorefrontFooter() {
       className="border-t border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.28),rgba(255,240,190,0.38))]"
     >
       <div className="w-full px-3 py-3 sm:px-4 lg:px-6">
-        <section className="w-full rounded-[1rem] bg-[#26181a] px-4 py-3 text-white shadow-[0_10px_28px_rgba(60,25,25,0.14)]">
+        <section className="w-full rounded-[1rem] bg-[#26181a] px-4 py-4 text-white shadow-[0_10px_28px_rgba(60,25,25,0.14)] sm:px-5 sm:py-4">
           <div className="grid gap-4 lg:grid-cols-[220px_1fr_270px] lg:items-start">
             <div className="space-y-0.5">
               <p className="font-serif text-[1.9rem] leading-none">{SITE_NAME}</p>
@@ -19,7 +19,7 @@ export function StorefrontFooter() {
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               {STOREFRONT_FOOTER_GROUPS.map((group) => (
                 <div key={group.title}>
                   <h3 className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
