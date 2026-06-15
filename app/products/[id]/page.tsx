@@ -1,6 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
 import { Heart, ShoppingBag, Star } from 'lucide-react'
@@ -117,32 +117,36 @@ export default function ProductPage({
       <section className="px-4 pb-8 pt-8 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.96fr_1.04fr]">
           <div className="space-y-4">
-            <div className="storefront-panel relative aspect-square overflow-hidden rounded-[2.25rem]">
-              <Image
-                src={mainImage || product.images[0]}
+            {/* Main image — plain img for data: URL support (base64 from Supabase) */}
+            <div
+              className="storefront-panel relative overflow-hidden rounded-[2.25rem]"
+              style={{ height: '320px', minHeight: '320px' }}
+            >
+              <img
+                src={mainImage || product.images[0] || '/placeholder.jpg'}
                 alt={product.name}
-                fill
-                className="object-cover"
-                priority
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => { e.currentTarget.src = '/placeholder.jpg' }}
               />
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-3">
               {product.images.map((image, index) => (
                 <button
-                  key={image}
+                  key={index}
                   type="button"
                   onClick={() => setMainImage(image)}
-                  className={`storefront-panel relative aspect-square overflow-hidden rounded-[1.5rem] ${
+                  className={`storefront-panel relative overflow-hidden rounded-[1.5rem] ${
                     (mainImage || product.images[0]) === image ? 'ring-2 ring-primary/55' : ''
                   }`}
+                  style={{ height: '72px' }}
                   aria-label={`View product image ${index + 1}`}
                 >
-                  <Image
+                  <img
                     src={image}
                     alt={`${product.name} view ${index + 1}`}
-                    fill
-                    className="object-cover"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.currentTarget.src = '/placeholder.jpg' }}
                   />
                 </button>
               ))}

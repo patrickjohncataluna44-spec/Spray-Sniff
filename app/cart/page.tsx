@@ -116,7 +116,7 @@ export default function CartPage() {
                   key={`${item.productId}-${item.size}`}
                   className="storefront-panel flex flex-col gap-5 rounded-[2rem] p-5 sm:flex-row sm:items-start sm:p-6"
                 >
-                  <div className="relative h-32 w-full overflow-hidden rounded-[1.5rem] bg-muted/30 sm:w-32">
+                  <div className="relative w-full overflow-hidden rounded-[1.5rem] bg-muted/30 sm:w-32 sm:flex-shrink-0" style={{ height: '128px', minHeight: '128px' }}>
                     <Image src={product.images[0]} alt={product.name} fill className="object-cover" />
                   </div>
 

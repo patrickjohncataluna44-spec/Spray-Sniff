@@ -13,12 +13,12 @@ import {
 } from '@/lib/storefront-content'
 import { useStore } from '@/lib/store-context'
 
-const benefitIcons = {
+const benefitIcons: Record<string, React.ElementType> = {
   craft: Sparkles,
   notes: WandSparkles,
   gifting: Gift,
   delivery: Truck,
-} as const
+}
 
 export default function Home() {
   const { catalog } = useStore()
@@ -29,79 +29,87 @@ export default function Home() {
     <StorefrontShell>
       {/* ── Hero ──────────────────────────────────────────────── */}
       <section className="px-3 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8 lg:pt-10">
-        <div className="mx-auto grid max-w-7xl gap-5 overflow-hidden rounded-[1.75rem] bg-[linear-gradient(140deg,#ffd2c9_0%,#ffbfa8_42%,#fff0be_100%)] px-5 py-7 shadow-[0_32px_90px_rgba(182,104,86,0.18)] sm:gap-8 sm:rounded-[2.5rem] sm:px-10 sm:py-10 lg:grid-cols-[0.95fr_1.05fr] lg:px-12 lg:py-14">
-          <div className="relative z-10 flex flex-col justify-center">
-            <p className="storefront-eyebrow">Perfume-Only Curation</p>
-            <h1 className="mt-4 max-w-full text-balance font-serif text-[clamp(1.75rem,6vw,2.65rem)] leading-[1.1] text-foreground sm:mt-5 sm:max-w-xl sm:text-5xl lg:text-7xl">
-              Find A Signature Scent That Feels Personal.
-            </h1>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-foreground/70 sm:mt-6 sm:text-base sm:leading-8 lg:text-lg">
-              Explore editor-style fragrance collections, rich note stories, and long-wear perfume
-              picks designed for daily rituals, gifting moments, and evening statements.
-            </p>
-
-            <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
-              <Button
-                size="lg"
-                className="h-12 rounded-2xl bg-primary px-5 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.34)] hover:bg-[#ff8a73] sm:px-7"
-                asChild
+        <div
+          className="mx-auto max-w-7xl overflow-hidden rounded-[1.75rem] sm:rounded-[2.5rem]"
+          style={{
+            background: 'linear-gradient(140deg, #ffd2c9 0%, #ffbfa8 42%, #fff0be 100%)',
+            boxShadow: '0 32px 90px rgba(182,104,86,0.18)',
+          }}
+        >
+          <div className="grid gap-5 px-5 py-7 sm:gap-8 sm:px-10 sm:py-10 lg:grid-cols-2 lg:px-12 lg:py-14">
+            {/* Text content */}
+            <div className="relative z-10 flex flex-col justify-center">
+              <p className="storefront-eyebrow">Perfume-Only Curation</p>
+              <h1
+                className="mt-4 font-serif text-foreground"
+                style={{ fontSize: 'clamp(1.75rem, 6vw, 2.65rem)', lineHeight: '1.1' }}
               >
-                <Link href="/shop">
-                  Shop Fragrances
-                  <MoveRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-12 rounded-2xl border-border/70 bg-white/60 px-5 sm:px-7"
-                asChild
-              >
-                <Link href="/discovery">Take The Discovery Quiz</Link>
-              </Button>
-            </div>
-
-            <div className="mt-6 grid grid-cols-3 gap-2 sm:mt-10 sm:max-w-xl sm:gap-4">
-              <div className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4">
-                <p className="text-base font-semibold text-foreground sm:text-2xl">Curated</p>
-                <p className="mt-0.5 text-[11px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">Perfume-only collections</p>
-              </div>
-              <div className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4">
-                <p className="text-base font-semibold text-foreground sm:text-2xl">Notes</p>
-                <p className="mt-0.5 text-[11px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">Top, heart &amp; base</p>
-              </div>
-              <div className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4">
-                <p className="text-base font-semibold text-foreground sm:text-2xl">Fast</p>
-                <p className="mt-0.5 text-[11px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">Smooth tracking</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative flex min-h-[220px] items-end justify-center sm:min-h-[360px] lg:min-h-[560px]">
-            <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.38),transparent_56%)]" />
-            <div className="absolute right-2 top-4 h-[76%] w-[78%] rounded-full bg-[linear-gradient(180deg,rgba(255,154,134,0.18),rgba(255,255,255,0.08))] blur-[1px]" />
-            <div className="relative h-[220px] w-full max-w-[560px] overflow-hidden rounded-[1.75rem] border border-white/40 bg-white/28 shadow-[0_40px_80px_rgba(135,77,70,0.18)] sm:h-[420px] sm:rounded-[2.25rem]">
-              <Image
-                src="/hero-banner.jpg"
-                alt="Luxury perfume collection"
-                fill
-                priority
-                sizes="(min-width: 1024px) 50vw, 100vw"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,230,220,0.14))]" />
-            </div>
-
-            <div className="absolute left-0 top-8 hidden max-w-[200px] rounded-[1.75rem] border border-white/50 bg-white/72 p-4 text-left shadow-[0_18px_50px_rgba(135,77,70,0.14)] sm:block">
-              <p className="storefront-eyebrow">Fragrance Mood</p>
-              <p className="mt-3 font-serif text-2xl text-foreground">Soft floral, warm woods, and polished citrus.</p>
-            </div>
-
-            <div className="absolute bottom-4 right-0 hidden max-w-[220px] rounded-[1.75rem] border border-white/50 bg-white/78 p-4 shadow-[0_18px_50px_rgba(135,77,70,0.14)] sm:block">
-              <p className="text-sm font-semibold text-foreground">Gift-ready picks</p>
-              <p className="mt-2 text-sm leading-6 text-foreground/66">
-                Discover scents with elegant wear, refined note transitions, and effortless gifting appeal.
+                Find A Signature Scent That Feels Personal.
+              </h1>
+              <p className="mt-4 text-sm leading-7 text-foreground/70 sm:mt-6 sm:text-base sm:leading-8 lg:text-lg">
+                Explore editor-style fragrance collections, rich note stories, and long-wear perfume
+                picks designed for daily rituals, gifting moments, and evening statements.
               </p>
+
+              <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
+                <Button
+                  size="lg"
+                  className="h-12 rounded-2xl bg-primary px-5 text-primary-foreground hover:bg-[#ff8a73] sm:px-7"
+                  style={{ boxShadow: '0 16px 34px rgba(255,154,134,0.34)' }}
+                  asChild
+                >
+                  <Link href="/shop">
+                    Shop Fragrances
+                    <MoveRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="h-12 rounded-2xl border-border/70 bg-white/60 px-5 sm:px-7"
+                  asChild
+                >
+                  <Link href="/discovery">Take The Discovery Quiz</Link>
+                </Button>
+              </div>
+
+              {/* Stats row */}
+              <div className="mt-6 grid grid-cols-3 gap-2 sm:mt-10 sm:gap-4">
+                {[
+                  { title: 'Curated', desc: 'Perfume-only collections' },
+                  { title: 'Notes', desc: 'Top, heart & base' },
+                  { title: 'Fast', desc: 'Smooth tracking' },
+                ].map((stat) => (
+                  <div
+                    key={stat.title}
+                    className="rounded-[1.25rem] border border-white/55 bg-white/45 px-3 py-3 backdrop-blur sm:rounded-[1.5rem] sm:px-4 sm:py-4"
+                  >
+                    <p className="text-base font-semibold text-foreground sm:text-2xl">{stat.title}</p>
+                    <p className="mt-0.5 text-[10px] leading-tight text-foreground/65 sm:mt-1 sm:text-sm">
+                      {stat.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Hero image — fixed height, never collapses */}
+            <div className="relative flex items-end justify-center" style={{ minHeight: '240px' }}>
+              <div className="absolute inset-0 rounded-[2.5rem]" style={{ background: 'radial-gradient(circle at center, rgba(255,255,255,0.38), transparent 56%)' }} />
+              <div
+                className="relative w-full overflow-hidden rounded-[1.75rem] border border-white/40 bg-white/28 sm:rounded-[2.25rem]"
+                style={{ height: '240px', minHeight: '240px', boxShadow: '0 40px 80px rgba(135,77,70,0.18)', background: 'linear-gradient(180deg, rgba(255,214,166,0.4), rgba(255,179,153,0.3))' }}
+              >
+                <Image
+                  src="/hero-banner.jpg"
+                  alt="Luxury perfume collection"
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,230,220,0.14))' }} />
+              </div>
             </div>
           </div>
         </div>
@@ -126,7 +134,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Mobile browse link */}
           <div className="mt-6 text-center sm:hidden">
             <Link href="/shop" className="text-sm font-semibold text-foreground/65 transition hover:text-foreground">
               Browse all scents →
@@ -138,34 +145,55 @@ export default function Home() {
       {/* ── Why Choose Us ───────────────────────────────────── */}
       <section className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2 lg:gap-12">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-[2.5rem] shadow-2xl sm:aspect-[4/5] lg:aspect-square">
+          {/* Image */}
+          <div
+            className="relative w-full overflow-hidden rounded-[2.5rem]"
+            style={{ height: '320px', boxShadow: '0 25px 80px rgba(100,60,50,0.2)' }}
+          >
             <Image
               src="/why-choose-us.png"
               alt="Premium perfume lifestyle"
               fill
-              className="object-cover transition-transform duration-1000 hover:scale-105"
+              className="object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.2), transparent)' }} />
           </div>
 
           <div className="flex flex-col justify-center">
             <p className="storefront-eyebrow">The Signature Experience</p>
-            <h2 className="mt-5 font-serif text-3xl leading-tight text-foreground sm:text-4xl lg:text-5xl xl:text-6xl">
+            <h2
+              className="mt-5 font-serif text-foreground"
+              style={{ fontSize: 'clamp(1.75rem, 5vw, 3.5rem)', lineHeight: '1.15' }}
+            >
               A Refined Way To Discover Scent
             </h2>
-            <p className="mt-5 max-w-2xl text-sm leading-relaxed text-foreground/70 sm:text-base lg:text-lg">
+            <p className="mt-5 text-sm leading-relaxed text-foreground/70 sm:text-base lg:text-lg">
               We curate more than just fragrances. Each bottle is part of a storytelling ritual,
               ensuring your signature scent is as personal as your own story.
             </p>
 
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 sm:gap-8">
+            {/* Benefits grid */}
+            <div className="mt-8 grid gap-6 sm:grid-cols-2">
               {HOME_BENEFITS.map((benefit) => {
-                const Icon = benefitIcons[benefit.id]
+                const Icon = benefitIcons[benefit.id] ?? Sparkles
 
                 return (
                   <div key={benefit.id} className="flex flex-col gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <Icon className="h-5 w-5" />
+                    {/* Icon container — inline styles so it NEVER gets purged */}
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '1rem',
+                        background: 'rgba(255,154,134,0.12)',
+                        color: '#ff9a86',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon style={{ width: '20px', height: '20px' }} />
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-foreground sm:text-xl">{benefit.title}</h3>
@@ -202,7 +230,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Mobile browse link */}
           <div className="mt-6 text-center sm:hidden">
             <Link href="/collections" className="text-sm font-semibold text-foreground/65 transition hover:text-foreground">
               Explore Collections →
@@ -243,17 +270,22 @@ export default function Home() {
       {/* ── Journal ──────────────────────────────────────────── */}
       <section id="journal" className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <p className="storefront-eyebrow">Journal</p>
-              <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">Scent Notes And Buying Guides</h2>
-            </div>
+          <div className="mb-8">
+            <p className="storefront-eyebrow">Journal</p>
+            <h2 className="mt-3 text-3xl text-foreground sm:text-4xl lg:text-5xl">Scent Notes And Buying Guides</h2>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
             {HOME_JOURNAL_ENTRIES.map((entry) => (
               <article key={entry.title} className="storefront-panel overflow-hidden rounded-[2rem]">
-                <div className="relative h-56 bg-[radial-gradient(circle_at_30%_25%,rgba(255,214,194,0.14),transparent_24%),linear-gradient(145deg,#3d261e,#5b3427_55%,#2f1c17)] sm:h-64">
+                {/* Journal image — fixed height */}
+                <div
+                  className="relative w-full"
+                  style={{
+                    height: '220px',
+                    background: 'linear-gradient(145deg, #3d261e, #5b3427 55%, #2f1c17)',
+                  }}
+                >
                   <Image
                     src={entry.image}
                     alt={entry.imageAlt}

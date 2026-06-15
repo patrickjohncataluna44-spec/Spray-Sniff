@@ -1,6 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { Heart, MoveRight, Star } from 'lucide-react'
 import { formatPHP } from '@/lib/currency'
@@ -9,6 +9,47 @@ import { useStore } from '@/lib/store-context'
 
 interface ProductCardProps {
   product: Product
+}
+
+/** Renders a product image — supports both data: URLs (base64 from Supabase)
+ *  and normal path URLs (/products/xxx.jpg). next/image does NOT support data: URLs. */
+function ProductImage({ src, alt }: { src: string; alt: string }) {
+  const isDataUrl = src.startsWith('data:')
+
+  if (isDataUrl) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          transition: 'transform 0.5s ease',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+      />
+    )
+  }
+
+  return (
+    <img
+      src={src || '/placeholder.jpg'}
+      alt={alt}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        transition: 'transform 0.5s ease',
+      }}
+      onError={(e) => { e.currentTarget.src = '/placeholder.jpg' }}
+    />
+  )
 }
 
 export function ProductCard({ product }: ProductCardProps) {
@@ -33,22 +74,28 @@ export function ProductCard({ product }: ProductCardProps) {
           ? 'bg-[#fff0be] text-[#8f6b26]'
           : 'bg-rose-100 text-rose-700'
 
+  const imageSrc = product.images[0] ?? '/placeholder.jpg'
+
   return (
     <article className="storefront-panel group flex h-full flex-col overflow-hidden rounded-[2rem]">
-      <div className="relative">
-        <Link href={`/products/${product.id}`} className="block">
-          <div className="relative aspect-[0.95] overflow-hidden bg-[linear-gradient(180deg,rgba(255,240,190,0.32),rgba(255,255,255,0.95))]">
-            <Image
-              src={product.images[0]}
-              alt={product.name}
-              fill
-              sizes="(min-width: 1280px) 22vw, (min-width: 640px) 45vw, 100vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(45,33,36,0.06))]" />
-          </div>
+      {/* Image container — fixed height via inline style (never collapses, works with data: URLs) */}
+      <div
+        className="relative w-full overflow-hidden"
+        style={{
+          height: '220px',
+          minHeight: '220px',
+          background: 'linear-gradient(180deg, rgba(255,240,190,0.32), rgba(255,255,255,0.95))',
+        }}
+      >
+        <Link href={`/products/${product.id}`} className="block h-full w-full">
+          <ProductImage src={imageSrc} alt={product.name} />
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(45,33,36,0.06))' }}
+          />
         </Link>
 
+        {/* Badges — inside image container so they never float over card text */}
         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
           {product.isNewArrival && (
             <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground">
@@ -60,11 +107,13 @@ export function ProductCard({ product }: ProductCardProps) {
           </span>
         </div>
 
+        {/* Wishlist button */}
         <button
           type="button"
           suppressHydrationWarning
           onClick={() => void toggleWishlist(product.id)}
-          className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/80 bg-white/88 shadow-[0_10px_28px_rgba(95,58,54,0.12)] transition hover:scale-[1.03]"
+          className="absolute right-4 top-4 inline-flex items-center justify-center rounded-2xl border border-white/80 bg-white/88 shadow-[0_10px_28px_rgba(95,58,54,0.12)] transition hover:scale-[1.03]"
+          style={{ height: '44px', width: '44px' }}
           aria-label="Toggle wishlist"
         >
           <Heart className={`h-4 w-4 ${wishlisted ? 'fill-primary text-primary' : 'text-foreground'}`} />
@@ -120,7 +169,8 @@ export function ProductCard({ product }: ProductCardProps) {
 
           <Link
             href={`/products/${product.id}`}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_12px_28px_rgba(255,154,134,0.28)] transition hover:bg-[#ff8a73]"
+            className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_12px_28px_rgba(255,154,134,0.28)] transition hover:bg-[#ff8a73]"
+            style={{ height: '44px' }}
           >
             Discover
             <MoveRight className="h-4 w-4" />
