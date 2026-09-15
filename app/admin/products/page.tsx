@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Edit, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProtectedRoute } from '@/components/protected-route'
+import { AdminSidebar } from '@/components/admin-sidebar'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { PRODUCT_CATEGORIES } from '@/lib/admin-products'
@@ -67,7 +68,9 @@ export default function AdminProductsPage() {
 
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background">
+        <AdminSidebar />
+        <div className="flex-1">
         <div className="border-b border-border bg-card">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             <div className="mb-4 flex items-center gap-4">
@@ -273,6 +276,7 @@ export default function AdminProductsPage() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </ProtectedRoute>

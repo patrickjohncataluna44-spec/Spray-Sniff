@@ -7,6 +7,7 @@ import { ArrowLeft, Edit, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
 import { ProtectedRoute } from '@/components/protected-route'
+import { AdminSidebar } from '@/components/admin-sidebar'
 import {
   deleteStoredPromotion,
   formatPromotionUsage,
@@ -90,7 +91,9 @@ export default function AdminPromotionsPage() {
 
   return (
     <ProtectedRoute requiredRole="ADMIN">
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background">
+        <AdminSidebar />
+        <div className="flex-1">
         <div className="border-b border-border bg-card">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             <div className="mb-4 flex items-center gap-4">
@@ -235,6 +238,7 @@ export default function AdminPromotionsPage() {
               </table>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </ProtectedRoute>

@@ -121,6 +121,13 @@
     0 1px 0 rgba(255, 255, 255, 0.65) inset;
 }
 
+/* Reserve room for the fixed admin mobile top bar on screens below lg */
+@media (max-width: 1023px) {
+  .admin-shell > div > .flex-1 {
+    padding-top: 3.5rem;
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

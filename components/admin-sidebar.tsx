@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -8,11 +9,13 @@ import {
   LayoutDashboard,
   LifeBuoy,
   LogOut,
+  Menu,
   Package,
   ReceiptText,
   ShoppingCart,
   TicketPercent,
   Users,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth, type UserRole } from '@/lib/auth-context'
@@ -39,6 +42,7 @@ const adminMenuItems: Array<{
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [mobileOpen, setMobileOpen] = useState(false)
   const { logout, user } = useAuth()
   const { isRealtimeRefreshing, lastSyncedAt } = useStore()
   const roleLabel = getRoleLabel(user?.role)
@@ -53,11 +57,61 @@ export function AdminSidebar() {
       })
     : 'Waiting'
 
+  // Close the mobile drawer when navigating to another admin page
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
   return (
-    <aside className="hidden lg:flex w-72 bg-sidebar border-r border-sidebar-border flex-col shadow-[24px_0_50px_rgba(183,92,127,0.08)]">
-      {/* Sidebar Header */}
-      <div className="border-b border-sidebar-border bg-[linear-gradient(145deg,rgba(255,240,246,0.96),rgba(255,251,253,0.9))] p-6">
-        <span className="inline-flex rounded-full bg-primary/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+    <>
+      {/* Mobile top bar with sidebar toggle */}
+      <div className="lg:hidden fixed top-0 inset-x-0 z-50 flex h-14 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-[0_10px_24px_rgba(183,92,127,0.12)]">
+        <button
+          type="button"
+          aria-label="Open admin menu"
+          onClick={() => setMobileOpen(true)}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sidebar-border bg-white/80 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-sidebar-foreground">
+          {user?.role === 'STAFF' ? 'Staff Operations' : 'Admin Control Center'}
+        </p>
+        <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-sidebar-border bg-white/75 px-3 py-1.5 text-xs font-medium text-sidebar-foreground">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              isRealtimeRefreshing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+            }`}
+          />
+          {syncLabel}
+        </span>
+      </div>
+
+      {/* Backdrop when the drawer is open */}
+      {mobileOpen && (
+        <div
+          role="presentation"
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden fixed inset-0 z-40 bg-foreground/40 backdrop-blur-[2px]"
+        />
+      )}
+
+      <aside
+        className={`${
+          mobileOpen ? 'flex fixed inset-y-0 left-0 z-50' : 'hidden'
+        } lg:flex lg:static w-72 shrink-0 bg-sidebar border-r border-sidebar-border flex-col shadow-[24px_0_50px_rgba(183,92,127,0.08)]`}
+      >
+        {/* Sidebar Header */}
+        <div className="relative border-b border-sidebar-border bg-[linear-gradient(145deg,rgba(255,240,246,0.96),rgba(255,251,253,0.9))] p-6">
+          <button
+            type="button"
+            aria-label="Close admin menu"
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-sidebar-border bg-white/80 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <span className="inline-flex rounded-full bg-primary/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
           {user?.role === 'STAFF' ? 'Operations Console' : 'Admin Control'}
         </span>
         <h2 className="mt-4 font-serif text-xl text-sidebar-foreground">
@@ -122,5 +176,6 @@ export function AdminSidebar() {
         </Button>
       </div>
     </aside>
+    </>
   )
 }

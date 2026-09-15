@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminSidebar } from '@/components/admin-sidebar'
 import {
   PROMOTION_STATUSES,
   PROMOTION_TYPES,
@@ -166,7 +167,9 @@ export function AdminPromotionEditor({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
+      <AdminSidebar />
+      <div className="flex-1">
       <div className="border-b border-border bg-card">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <div className="mb-4 flex items-center gap-4">
@@ -462,6 +465,7 @@ export function AdminPromotionEditor({
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

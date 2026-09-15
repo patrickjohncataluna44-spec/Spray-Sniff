@@ -6,6 +6,7 @@ import { useEffectEvent } from '@/hooks/use-effect-event'
 import { ArrowLeft, Eye, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProtectedRoute } from '@/components/protected-route'
+import { AdminSidebar } from '@/components/admin-sidebar'
 import { formatPHP } from '@/lib/currency'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { subscribeToProfiles, subscribeToStoreOrders } from '@/lib/supabase-realtime'
@@ -192,7 +193,9 @@ export default function AdminCustomersPage() {
 
   return (
     <ProtectedRoute requiredRole="ADMIN">
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background">
+        <AdminSidebar />
+        <div className="flex-1">
         <div className="border-b border-border bg-card">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center gap-4 mb-4">
@@ -428,6 +431,7 @@ export default function AdminCustomersPage() {
               Showing {filteredCustomers.length} of {customers.length} account records
             </p>
           </div>
+        </div>
         </div>
       </div>
     </ProtectedRoute>

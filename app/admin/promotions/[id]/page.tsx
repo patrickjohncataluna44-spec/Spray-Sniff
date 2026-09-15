@@ -6,6 +6,7 @@ import { useEffectEvent } from '@/hooks/use-effect-event'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { AdminPromotionEditor } from '@/components/admin-promotion-editor'
+import { AdminSidebar } from '@/components/admin-sidebar'
 import { Button } from '@/components/ui/button'
 import { ProtectedRoute } from '@/components/protected-route'
 import { toast } from '@/hooks/use-toast'
@@ -113,7 +114,9 @@ export default function EditPromotionPage() {
   if (!promotion || !initialValues) {
     return (
       <ProtectedRoute requiredRole="ADMIN">
-        <div className="min-h-screen bg-background">
+        <div className="flex min-h-screen bg-background">
+          <AdminSidebar />
+          <div className="flex-1">
           <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/admin/promotions" className="flex items-center gap-2">
@@ -131,6 +134,7 @@ export default function EditPromotionPage() {
                 have been removed.
               </p>
             </div>
+          </div>
           </div>
         </div>
       </ProtectedRoute>
