@@ -99,7 +99,7 @@ export function AdminSidebar() {
       <aside
         className={`${
           mobileOpen ? 'flex fixed inset-y-0 left-0 z-50' : 'hidden'
-        } lg:flex lg:static w-72 shrink-0 bg-sidebar border-r border-sidebar-border flex-col shadow-[24px_0_50px_rgba(183,92,127,0.08)]`}
+        } lg:flex lg:sticky lg:top-0 lg:h-screen w-72 shrink-0 bg-sidebar border-r border-sidebar-border flex-col shadow-[24px_0_50px_rgba(183,92,127,0.08)]`}
       >
         {/* Sidebar Header */}
         <div className="relative border-b border-sidebar-border bg-[linear-gradient(145deg,rgba(255,240,246,0.96),rgba(255,251,253,0.9))] p-6">
@@ -139,7 +139,7 @@ export function AdminSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 min-h-0 space-y-2 overflow-y-auto p-4">
         {visibleItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname.startsWith(item.href)
