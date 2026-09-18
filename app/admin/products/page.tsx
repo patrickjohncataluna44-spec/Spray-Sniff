@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Edit, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { formatPHP } from '@/lib/currency'
 import { PRODUCT_CATEGORIES } from '@/lib/admin-products'
 import type { Product } from '@/lib/products'
 import { useStore } from '@/lib/store-context'
+import { subscribeToProductCategories } from '@/lib/supabase-realtime'
 import { toast } from '@/hooks/use-toast'
 
 const ALL_CATEGORIES = 'All Categories'
@@ -20,15 +21,38 @@ export default function AdminProductsPage() {
   const { catalog, getAvailableStock, getAvailabilityStatus, removeCatalogProduct } = useStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES)
+  const [dbCategories, setDbCategories] = useState<string[]>([])
+
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const res = await fetch('/api/categories')
+        if (res.ok) {
+          const json = await res.json()
+          if (Array.isArray(json.categories)) {
+            setDbCategories(json.categories.map((c: { name: string }) => c.name))
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch categories in admin products filter', err)
+      }
+    }
+
+    void fetchCats()
+    return subscribeToProductCategories(() => {
+      void fetchCats()
+    })
+  }, [])
 
   const categoryOptions = useMemo(() => {
     const uniqueCategories = new Set([
       ...PRODUCT_CATEGORIES,
+      ...dbCategories,
       ...catalog.map((product) => product.category),
     ])
 
     return [ALL_CATEGORIES, ...Array.from(uniqueCategories)]
-  }, [catalog])
+  }, [catalog, dbCategories])
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase()

@@ -39,6 +39,7 @@ export {
   ONLINE_PAYMENT_METHODS,
   POS_PAYMENT_METHODS,
   ONLINE_ORDER_STATUSES,
+  DELIVERY_ORDER_STATUSES,
   getInventoryAvailability,
 } from '@/lib/store-engine'
 export type {
@@ -103,7 +104,16 @@ interface StoreContextType extends StoreState {
   placeOnlineOrder: (input: PlaceOnlineOrderInput) => Promise<StoreActionResult<OrderRecord>>
   createPosSale: (input: CreatePosSaleInput) => Promise<StoreActionResult<OrderRecord>>
   cancelOwnOrder: (orderId: string) => Promise<StoreActionResult<OrderRecord>>
-  confirmOwnDelivery: (orderId: string) => Promise<StoreActionResult<OrderRecord>>
+  updateOrderDelivery: (
+    orderId: string,
+    input: {
+      status: OrderStatus
+      courier?: string
+      trackingNumber?: string
+      deliveryNotes?: string
+      note?: string
+    },
+  ) => Promise<StoreActionResult<OrderRecord>>
   updateOrderStatus: (
     orderId: string,
     status: OrderStatus,
@@ -372,8 +382,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       placeOnlineOrder: (input) => callStoreAction<OrderRecord>({ type: 'placeOnlineOrder', input }),
       createPosSale: (input) => callStoreAction<OrderRecord>({ type: 'createPosSale', input }),
       cancelOwnOrder: (orderId) => callStoreAction<OrderRecord>({ type: 'cancelOwnOrder', orderId }),
-      confirmOwnDelivery: (orderId) =>
-        callStoreAction<OrderRecord>({ type: 'confirmOwnDelivery', orderId }),
+      updateOrderDelivery: (orderId, input) =>
+        callStoreAction<OrderRecord>({ type: 'updateOrderDelivery', orderId, ...input }),
       markOrderPaymentPaid: (orderId, actor, note) =>
         callStoreAction<OrderRecord>({ type: 'markOrderPaymentPaid', orderId, actor, note }),
       updateOrderStatus: (orderId, status, actor, note) =>

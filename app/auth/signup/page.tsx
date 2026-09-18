@@ -10,6 +10,8 @@ import { useAuth } from '@/lib/auth-context'
 import { getSafeRedirectPath } from '@/lib/auth'
 import { SITE_NAME } from '@/lib/site'
 
+import { calculateAge, validateCustomerInformation } from '@/lib/customer-validation'
+
 function SignUpPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -19,9 +21,16 @@ function SignUpPageContent() {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
+    birthdate: '',
+    age: '',
+    address: '',
+    city: '',
+    postalCode: '',
     password: '',
     confirmPassword: '',
   })
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [error, setError] = useState('')
@@ -65,6 +74,17 @@ function SignUpPageContent() {
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target
+
+    if (name === 'birthdate') {
+      const calculated = calculateAge(value)
+      setFormData((current) => ({
+        ...current,
+        birthdate: value,
+        age: calculated !== null ? String(calculated) : '',
+      }))
+      return
+    }
+
     setFormData((current) => ({ ...current, [name]: value }))
   }
 
@@ -72,6 +92,27 @@ function SignUpPageContent() {
     event.preventDefault()
     setError('')
     setSuccessMessage('')
+    setFieldErrors({})
+
+    const validation = validateCustomerInformation({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      birthdate: formData.birthdate,
+      address: formData.address,
+      city: formData.city,
+      postalCode: formData.postalCode,
+      requireBirthdate: true,
+      requireAddress: true,
+    })
+
+    if (!validation.isValid) {
+      setFieldErrors(validation.errors)
+      const firstError = Object.values(validation.errors)[0]
+      setError(firstError || 'Please correct the highlighted fields.')
+      return
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
@@ -86,7 +127,16 @@ function SignUpPageContent() {
     setLoading(true)
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim()
-      const result = await signup(formData.email, formData.password, fullName)
+      const numericAge = formData.age ? parseInt(formData.age, 10) : undefined
+
+      const result = await signup(formData.email, formData.password, fullName, {
+        phone: formData.phone,
+        birthdate: formData.birthdate,
+        age: numericAge,
+        address: formData.address,
+        city: formData.city,
+        postalCode: formData.postalCode,
+      })
 
       if (result.requiresEmailVerification) {
         setVerificationEmail(result.email)
@@ -212,7 +262,7 @@ function SignUpPageContent() {
 
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-foreground">
-                    Email Address
+                    Email Address / Gmail
                   </label>
                   <input
                     id="email"
@@ -223,9 +273,137 @@ function SignUpPageContent() {
                     autoComplete="email"
                     suppressHydrationWarning
                     required
-                    placeholder="you@example.com"
-                    className="storefront-input h-12 w-full"
+                    placeholder="name@gmail.com"
+                    className={`storefront-input h-12 w-full ${fieldErrors.email ? 'border-red-500' : ''}`}
                   />
+                  {fieldErrors.email ? (
+                    <p className="text-xs text-red-500">{fieldErrors.email}</p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="phone" className="text-sm font-medium text-foreground">
+                    Contact Number
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    autoComplete="tel"
+                    suppressHydrationWarning
+                    required
+                    placeholder="0917 123 4567 or +639171234567"
+                    className={`storefront-input h-12 w-full ${fieldErrors.phone ? 'border-red-500' : ''}`}
+                  />
+                  {fieldErrors.phone ? (
+                    <p className="text-xs text-red-500">{fieldErrors.phone}</p>
+                  ) : (
+                    <p className="text-[11px] text-foreground/50">Used for courier delivery notifications.</p>
+                  )}
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="birthdate" className="text-sm font-medium text-foreground">
+                      Birthdate
+                    </label>
+                    <input
+                      id="birthdate"
+                      type="date"
+                      name="birthdate"
+                      max={new Date().toISOString().split('T')[0]}
+                      value={formData.birthdate}
+                      onChange={handleChange}
+                      suppressHydrationWarning
+                      required
+                      className={`storefront-input h-12 w-full ${fieldErrors.birthdate ? 'border-red-500' : ''}`}
+                    />
+                    {fieldErrors.birthdate ? (
+                      <p className="text-xs text-red-500">{fieldErrors.birthdate}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="age" className="text-sm font-medium text-foreground">
+                      Calculated Age
+                    </label>
+                    <input
+                      id="age"
+                      type="text"
+                      name="age"
+                      value={formData.age ? `${formData.age} years old` : ''}
+                      readOnly
+                      placeholder="Auto-calculated"
+                      className="storefront-input h-12 w-full bg-muted/40 text-foreground/75 cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="address" className="text-sm font-medium text-foreground">
+                    Delivery Address
+                  </label>
+                  <input
+                    id="address"
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    autoComplete="street-address"
+                    suppressHydrationWarning
+                    required
+                    placeholder="House/Unit #, Street, Barangay"
+                    className={`storefront-input h-12 w-full ${fieldErrors.address ? 'border-red-500' : ''}`}
+                  />
+                  {fieldErrors.address ? (
+                    <p className="text-xs text-red-500">{fieldErrors.address}</p>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="city" className="text-sm font-medium text-foreground">
+                      City / Municipality
+                    </label>
+                    <input
+                      id="city"
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      autoComplete="address-level2"
+                      suppressHydrationWarning
+                      required
+                      placeholder="e.g. Cebu City"
+                      className={`storefront-input h-12 w-full ${fieldErrors.city ? 'border-red-500' : ''}`}
+                    />
+                    {fieldErrors.city ? (
+                      <p className="text-xs text-red-500">{fieldErrors.city}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="postalCode" className="text-sm font-medium text-foreground">
+                      Postal / ZIP Code
+                    </label>
+                    <input
+                      id="postalCode"
+                      type="text"
+                      name="postalCode"
+                      value={formData.postalCode}
+                      onChange={handleChange}
+                      autoComplete="postal-code"
+                      suppressHydrationWarning
+                      required
+                      placeholder="e.g. 6000"
+                      className={`storefront-input h-12 w-full ${fieldErrors.postalCode ? 'border-red-500' : ''}`}
+                    />
+                    {fieldErrors.postalCode ? (
+                      <p className="text-xs text-red-500">{fieldErrors.postalCode}</p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="space-y-2">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { ProductCard } from '@/components/product-card'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
@@ -8,6 +8,7 @@ import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
 import { formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
+import { subscribeToProductCategories } from '@/lib/supabase-realtime'
 
 const SCENT_FAMILIES = ['Floral', 'Woody', 'Fresh', 'Citrus', 'Oriental', 'Spicy', 'Aquatic', 'Aromatic']
 const GENDERS = ['Male', 'Female', 'Unisex']
@@ -21,12 +22,46 @@ export default function ShopPage() {
   const { catalog, getInventoryRecord } = useStore()
   const [selectedScents, setSelectedScents] = useState<string[]>([])
   const [selectedGenders, setSelectedGenders] = useState<string[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('All')
+  const [dbCategories, setDbCategories] = useState<string[]>([])
   const [priceRange, setPriceRange] = useState<{ min: number; max: number } | null>(null)
   const [sortBy, setSortBy] = useState('featured')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
+  // Fetch categories from Supabase & subscribe in Realtime
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const res = await fetch('/api/categories')
+        if (res.ok) {
+          const json = await res.json()
+          if (Array.isArray(json.categories)) {
+            setDbCategories(json.categories.map((c: { name: string }) => c.name))
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch categories in Shop', err)
+      }
+    }
+
+    void fetchCats()
+    return subscribeToProductCategories(() => {
+      void fetchCats()
+    })
+  }, [])
+
+  const availableCategories = useMemo(() => {
+    const fromCatalog = catalog.map((p) => p.category).filter(Boolean)
+    const set = new Set([...dbCategories, ...fromCatalog])
+    return ['All', ...Array.from(set)]
+  }, [catalog, dbCategories])
+
   let filtered = catalog.filter((product) => {
     if (getInventoryRecord(product.id)?.isArchived) {
+      return false
+    }
+
+    if (selectedCategory !== 'All' && product.category !== selectedCategory) {
       return false
     }
 
@@ -76,10 +111,15 @@ export default function ShopPage() {
   const clearFilters = () => {
     setSelectedScents([])
     setSelectedGenders([])
+    setSelectedCategory('All')
     setPriceRange(null)
   }
 
-  const hasFilters = selectedScents.length > 0 || selectedGenders.length > 0 || Boolean(priceRange)
+  const hasFilters =
+    selectedCategory !== 'All' ||
+    selectedScents.length > 0 ||
+    selectedGenders.length > 0 ||
+    Boolean(priceRange)
 
   const FilterPanel = () => (
     <div className="space-y-8">
@@ -101,6 +141,34 @@ export default function ShopPage() {
       </div>
 
       <div className="space-y-8">
+        {/* Dynamic Product Categories from Supabase */}
+        <section>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
+            Category
+          </h3>
+          <div className="mt-4 flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
+            {availableCategories.map((cat) => {
+              const active = selectedCategory === cat
+
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  suppressHydrationWarning
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    active
+                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
+                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
         <section>
           <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
             Scent Family

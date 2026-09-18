@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/lib/auth-context'
+import { CategorySelector } from '@/components/category-selector'
 import {
   PRODUCT_CATEGORIES,
   createProductFromForm,
@@ -32,7 +33,7 @@ import { SITE_NAME } from '@/lib/site'
 import { useStore } from '@/lib/store-context'
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024
+const MAX_IMAGE_FILE_SIZE = 3 * 1024 * 1024
 
 type FormErrors = Partial<Record<keyof ProductFormValues, string>>
 
@@ -163,11 +164,11 @@ export default function NewProductPage() {
     if (file.size > MAX_IMAGE_FILE_SIZE) {
       setErrors((current) => ({
         ...current,
-        uploadedImage: 'Image must be 5 MB or smaller.',
+        uploadedImage: 'Image must be 3 MB or smaller.',
       }))
       toast({
         title: 'Image is too large',
-        description: 'Choose a file that is 5 MB or smaller.',
+        description: 'Choose a file that is 3 MB or smaller.',
         variant: 'destructive',
       })
       event.target.value = ''
@@ -341,20 +342,11 @@ export default function NewProductPage() {
 
                     <div className="grid gap-2">
                       <Label htmlFor="category">Category</Label>
-                      <select
+                      <CategorySelector
                         id="category"
                         value={formValues.category}
-                        onChange={(event) =>
-                          updateField('category', event.target.value)
-                        }
-                        className="h-10 rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                      >
-                        {PRODUCT_CATEGORIES.map((category) => (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => updateField('category', val)}
+                      />
                     </div>
 
                     <div className="grid gap-2">
@@ -426,8 +418,8 @@ export default function NewProductPage() {
                     </h2>
                     <p className="mt-2 text-sm text-foreground/60">
                       Upload a clean bottle image for the product. Uploaded photos
-                      are optimized for this demo and saved with the product in
-                      browser storage.
+                      are automatically compressed to a lightweight size (&lt; 120 KB)
+                      to keep database storage efficient and fast.
                     </p>
                   </div>
 
@@ -458,8 +450,9 @@ export default function NewProductPage() {
                                 Click to upload a product image
                               </p>
                               <p className="mt-2 max-w-sm text-sm text-foreground/60">
-                                Use JPG, PNG, or WebP up to 5 MB. We compress it
-                                automatically so catalog pages stay fast.
+                                Use JPG, PNG, or WebP up to 3 MB. We automatically
+                                compress it down to under 120 KB so database storage
+                                and pages stay fast.
                               </p>
                             </>
                           )}

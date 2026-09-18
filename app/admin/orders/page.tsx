@@ -9,12 +9,31 @@ import { ProtectedRoute } from '@/components/protected-route'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
-import { ONLINE_ORDER_STATUSES, type OrderRecord, type OrderStatus, useStore } from '@/lib/store-context'
+import {
+  DELIVERY_ORDER_STATUSES,
+  ONLINE_ORDER_STATUSES,
+  type OrderRecord,
+  type OrderStatus,
+  useStore,
+} from '@/lib/store-context'
+import { AdminDeliveryDialog } from '@/components/admin-delivery-dialog'
 import { toast } from '@/hooks/use-toast'
 
 const ALL_STATUSES = ['All Status', ...ONLINE_ORDER_STATUSES, 'Cancelled', 'Completed']
 const ALL_CHANNELS = ['All Channels', 'ONLINE', 'POS']
 const ALL_PAYMENT_STATES = ['All Payments', 'Paid', 'Pending']
+
+/**
+ * The inline control only runs the pre-delivery workflow. Every delivery stage
+ * goes through the admin-only Manage Delivery dialog, and the server rejects
+ * delivery statuses on this action regardless of role — so this is a faithful
+ * reflection of what the action actually accepts, not the enforcement itself.
+ */
+const PRE_DELIVERY_ORDER_STATUSES: OrderStatus[] = ['Pending', 'Processing']
+
+function isDeliveryStage(status: OrderStatus) {
+  return (DELIVERY_ORDER_STATUSES as readonly OrderStatus[]).includes(status)
+}
 
 function getChannelLabel(order: OrderRecord) {
   return order.source === 'POS' ? 'Walk-in / POS' : 'Online'
@@ -92,6 +111,7 @@ export default function AdminOrdersPage() {
   const [paymentUpdatingOrderId, setPaymentUpdatingOrderId] = useState<string | null>(null)
   const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null)
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null)
+  const [deliveryOrder, setDeliveryOrder] = useState<OrderRecord | null>(null)
 
   const counts = useMemo(() => {
     return {
@@ -99,6 +119,7 @@ export default function AdminOrdersPage() {
       pending: orders.filter((o) => o.status === 'Pending').length,
       processing: orders.filter((o) => o.status === 'Processing').length,
       shipped: orders.filter((o) => o.status === 'Shipped').length,
+      inTransit: orders.filter((o) => o.status === 'In Transit').length,
       delivery: orders.filter((o) => o.status === 'Out for Delivery').length,
       unpaid: orders.filter((o) => o.paymentStatus === 'Pending' && o.status !== 'Cancelled').length,
       completed: orders.filter((o) => o.status === 'Completed' || o.status === 'Delivered').length,
@@ -122,6 +143,7 @@ export default function AdminOrdersPage() {
       if (statusFilter === 'Pending') matchesStatus = order.status === 'Pending'
       else if (statusFilter === 'Processing') matchesStatus = order.status === 'Processing'
       else if (statusFilter === 'Shipped') matchesStatus = order.status === 'Shipped'
+      else if (statusFilter === 'In Transit') matchesStatus = order.status === 'In Transit'
       else if (statusFilter === 'Out for Delivery') matchesStatus = order.status === 'Out for Delivery'
       else if (statusFilter === 'Unpaid') matchesStatus = order.paymentStatus === 'Pending' && order.status !== 'Cancelled'
       else if (statusFilter === 'Completed') matchesStatus = order.status === 'Completed' || order.status === 'Delivered'
@@ -141,6 +163,7 @@ export default function AdminOrdersPage() {
     { id: 'Pending', label: 'Pending', count: counts.pending },
     { id: 'Processing', label: 'Processing', count: counts.processing },
     { id: 'Shipped', label: 'Shipped', count: counts.shipped },
+    { id: 'In Transit', label: 'In Transit', count: counts.inTransit },
     { id: 'Out for Delivery', label: 'Delivery', count: counts.delivery },
     { id: 'Unpaid', label: 'Unpaid', count: counts.unpaid },
     { id: 'Completed', label: 'Completed', count: counts.completed },
@@ -429,18 +452,40 @@ export default function AdminOrdersPage() {
                         <td className="py-4 px-6">
                           <div className="space-y-3">
                             {order.source === 'ONLINE' && order.status !== 'Cancelled' ? (
-                              <select
-                                value={order.status}
-                                onChange={(event) => handleStatusChange(order.id, event.target.value)}
-                                disabled={statusUpdatingOrderId === order.id}
-                                className="rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {ONLINE_ORDER_STATUSES.map((status) => (
-                                  <option key={status} value={status}>
-                                    {status}
-                                  </option>
-                                ))}
-                              </select>
+                              <>
+                                {isDeliveryStage(order.status) ? (
+                                  <p className="text-xs text-foreground/50">
+                                    {order.status} — delivery stages are set from Manage Delivery.
+                                  </p>
+                                ) : (
+                                  <select
+                                    value={order.status}
+                                    onChange={(event) => handleStatusChange(order.id, event.target.value)}
+                                    disabled={statusUpdatingOrderId === order.id}
+                                    className="rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {PRE_DELIVERY_ORDER_STATUSES.map((status) => (
+                                      <option key={status} value={status}>
+                                        {status}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                                {user?.role === 'ADMIN' ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setDeliveryOrder(order)}
+                                  >
+                                    Manage Delivery
+                                  </Button>
+                                ) : (
+                                  <p className="text-xs text-foreground/50">
+                                    Delivery stages are managed by an administrator.
+                                  </p>
+                                )}
+                              </>
                             ) : order.status === 'Cancelled' ? (
                               <span className="text-xs text-foreground/50">
                                 Customer cancellation locked this order.
@@ -474,6 +519,18 @@ export default function AdminOrdersPage() {
                                 Payment already recorded in Supabase
                               </span>
                             )}
+
+                            {order.source === "ONLINE" && (
+                              <div className="pt-1">
+                                <Link
+                                  href={`/track?num=${encodeURIComponent(order.trackingNumber || order.id)}`}
+                                  target="_blank"
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                >
+                                  📦 View Live Tracking
+                                </Link>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -489,6 +546,17 @@ export default function AdminOrdersPage() {
           </div>
         </div>
       </div>
+
+      <AdminDeliveryDialog
+        key={deliveryOrder?.id ?? 'no-order'}
+        order={deliveryOrder}
+        open={deliveryOrder !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeliveryOrder(null)
+          }
+        }}
+      />
     </ProtectedRoute>
   )
 }

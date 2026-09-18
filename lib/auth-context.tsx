@@ -12,6 +12,12 @@ export interface User {
   email: string
   name: string
   role: UserRole
+  phone?: string | null
+  birthdate?: string | null
+  age?: number | null
+  address?: string | null
+  city?: string | null
+  postalCode?: string | null
 }
 
 export interface AuthContextType {
@@ -22,10 +28,31 @@ export interface AuthContextType {
   canAccessBackoffice: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, name: string) => Promise<{
+  signup: (
+    email: string,
+    password: string,
+    name: string,
+    extra?: {
+      phone?: string
+      birthdate?: string
+      age?: number
+      address?: string
+      city?: string
+      postalCode?: string
+    },
+  ) => Promise<{
     requiresEmailVerification: boolean
     email: string
   }>
+  updateProfile: (data: {
+    name?: string
+    phone?: string
+    birthdate?: string
+    age?: number
+    address?: string
+    city?: string
+    postalCode?: string
+  }) => Promise<void>
   resendVerificationEmail: (email: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -73,17 +100,54 @@ async function ensureProfile(userId: string, email: string, name: string) {
 
 async function readProfile(userId: string) {
   const supabase = getSupabaseBrowserClient()
+
+  // First try with extended fields
   const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, name, role, phone, birthdate, age, address, city, postal_code')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (!error && data) {
+    const row = data as {
+      id: string
+      email: string
+      name: string
+      role: UserRole
+      phone?: string | null
+      birthdate?: string | null
+      age?: number | null
+      address?: string | null
+      city?: string | null
+      postal_code?: string | null
+    }
+
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role: row.role,
+      phone: row.phone ?? null,
+      birthdate: row.birthdate ?? null,
+      age: row.age ?? null,
+      address: row.address ?? null,
+      city: row.city ?? null,
+      postalCode: row.postal_code ?? null,
+    } as User
+  }
+
+  // Fallback to basic columns if new columns haven't been applied to Supabase yet
+  const { data: basicData, error: basicError } = await supabase
     .from('profiles')
     .select('id, email, name, role')
     .eq('id', userId)
     .single()
 
-  if (error) {
-    throw error
+  if (basicError) {
+    throw basicError
   }
 
-  return data as User
+  return basicData as User
 }
 
 function cacheUser(user: User | null) {
@@ -219,7 +283,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signup = async (email: string, password: string, name: string) => {
+  const signup = async (
+    email: string,
+    password: string,
+    name: string,
+    extra?: {
+      phone?: string
+      birthdate?: string
+      age?: number
+      address?: string
+      city?: string
+      postalCode?: string
+    },
+  ) => {
     setIsLoading(true)
     try {
       const normalizedEmail = email.trim().toLowerCase()
@@ -232,6 +308,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: normalizedEmail,
           password,
           name,
+          phone: extra?.phone,
+          birthdate: extra?.birthdate,
+          age: extra?.age,
+          address: extra?.address,
+          city: extra?.city,
+          postalCode: extra?.postalCode,
         }),
       })
 
@@ -248,6 +330,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const updateProfile = async (data: {
+    name?: string
+    phone?: string
+    birthdate?: string
+    age?: number
+    address?: string
+    city?: string
+    postalCode?: string
+  }) => {
+    if (!user) {
+      throw new Error('You must be signed in to update your profile.')
+    }
+
+    const supabase = getSupabaseBrowserClient()
+    const updatePayload: Record<string, unknown> = {}
+
+    if (data.name !== undefined) updatePayload.name = data.name.trim()
+    if (data.phone !== undefined) updatePayload.phone = data.phone.trim() || null
+    if (data.birthdate !== undefined) updatePayload.birthdate = data.birthdate || null
+    if (data.age !== undefined) updatePayload.age = data.age ?? null
+    if (data.address !== undefined) updatePayload.address = data.address.trim() || null
+    if (data.city !== undefined) updatePayload.city = data.city.trim() || null
+    if (data.postalCode !== undefined) updatePayload.postal_code = data.postalCode.trim() || null
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', user.id)
+
+    if (error) {
+      throw error
+    }
+
+    const updated = await readProfile(user.id)
+    setUser(updated)
+    cacheUser(updated)
   }
 
   const resendVerificationEmail = async (email: string) => {
@@ -298,6 +418,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     login,
     signup,
+    updateProfile,
     resendVerificationEmail,
     logout,
   }

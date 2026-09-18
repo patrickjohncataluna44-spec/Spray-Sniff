@@ -36,9 +36,33 @@ export const ONLINE_ORDER_STATUSES = [
   'Pending',
   'Processing',
   'Shipped',
+  'In Transit',
   'Out for Delivery',
   'Delivered',
 ] as const
+
+/**
+ * Statuses that represent physical delivery progress. Only an ADMIN may set
+ * these; STAFF is limited to the pre-delivery workflow (Pending -> Processing).
+ */
+export const DELIVERY_ORDER_STATUSES = [
+  'Shipped',
+  'In Transit',
+  'Out for Delivery',
+  'Delivered',
+] as const
+
+/**
+ * Delivery stages advance forward only. A lower rank than the order's current
+ * stage is rejected, which also makes 'Delivered' terminal so a delivered order
+ * can never be reset back to an earlier stage.
+ */
+const DELIVERY_STATUS_RANK: Partial<Record<OrderStatus, number>> = {
+  Shipped: 0,
+  'In Transit': 1,
+  'Out for Delivery': 2,
+  Delivered: 3,
+}
 
 export type StoreUserRole = 'ADMIN' | 'STAFF' | 'USER'
 export type HistoricalPaymentMethod = 'Card' | 'PayPal' | 'Bank Transfer'
@@ -98,6 +122,12 @@ export interface OrderTimelineEntry {
   status: OrderStatus
   createdAt: string
   note: string
+  /** The status this entry moved the order away from. */
+  previousStatus?: OrderStatus
+  /** Display name of the admin who recorded the change. */
+  actorName?: string
+  /** Account id of the admin who recorded the change. */
+  actorId?: string
 }
 
 export interface OrderPaymentSummary {
@@ -110,9 +140,7 @@ export interface OrderPaymentSummary {
 
 export interface OrderActionAvailability {
   canCancel: boolean
-  canConfirmReceived: boolean
   cancelBlockedReason?: string
-  confirmBlockedReason?: string
   needsRefundFollowUp: boolean
 }
 
@@ -132,6 +160,12 @@ export interface OrderRecord {
   total: number
   shippingAddress?: string
   notes?: string
+  /** Courier or logistics partner handling the delivery, entered by an admin. */
+  courier?: string
+  /** The courier's own tracking number for this parcel, entered by an admin. */
+  trackingNumber?: string
+  /** Free-text delivery instructions recorded by an admin. */
+  deliveryNotes?: string
   items: OrderLineItem[]
   timeline: OrderTimelineEntry[]
   paymentSummary?: OrderPaymentSummary
@@ -266,7 +300,15 @@ export type StoreAction =
   | { type: 'placeOnlineOrder'; input: PlaceOnlineOrderInput }
   | { type: 'createPosSale'; input: CreatePosSaleInput }
   | { type: 'cancelOwnOrder'; orderId: string }
-  | { type: 'confirmOwnDelivery'; orderId: string }
+  | {
+      type: 'updateOrderDelivery'
+      orderId: string
+      status: OrderStatus
+      courier?: string
+      trackingNumber?: string
+      deliveryNotes?: string
+      note?: string
+    }
   | { type: 'markOrderPaymentPaid'; orderId: string; actor?: string; note?: string }
   | { type: 'updateOrderStatus'; orderId: string; status: OrderStatus; actor?: string; note?: string }
 
@@ -305,6 +347,29 @@ function hasRole(actor: StoreActor | null | undefined, role: StoreUserRole) {
 
 function canAccessBackoffice(actor: StoreActor | null | undefined) {
   return actor?.role === 'ADMIN' || actor?.role === 'STAFF'
+}
+
+function isDeliveryOrderStatus(status: OrderStatus) {
+  return (DELIVERY_ORDER_STATUSES as readonly OrderStatus[]).includes(status)
+}
+
+const MAX_DELIVERY_FIELD_LENGTH = 200
+
+/**
+ * Trims an admin-entered delivery field and caps its length. Returns undefined
+ * for blank input so an empty form field leaves the stored value untouched.
+ */
+function sanitizeDeliveryField(value: string | undefined | null) {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  return trimmed.slice(0, MAX_DELIVERY_FIELD_LENGTH)
 }
 
 function getActorName(actor: StoreActor | null | undefined, fallback: string) {
@@ -346,16 +411,13 @@ export function getCustomerOrderActionAvailability(
   if (!ownsOrder) {
     return {
       canCancel: false,
-      canConfirmReceived: false,
       needsRefundFollowUp,
     }
   }
 
   const canCancel = order.status === 'Pending' || order.status === 'Processing'
-  const canConfirmReceived = order.status === 'Out for Delivery'
 
   let cancelBlockedReason: string | undefined
-  let confirmBlockedReason: string | undefined
 
   if (!canCancel) {
     switch (order.status) {
@@ -363,6 +425,7 @@ export function getCustomerOrderActionAvailability(
         cancelBlockedReason = 'This order has already been cancelled.'
         break
       case 'Shipped':
+      case 'In Transit':
       case 'Out for Delivery':
         cancelBlockedReason = 'This order is already in dispatch and can no longer be cancelled here.'
         break
@@ -375,25 +438,9 @@ export function getCustomerOrderActionAvailability(
     }
   }
 
-  if (!canConfirmReceived) {
-    switch (order.status) {
-      case 'Delivered':
-        confirmBlockedReason = 'This order is already marked as delivered.'
-        break
-      case 'Cancelled':
-        confirmBlockedReason = 'Cancelled orders cannot be marked as received.'
-        break
-      default:
-        confirmBlockedReason = 'You can confirm receipt once the order is out for delivery.'
-        break
-    }
-  }
-
   return {
     canCancel,
-    canConfirmReceived,
     cancelBlockedReason,
-    confirmBlockedReason,
     needsRefundFollowUp,
   }
 }
@@ -1717,46 +1764,105 @@ export function performStoreAction(
       }
     }
 
-    case 'confirmOwnDelivery': {
-      if (!hasRole(actor, 'USER')) {
+    case 'updateOrderDelivery': {
+      // The single authoritative permission check for delivery changes: only a
+      // verified ADMIN account reaches this point. Everything else — customers,
+      // STAFF, and unauthenticated callers — is refused here on the server, not
+      // merely hidden in the UI.
+      if (!hasRole(actor, 'ADMIN')) {
         return {
           nextState: currentState,
-          result: { ok: false, message: 'Sign in with your customer account to confirm delivery.' },
+          result: {
+            ok: false,
+            message: 'Only admins can change delivery stages. Ask an administrator to update this order.',
+          },
         }
       }
 
       const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
-      if (!existingOrder || !orderBelongsToActor(existingOrder, actor)) {
+      if (!existingOrder) {
         return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
       }
 
       if (existingOrder.source !== 'ONLINE') {
         return {
           nextState: currentState,
-          result: { ok: false, message: 'Only online orders can be updated from your account.' },
+          result: { ok: false, message: 'Walk-in orders are completed at checkout and have no delivery.' },
         }
       }
 
-      if (existingOrder.status !== 'Out for Delivery') {
+      if (existingOrder.status === 'Cancelled') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Cancelled orders can no longer be updated.' },
+        }
+      }
+
+      if (!isDeliveryOrderStatus(action.status)) {
         return {
           nextState: currentState,
           result: {
             ok: false,
-            message: 'You can confirm receipt once the order is out for delivery.',
+            message: `"${action.status}" is not a delivery stage. Use the order status control instead.`,
+          },
+        }
+      }
+
+      const currentRank = DELIVERY_STATUS_RANK[existingOrder.status]
+      const nextRank = DELIVERY_STATUS_RANK[action.status]
+
+      if (nextRank === undefined) {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'That delivery stage is not recognised.' },
+        }
+      }
+
+      if (currentRank !== undefined && nextRank <= currentRank) {
+        return {
+          nextState: currentState,
+          result: {
+            ok: false,
+            message:
+              existingOrder.status === 'Delivered'
+                ? 'This order has already been delivered and cannot be moved back to an earlier stage.'
+                : `Delivery stages move forward only. This order is already at "${existingOrder.status}".`,
           },
         }
       }
 
       const timestamp = new Date().toISOString()
+      const actorName = getActorName(actor, 'Store team')
+
+      // A key that is present but blank clears the stored value; a key that was
+      // never sent leaves the existing value alone.
+      const courier = 'courier' in action ? sanitizeDeliveryField(action.courier) : existingOrder.courier
+      const trackingNumber =
+        'trackingNumber' in action
+          ? sanitizeDeliveryField(action.trackingNumber)
+          : existingOrder.trackingNumber
+      const deliveryNotes =
+        'deliveryNotes' in action
+          ? sanitizeDeliveryField(action.deliveryNotes)
+          : existingOrder.deliveryNotes
+
       const updatedOrder: OrderRecord = {
         ...existingOrder,
-        status: 'Delivered',
+        status: action.status,
+        courier,
+        trackingNumber,
+        deliveryNotes,
         timeline: [
           ...existingOrder.timeline,
           {
-            status: 'Delivered',
+            status: action.status,
+            previousStatus: existingOrder.status,
             createdAt: timestamp,
-            note: 'Delivery confirmed by the customer through self-service.',
+            actorName,
+            actorId: actor?.id,
+            note:
+              sanitizeDeliveryField(action.note) ||
+              `Delivery stage set to ${action.status} by ${actorName}.`,
           },
         ],
       }
@@ -1764,11 +1870,13 @@ export function performStoreAction(
       return {
         nextState: {
           ...currentState,
-          orders: currentState.orders.map((order) => (order.id === action.orderId ? updatedOrder : order)),
+          orders: currentState.orders.map((order) =>
+            order.id === action.orderId ? updatedOrder : order,
+          ),
         },
         result: {
           ok: true,
-          message: `Thanks for confirming receipt of order ${existingOrder.id}.`,
+          message: `Order ${action.orderId} moved to ${action.status}.`,
           data: updatedOrder,
         },
       }
@@ -1782,6 +1890,20 @@ export function performStoreAction(
       const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
       if (!existingOrder) {
         return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
+      }
+
+      if (isDeliveryOrderStatus(action.status) || isDeliveryOrderStatus(existingOrder.status)) {
+        // Delivery stages have their own validated, audited path. Letting this
+        // generic action set them would bypass the forward-only rule and the
+        // delivered-order lock, so it is refused for every role including ADMIN.
+        return {
+          nextState: currentState,
+          result: {
+            ok: false,
+            message:
+              'Delivery stages are changed with the Manage Delivery controls, which validate each step.',
+          },
+        }
       }
 
       if (existingOrder.status === 'Cancelled') {
@@ -1799,6 +1921,7 @@ export function performStoreAction(
       }
 
       const timestamp = new Date().toISOString()
+      const actorName = getActorName(actor, 'Store team')
       const updatedOrder: OrderRecord = {
         ...existingOrder,
         status: action.status,
@@ -1806,12 +1929,15 @@ export function performStoreAction(
           ...existingOrder.timeline,
           {
             status: action.status,
+            previousStatus: existingOrder.status,
             createdAt: timestamp,
+            actorName,
+            actorId: actor?.id,
             note:
               action.note ||
               (action.status === 'Delivered'
-                ? `Order delivered successfully by ${action.actor || getActorName(actor, 'Store team')}.`
-                : `Order moved to ${action.status} by ${action.actor || getActorName(actor, 'Store team')}.`),
+                ? `Order delivered successfully by ${action.actor || actorName}.`
+                : `Order moved to ${action.status} by ${action.actor || actorName}.`),
           },
         ],
       }

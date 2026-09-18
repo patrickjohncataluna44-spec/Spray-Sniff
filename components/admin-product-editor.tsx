@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { CategorySelector } from '@/components/category-selector'
 import { PRODUCT_CATEGORIES, type ProductFormValues } from '@/lib/admin-products'
 import { type UserRole } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
@@ -24,7 +25,7 @@ import { optimizeProductImage } from '@/lib/product-image'
 import { SITE_NAME } from '@/lib/site'
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024
+const MAX_IMAGE_FILE_SIZE = 3 * 1024 * 1024
 
 type FormErrors = Partial<Record<keyof ProductFormValues, string>>
 
@@ -173,7 +174,7 @@ export function AdminProductEditor({
     if (file.size > MAX_IMAGE_FILE_SIZE) {
       setErrors((current) => ({
         ...current,
-        uploadedImage: 'Image must be 5 MB or smaller.',
+        uploadedImage: 'Image must be 3 MB or smaller.',
       }))
       event.target.value = ''
       return
@@ -311,20 +312,11 @@ export function AdminProductEditor({
 
                     <div className="grid gap-2">
                       <Label htmlFor="category">Category</Label>
-                      <select
+                      <CategorySelector
                         id="category"
                         value={formValues.category}
-                        onChange={(event) =>
-                          updateField('category', event.target.value)
-                        }
-                        className="h-10 rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                      >
-                        {PRODUCT_CATEGORIES.map((category) => (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => updateField('category', val)}
+                      />
                     </div>
 
                     <div className="grid gap-2">

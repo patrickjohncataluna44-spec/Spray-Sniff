@@ -143,11 +143,6 @@ const CUSTOMER_QUICK_ACTIONS: SupportQuickAction[] = [
     description: 'Cancel only eligible Pending or Processing orders.',
   },
   {
-    id: 'confirm_received',
-    label: 'Confirm received',
-    description: 'Mark an Out for Delivery parcel as received.',
-  },
-  {
     id: 'request_refund',
     label: 'Request refund/help',
     description: 'Open a case for refund review or order follow-up.',
@@ -698,13 +693,9 @@ export async function runSupportAction(
       }
     }
 
-    case 'cancelOwnOrder':
-    case 'confirmOwnDelivery': {
+    case 'cancelOwnOrder': {
       const snapshot = await loadStoreSnapshot()
-      const storeAction =
-        request.action === 'cancelOwnOrder'
-          ? { type: 'cancelOwnOrder' as const, orderId: request.orderId }
-          : { type: 'confirmOwnDelivery' as const, orderId: request.orderId }
+      const storeAction = { type: 'cancelOwnOrder' as const, orderId: request.orderId }
 
       const { nextState, result } = performStoreAction(snapshot, storeAction, actor)
       if (!result.ok) {

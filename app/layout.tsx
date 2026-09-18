@@ -6,6 +6,7 @@ import { getPublicRuntimeEnv } from '@/lib/server-runtime-env'
 import { StoreProvider } from '@/lib/store-context'
 import { Toaster } from '@/components/ui/toaster'
 import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site'
+// CSS is handled by Next.js at runtime.
 import './globals.css'
 
 export const metadata: Metadata = {

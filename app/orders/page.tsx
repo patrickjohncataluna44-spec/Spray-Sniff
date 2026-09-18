@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useDeferredValue, useMemo, useState } from 'react'
+import { Star } from 'lucide-react'
 import { ProtectedRoute } from '@/components/protected-route'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
@@ -25,6 +26,7 @@ const statusTone: Record<string, string> = {
   Pending: 'bg-[#ffe5de] text-[#b85b48]',
   Processing: 'bg-[#fff0be] text-[#8f6b26]',
   Shipped: 'bg-[#ffe8d9] text-[#9c624d]',
+  'In Transit': 'bg-[#ffe0c2] text-[#8a5a24]',
   'Out for Delivery': 'bg-[#ffd6a6] text-[#7d5a1f]',
   Delivered: 'bg-[#e6f4ea] text-[#2f7a4e]',
   Cancelled: 'bg-slate-200 text-slate-700',
@@ -35,6 +37,7 @@ const ORDER_STATUS_FILTERS = [
   'Pending',
   'Processing',
   'Shipped',
+  'In Transit',
   'Out for Delivery',
   'Delivered',
   'Cancelled',
@@ -43,10 +46,6 @@ const ORDER_STATUS_FILTERS = [
 type PendingOrderAction =
   | {
       type: 'cancel'
-      order: OrderRecord
-    }
-  | {
-      type: 'confirm'
       order: OrderRecord
     }
   | null
@@ -82,7 +81,7 @@ function getLastTimelineEntry(order: OrderRecord) {
 
 export default function OrdersPage() {
   const { user } = useAuth()
-  const { cancelOwnOrder, confirmOwnDelivery, getAvailableStock, orders } = useStore()
+  const { cancelOwnOrder, getAvailableStock, orders } = useStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] =
     useState<(typeof ORDER_STATUS_FILTERS)[number]>('All Orders')
@@ -115,19 +114,10 @@ export default function OrdersPage() {
     setSubmittingOrderId(action.order.id)
 
     try {
-      const result =
-        action.type === 'cancel'
-          ? await cancelOwnOrder(action.order.id)
-          : await confirmOwnDelivery(action.order.id)
+      const result = await cancelOwnOrder(action.order.id)
 
       toast({
-        title: result.ok
-          ? action.type === 'cancel'
-            ? 'Order cancelled'
-            : 'Delivery confirmed'
-          : action.type === 'cancel'
-            ? 'Unable to cancel order'
-            : 'Unable to confirm delivery',
+        title: result.ok ? 'Order cancelled' : 'Unable to cancel order',
         description: result.message,
         variant: result.ok ? 'default' : 'destructive',
       })
@@ -363,29 +353,47 @@ export default function OrdersPage() {
                                     {submittingOrderId === order.id ? 'Updating...' : 'Cancel Order'}
                                   </Button>
                                 ) : null}
-                                {actionAvailability?.canConfirmReceived ? (
-                                  <Button
-                                    type="button"
-                                    className="rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
-                                    disabled={submittingOrderId === order.id}
-                                    onClick={() => setPendingAction({ type: 'confirm', order })}
-                                  >
-                                    {submittingOrderId === order.id ? 'Updating...' : 'Confirm Received'}
-                                  </Button>
-                                ) : null}
+                                <Link
+                                  href={"/track?num=" + encodeURIComponent(order.trackingNumber || order.id)}
+                                  className="inline-flex items-center justify-center rounded-2xl border border-border/80 bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition"
+                                >
+                                  Track Delivery
+                                </Link>
                               </div>
+
+                              {order.courier || order.trackingNumber ? (
+                                <div className="mt-4 rounded-[1.25rem] bg-muted/28 p-4 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-foreground/48">
+                                    Delivery
+                                  </p>
+                                  {order.courier ? (
+                                    <p className="mt-2 text-foreground/70">
+                                      Courier: <span className="font-medium text-foreground">{order.courier}</span>
+                                    </p>
+                                  ) : null}
+                                  {order.trackingNumber ? (
+                                    <p className="mt-1 text-foreground/70">
+                                      Tracking number:{' '}
+                                      <span className="font-medium text-foreground select-all">
+                                        {order.trackingNumber}
+                                      </span>
+                                    </p>
+                                  ) : null}
+                                  {order.deliveryNotes ? (
+                                    <p className="mt-2 text-foreground/60">{order.deliveryNotes}</p>
+                                  ) : null}
+                                </div>
+                              ) : null}
 
                               {!actionAvailability?.canCancel && actionAvailability?.cancelBlockedReason ? (
                                 <p className="mt-4 text-sm leading-7 text-foreground/60">
                                   Cancel order: {actionAvailability.cancelBlockedReason}
                                 </p>
                               ) : null}
-                              {!actionAvailability?.canConfirmReceived &&
-                              actionAvailability?.confirmBlockedReason ? (
-                                <p className="mt-2 text-sm leading-7 text-foreground/60">
-                                  Confirm receipt: {actionAvailability.confirmBlockedReason}
-                                </p>
-                              ) : null}
+                              <p className="mt-2 text-sm leading-7 text-foreground/60">
+                                Delivery progress is updated by our store team. Contact support if your
+                                parcel has already arrived.
+                              </p>
                             </div>
 
                             <div className="space-y-4">
@@ -398,10 +406,21 @@ export default function OrdersPage() {
                                   className="rounded-[1.5rem] bg-muted/28 p-4"
                                 >
                                   <div className="flex items-center justify-between gap-4">
-                                    <p className="font-semibold text-foreground">{item.productName}</p>
-                                    <p className="text-sm text-foreground/55">
-                                      {item.quantity} x {item.size}ml
-                                    </p>
+                                    <div>
+                                      <p className="font-semibold text-foreground">{item.productName}</p>
+                                      <p className="text-sm text-foreground/55">
+                                        {item.quantity} x {item.size}ml
+                                      </p>
+                                    </div>
+                                    {order.status === 'Delivered' ? (
+                                      <Link
+                                        href={`/products/${item.productId}`}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/20"
+                                      >
+                                        <Star className="h-3 w-3 fill-primary text-primary" />
+                                        Rate & Review
+                                      </Link>
+                                    ) : null}
                                   </div>
                                   <p className="mt-2 text-sm text-foreground/58">
                                     Current store availability: {getAvailableStock(item.productId)} unit(s)
@@ -430,21 +449,17 @@ export default function OrdersPage() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {pendingAction?.type === 'cancel' ? 'Cancel this order?' : 'Confirm delivery received?'}
-              </AlertDialogTitle>
+              <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
               <AlertDialogDescription>
-                {pendingAction?.type === 'cancel'
-                  ? pendingAction.order.paymentStatus === 'Paid'
-                    ? 'This will cancel the order immediately. Because payment was already recorded, the refund will still need staff follow-up.'
-                    : 'This will cancel the order immediately and restore the reserved stock.'
-                  : 'Use this only after the parcel has reached you safely. The order will move to Delivered.'}
+                {pendingAction?.order.paymentStatus === 'Paid'
+                  ? 'This will cancel the order immediately. Because payment was already recorded, the refund will still need staff follow-up.'
+                  : 'This will cancel the order immediately and restore the reserved stock.'}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Keep Order</AlertDialogCancel>
               <AlertDialogAction onClick={() => void handleConfirmedAction()}>
-                {pendingAction?.type === 'cancel' ? 'Cancel Order' : 'Confirm Received'}
+                Cancel Order
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -142,7 +142,8 @@ export async function buildOrdersOverviewMessage(orders: OrderRecord[]) {
         total: order.total,
         paymentStatus: order.paymentStatus,
         canCancel: order.actionAvailability?.canCancel ?? false,
-        canConfirmReceived: order.actionAvailability?.canConfirmReceived ?? false,
+        courier: order.courier ?? null,
+        trackingNumber: order.trackingNumber ?? null,
       })),
     },
   })
@@ -154,11 +155,8 @@ export async function buildOrderDetailMessage(order: OrderRecord) {
     `${order.id} is currently ${order.status}. ${latestUpdate ? latestUpdate.note : 'Tracking details are available in your timeline.'} ${
       order.actionAvailability?.canCancel
         ? 'You can still cancel this order from support.'
-        : order.actionAvailability?.canConfirmReceived
-          ? 'You can confirm receipt once the parcel is in your hands.'
-          : order.actionAvailability?.cancelBlockedReason ??
-            order.actionAvailability?.confirmBlockedReason ??
-            'There are no direct account actions available right now.'
+        : order.actionAvailability?.cancelBlockedReason ??
+          'Delivery progress is updated by our store team. Contact support if your parcel has already arrived.'
     }`,
   )
 

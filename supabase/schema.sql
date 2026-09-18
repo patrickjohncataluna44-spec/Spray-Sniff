@@ -17,6 +17,12 @@ create table if not exists public.profiles (
   email text not null unique,
   name text not null,
   role public.user_role not null default 'USER',
+  phone text null,
+  birthdate date null,
+  age integer null check (age is null or (age >= 10 and age <= 125)),
+  address text null,
+  city text null,
+  postal_code text null,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -94,6 +100,10 @@ create table if not exists public.store_orders (
   customer_id uuid null references public.profiles (id) on delete set null,
   customer_name text not null,
   customer_email text not null,
+  -- Fulfillment Statuses:
+  -- 'Pending' (Order Placed), 'Processing' (Preparing to Ship),
+  -- 'Shipped' (Picked Up by Courier), 'In Transit', 'Out for Delivery',
+  -- 'Delivered', 'Completed', 'Cancelled'
   status text not null,
   payment_method text not null,
   payment_status text not null,
@@ -104,8 +114,25 @@ create table if not exists public.store_orders (
   shipping numeric not null default 0,
   total numeric not null default 0,
   shipping_address text null,
-  notes text null
+  notes text null,
+  -- Delivery & Courier fulfillment details. Managed by ADMIN / logistics.
+  courier text null,
+  tracking_number text null,
+  delivery_notes text null
 );
+
+alter table public.store_orders
+  add column if not exists courier text null,
+  add column if not exists tracking_number text null,
+  add column if not exists delivery_notes text null;
+
+comment on column public.store_orders.courier is 'Courier partner name (e.g., LBC, J&T Express, Ninja Van)';
+comment on column public.store_orders.tracking_number is 'Waybill / tracking number issued by the courier partner';
+comment on column public.store_orders.delivery_notes is 'Special delivery instructions or logistics updates';
+
+create index if not exists store_orders_tracking_number_idx
+  on public.store_orders (lower(tracking_number))
+  where tracking_number is not null;
 
 create table if not exists public.store_order_items (
   id text primary key,
@@ -125,8 +152,15 @@ create table if not exists public.order_timeline_entries (
   status text not null,
   created_at timestamptz not null,
   note text not null,
+  -- Audit context for delivery updates recorded by an admin.
+  actor_name text null,
+  previous_status text null,
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.order_timeline_entries
+  add column if not exists actor_name text null,
+  add column if not exists previous_status text null;
 
 create table if not exists public.pos_transactions (
   id text primary key,
@@ -203,6 +237,29 @@ create table if not exists public.promotions (
   description text not null default '',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.product_categories (
+  id text primary key,
+  name text not null unique,
+  slug text not null unique,
+  description text null,
+  is_system boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.product_reviews (
+  id text primary key,
+  product_id text not null references public.catalog_products (id) on delete cascade,
+  order_id text not null references public.store_orders (id) on delete cascade,
+  customer_id uuid not null references public.profiles (id) on delete cascade,
+  customer_name text not null,
+  rating integer not null check (rating >= 1 and rating <= 5),
+  comment text not null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint unique_customer_product_order_review unique (customer_id, product_id, order_id)
 );
 
 create table if not exists public.support_cases (
@@ -370,6 +427,18 @@ before update on public.promotions
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists set_product_categories_updated_at on public.product_categories;
+create trigger set_product_categories_updated_at
+before update on public.product_categories
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists set_product_reviews_updated_at on public.product_reviews;
+create trigger set_product_reviews_updated_at
+before update on public.product_reviews
+for each row
+execute function public.set_updated_at();
+
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
@@ -391,6 +460,8 @@ alter table public.stock_movements enable row level security;
 alter table public.user_carts enable row level security;
 alter table public.user_wishlists enable row level security;
 alter table public.promotions enable row level security;
+alter table public.product_categories enable row level security;
+alter table public.product_reviews enable row level security;
 alter table public.support_cases enable row level security;
 alter table public.support_messages enable row level security;
 
@@ -600,6 +671,89 @@ for select
 to authenticated
 using (public.is_backoffice_user());
 
+drop policy if exists "product_categories_select_public" on public.product_categories;
+create policy "product_categories_select_public"
+on public.product_categories
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "product_categories_insert_backoffice" on public.product_categories;
+create policy "product_categories_insert_backoffice"
+on public.product_categories
+for insert
+to authenticated
+with check (public.is_backoffice_user());
+
+drop policy if exists "product_categories_update_backoffice" on public.product_categories;
+create policy "product_categories_update_backoffice"
+on public.product_categories
+for update
+to authenticated
+using (public.is_backoffice_user())
+with check (public.is_backoffice_user());
+
+drop policy if exists "product_categories_delete_admin" on public.product_categories;
+create policy "product_categories_delete_admin"
+on public.product_categories
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'ADMIN'
+  )
+);
+
+drop policy if exists "product_reviews_select_public" on public.product_reviews;
+create policy "product_reviews_select_public"
+on public.product_reviews
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "product_reviews_insert_own_delivered" on public.product_reviews;
+create policy "product_reviews_insert_own_delivered"
+on public.product_reviews
+for insert
+to authenticated
+with check (
+  customer_id = auth.uid()
+  and exists (
+    select 1
+    from public.store_orders o
+    join public.store_order_items i on i.order_id = o.id
+    where o.id = order_id
+      and o.customer_id = auth.uid()
+      and o.status = 'Delivered'
+      and i.product_id = product_id
+  )
+);
+
+drop policy if exists "product_reviews_update_own" on public.product_reviews;
+create policy "product_reviews_update_own"
+on public.product_reviews
+for update
+to authenticated
+using (customer_id = auth.uid())
+with check (customer_id = auth.uid());
+
+drop policy if exists "product_reviews_delete_admin" on public.product_reviews;
+create policy "product_reviews_delete_admin"
+on public.product_reviews
+for delete
+to authenticated
+using (
+  customer_id = auth.uid() or exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and role = 'ADMIN'
+  )
+);
+
 drop policy if exists "support_cases_select_backoffice" on public.support_cases;
 create policy "support_cases_select_backoffice"
 on public.support_cases
@@ -688,6 +842,8 @@ alter table public.stock_movements replica identity full;
 alter table public.user_carts replica identity full;
 alter table public.user_wishlists replica identity full;
 alter table public.promotions replica identity full;
+alter table public.product_categories replica identity full;
+alter table public.product_reviews replica identity full;
 alter table public.support_cases replica identity full;
 alter table public.support_messages replica identity full;
 
@@ -709,6 +865,8 @@ declare
     'user_carts',
     'user_wishlists',
     'promotions',
+    'product_categories',
+    'product_reviews',
     'support_cases',
     'support_messages'
   ];
@@ -729,3 +887,17 @@ begin
   end loop;
 end;
 $$;
+
+-- Seed default product categories
+insert into public.product_categories (id, name, slug, is_system)
+values
+  ('cat_bath_and_body_works', 'Bath & Body Works', 'bath-and-body-works', true),
+  ('cat_victorias_secret', 'Victoria''s Secret', 'victorias-secret', true),
+  ('cat_katy_perry', 'Katy Perry', 'katy-perry', true),
+  ('cat_nicki_minaj', 'Nicki Minaj', 'nicki-minaj', true),
+  ('cat_britney_spears', 'Britney Spears', 'britney-spears', true),
+  ('cat_sarah_jessica_parker', 'Sarah Jessica Parker', 'sarah-jessica-parker', true),
+  ('cat_kim_kardashian', 'Kim Kardashian', 'kim-kardashian', true),
+  ('cat_mardussia', 'Mardussia', 'mardussia', true),
+  ('cat_charlie', 'Charlie', 'charlie', true)
+on conflict (name) do nothing;

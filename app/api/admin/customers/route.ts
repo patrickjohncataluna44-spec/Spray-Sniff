@@ -7,6 +7,12 @@ type ProfileRow = {
   email: string
   name: string
   role: 'ADMIN' | 'STAFF' | 'USER'
+  phone?: string | null
+  birthdate?: string | null
+  age?: number | null
+  address?: string | null
+  city?: string | null
+  postal_code?: string | null
   created_at: string
 }
 
@@ -73,26 +79,37 @@ async function requireAdminActor(request: NextRequest) {
 
 async function loadCustomerSummaries() {
   const supabase = createSupabaseAdminClient()
-  const [{ data: profiles, error: profilesError }, { data: orders, error: ordersError }] =
-    await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, email, name, role, created_at')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('store_orders')
-        .select('id, customer_id, customer_email, payment_status, total, source'),
-    ])
+
+  let profiles: ProfileRow[] = []
+  const { data: extendedProfiles, error: extendedError } = await supabase
+    .from('profiles')
+    .select('id, email, name, role, phone, birthdate, age, address, city, postal_code, created_at')
+    .order('created_at', { ascending: false })
+
+  if (!extendedError && extendedProfiles) {
+    profiles = extendedProfiles as ProfileRow[]
+  } else {
+    // Fallback to standard columns
+    const { data: basicProfiles, error: basicError } = await supabase
+      .from('profiles')
+      .select('id, email, name, role, created_at')
+      .order('created_at', { ascending: false })
+
+    if (basicError) {
+      throw basicError
+    }
+    profiles = (basicProfiles ?? []) as ProfileRow[]
+  }
+
+  const { data: orders, error: ordersError } = await supabase
+    .from('store_orders')
+    .select('id, customer_id, customer_email, payment_status, total, source')
 
   if (ordersError) {
     throw ordersError
   }
 
-  if (profilesError) {
-    throw profilesError
-  }
-
-  const profileRows = (profiles ?? []) as ProfileRow[]
+  const profileRows = profiles
   const orderRows = (orders ?? []) as OrderRow[]
 
   return profileRows.map((profile) => {
@@ -114,6 +131,12 @@ async function loadCustomerSummaries() {
       name: profile.name,
       email: profile.email,
       role: profile.role,
+      phone: profile.phone ?? null,
+      birthdate: profile.birthdate ?? null,
+      age: profile.age ?? null,
+      address: profile.address ?? null,
+      city: profile.city ?? null,
+      postalCode: profile.postal_code ?? null,
       orders: matchingOrders.length,
       spent: totalSpent,
       joined: profile.created_at,

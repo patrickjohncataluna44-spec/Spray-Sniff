@@ -88,71 +88,71 @@ async function ensureDefaultAdminAccount() {
   }
 
   const operation = (async () => {
-  const supabase = createSupabaseAdminClient()
-  const normalizedAdminEmail = ADMIN_EMAIL.trim().toLowerCase()
+    const supabase = createSupabaseAdminClient()
+    const normalizedAdminEmail = ADMIN_EMAIL.trim().toLowerCase()
 
-  const { data: existingProfile, error: profileLookupError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', normalizedAdminEmail)
-    .maybeSingle()
+    const { data: existingProfile, error: profileLookupError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', normalizedAdminEmail)
+      .maybeSingle()
 
-  if (profileLookupError) {
-    throw profileLookupError
-  }
-
-  let adminUserId = existingProfile?.id
-
-  if (!adminUserId) {
-    const { data: usersData, error: listUsersError } = await supabase.auth.admin.listUsers()
-
-    if (listUsersError) {
-      throw listUsersError
+    if (profileLookupError) {
+      throw profileLookupError
     }
 
-    const existingAdminUser = usersData.users.find(
-      (user) => user.email?.trim().toLowerCase() === normalizedAdminEmail,
+    let adminUserId = existingProfile?.id
+
+    if (!adminUserId) {
+      const { data: usersData, error: listUsersError } = await supabase.auth.admin.listUsers()
+
+      if (listUsersError) {
+        throw listUsersError
+      }
+
+      const existingAdminUser = usersData.users.find(
+        (user) => user.email?.trim().toLowerCase() === normalizedAdminEmail,
+      )
+
+      adminUserId = existingAdminUser?.id
+    }
+
+    if (!adminUserId) {
+      const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+        email: normalizedAdminEmail,
+        password: ADMIN_PASSWORD,
+        email_confirm: true,
+        user_metadata: {
+          name: 'Spray & Sniff Admin',
+        },
+      })
+
+      if (createUserError) {
+        throw createUserError
+      }
+
+      adminUserId = createdUser.user?.id
+    }
+
+    if (!adminUserId) {
+      throw new Error('Unable to provision the default admin account.')
+    }
+
+    const { error: profileError } = await supabase.from('profiles').upsert(
+      {
+        id: adminUserId,
+        email: normalizedAdminEmail,
+        name: 'Spray & Sniff Admin',
+        role: 'ADMIN',
+      },
+      { onConflict: 'id' },
     )
 
-    adminUserId = existingAdminUser?.id
-  }
-
-  if (!adminUserId) {
-    const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
-      email: normalizedAdminEmail,
-      password: ADMIN_PASSWORD,
-      email_confirm: true,
-      user_metadata: {
-        name: 'Spray & Sniff Admin',
-      },
-    })
-
-    if (createUserError) {
-      throw createUserError
+    if (profileError) {
+      throw profileError
     }
 
-    adminUserId = createdUser.user?.id
-  }
-
-  if (!adminUserId) {
-    throw new Error('Unable to provision the default admin account.')
-  }
-
-  const { error: profileError } = await supabase.from('profiles').upsert(
-    {
-      id: adminUserId,
-      email: normalizedAdminEmail,
-      name: 'Spray & Sniff Admin',
-      role: 'ADMIN',
-    },
-    { onConflict: 'id' },
-  )
-
-  if (profileError) {
-    throw profileError
-  }
-
-  defaultAdminCacheExpiresAt = Date.now() + ADMIN_ACCOUNT_CACHE_TTL_MS
+    defaultAdminCacheExpiresAt = Date.now() + ADMIN_ACCOUNT_CACHE_TTL_MS
   })()
 
   defaultAdminInFlight = operation
@@ -225,6 +225,9 @@ type StoreOrderRow = {
   total: number
   shipping_address: string | null
   notes: string | null
+  courier: string | null
+  tracking_number: string | null
+  delivery_notes: string | null
 }
 
 type StoreOrderItemRow = {
@@ -241,6 +244,8 @@ type OrderTimelineEntryRow = {
   status: OrderRecord['status']
   created_at: string
   note: string
+  actor_name: string | null
+  previous_status: OrderRecord['status'] | null
 }
 
 type PosTransactionRow = {
@@ -350,7 +355,6 @@ function createDerivedActionAvailability(
 
   return {
     canCancel: false,
-    canConfirmReceived: false,
     needsRefundFollowUp: getOrderNeedsRefundFollowUp(order),
   }
 }
@@ -408,10 +412,10 @@ export async function getVisibleStoreState(
   const customerOrders =
     actor?.role === 'USER'
       ? state.orders.filter(
-          (order) =>
-            order.source === 'ONLINE' &&
-            orderBelongsToActor(order, actor),
-        )
+        (order) =>
+          order.source === 'ONLINE' &&
+          orderBelongsToActor(order, actor),
+      )
       : []
   const paymentRecordsByOrderId = await loadPaymentRecordsByOrderId(
     customerOrders.map((order) => order.id),
@@ -548,13 +552,13 @@ async function loadBackofficeStoreState() {
       'product_id, sku, stock, reorder_point, location, last_updated, last_updated_by, is_archived, archived_at, archived_by',
     ),
     supabase.from('store_orders').select(
-      'id, source, customer_id, customer_name, customer_email, status, payment_method, payment_status, created_at, subtotal, tax, shipping, total, shipping_address, notes',
+      'id, source, customer_id, customer_name, customer_email, status, payment_method, payment_status, created_at, subtotal, tax, shipping, total, shipping_address, notes, courier, tracking_number, delivery_notes',
     ),
     supabase.from('store_order_items').select(
       'order_id, product_id, product_name, size_ml, quantity, unit_price',
     ),
     supabase.from('order_timeline_entries').select(
-      'order_id, status, created_at, note',
+      'order_id, status, created_at, note, actor_name, previous_status',
     ),
     supabase.from('pos_transactions').select(
       'id, order_id, cashier_name, payment_method, created_at, subtotal, tax, total, items_count',
@@ -601,6 +605,8 @@ async function loadBackofficeStoreState() {
       status: row.status,
       createdAt: row.created_at,
       note: row.note,
+      actorName: row.actor_name ?? undefined,
+      previousStatus: row.previous_status ?? undefined,
     })
     timelineByOrderId.set(row.order_id, timeline)
   }
@@ -622,6 +628,9 @@ async function loadBackofficeStoreState() {
       total: Number(row.total),
       shippingAddress: row.shipping_address ?? undefined,
       notes: row.notes ?? undefined,
+      courier: row.courier ?? undefined,
+      trackingNumber: row.tracking_number ?? undefined,
+      deliveryNotes: row.delivery_notes ?? undefined,
       items: (orderItemsByOrderId.get(row.id) ?? []).sort((left, right) =>
         left.productName.localeCompare(right.productName),
       ),
@@ -714,6 +723,9 @@ function mapStoreOrderRow(order: OrderRecord) {
     total: order.total,
     shipping_address: order.shippingAddress ?? null,
     notes: order.notes ?? null,
+    courier: order.courier ?? null,
+    tracking_number: order.trackingNumber ?? null,
+    delivery_notes: order.deliveryNotes ?? null,
   }
 }
 
@@ -739,6 +751,8 @@ function mapOrderTimelineRows(orders: OrderRecord[]) {
       status: entry.status,
       created_at: entry.createdAt,
       note: entry.note,
+      actor_name: entry.actorName ?? null,
+      previous_status: entry.previousStatus ?? null,
     })),
   )
 }
@@ -1220,126 +1234,126 @@ export async function ensureSupabaseStoreSeeded(
   }
 
   const seedOperation = (async () => {
-  const supabase = createSupabaseAdminClient()
-  let fullState: StoreState
-  let shouldUpsertSnapshot = false
-  let shouldSyncPublicSnapshot = false
-  let shouldSyncNormalizedTables = false
-  let promotionTableAvailable = true
+    const supabase = createSupabaseAdminClient()
+    let fullState: StoreState
+    let shouldUpsertSnapshot = false
+    let shouldSyncPublicSnapshot = false
+    let shouldSyncNormalizedTables = false
+    let promotionTableAvailable = true
 
-  const [
-    { data: storeRow, error: storeError },
-    { data: publicStoreRow, error: publicStoreError },
-    { count: promotionCount, error: promotionError },
-  ] = await Promise.all([
-    supabase
-      .from('app_store_snapshots')
-      .select('id, state')
-      .eq('id', DEFAULT_STORE_ID)
-      .maybeSingle(),
-    supabase
-      .from('public_store_snapshots')
-      .select('id')
-      .eq('id', DEFAULT_STORE_ID)
-      .maybeSingle(),
-    supabase.from('promotions').select('id', { head: true, count: 'exact' }),
-  ])
+    const [
+      { data: storeRow, error: storeError },
+      { data: publicStoreRow, error: publicStoreError },
+      { count: promotionCount, error: promotionError },
+    ] = await Promise.all([
+      supabase
+        .from('app_store_snapshots')
+        .select('id, state')
+        .eq('id', DEFAULT_STORE_ID)
+        .maybeSingle(),
+      supabase
+        .from('public_store_snapshots')
+        .select('id')
+        .eq('id', DEFAULT_STORE_ID)
+        .maybeSingle(),
+      supabase.from('promotions').select('id', { head: true, count: 'exact' }),
+    ])
 
-  if (storeError) {
-    throw storeError
-  }
+    if (storeError) {
+      throw storeError
+    }
 
-  if (publicStoreError) {
-    throw publicStoreError
-  }
+    if (publicStoreError) {
+      throw publicStoreError
+    }
 
-  if (promotionError) {
-    if (isMissingRelationError(promotionError)) {
-      promotionTableAvailable = false
+    if (promotionError) {
+      if (isMissingRelationError(promotionError)) {
+        promotionTableAvailable = false
+      } else {
+        throw promotionError
+      }
+    }
+
+    try {
+      await ensureDefaultAdminAccount()
+    } catch (error) {
+      console.error('Unable to provision the default admin account during store bootstrap.', {
+        error: error instanceof Error ? error.message : error,
+      })
+    }
+    await loadStoreSyncMeta()
+
+    if (!storeRow) {
+      const seedState = createSampleState()
+      fullState = seedState
+      shouldUpsertSnapshot = true
+      shouldSyncPublicSnapshot = true
+      shouldSyncNormalizedTables = true
     } else {
-      throw promotionError
-    }
-  }
-
-  try {
-    await ensureDefaultAdminAccount()
-  } catch (error) {
-    console.error('Unable to provision the default admin account during store bootstrap.', {
-      error: error instanceof Error ? error.message : error,
-    })
-  }
-  await loadStoreSyncMeta()
-
-  if (!storeRow) {
-    const seedState = createSampleState()
-    fullState = seedState
-    shouldUpsertSnapshot = true
-    shouldSyncPublicSnapshot = true
-    shouldSyncNormalizedTables = true
-  } else {
-    fullState = normalizeState((storeRow.state as Partial<StoreState> | null) ?? null)
-  }
-
-  if (needsCanonicalPaymentTestProductSync(fullState)) {
-    fullState = normalizeState(fullState)
-    shouldUpsertSnapshot = true
-    shouldSyncPublicSnapshot = true
-    shouldSyncNormalizedTables = true
-  }
-
-  if (!publicStoreRow) {
-    shouldSyncPublicSnapshot = true
-  }
-
-  if (promotionTableAvailable && !promotionCount) {
-    await supabase.from('promotions').upsert(
-      seedPromotions.map((promotion) => ({
-        id: promotion.id,
-        code: promotion.code,
-        type: promotion.type,
-        discount: promotion.discount,
-        used_count: promotion.usedCount,
-        usage_limit: promotion.usageLimit,
-        status: promotion.status,
-        starts_at: promotion.startsAt,
-        expires_at: promotion.expiresAt,
-        description: promotion.description,
-      })),
-    )
-  }
-
-  if (shouldUpsertSnapshot) {
-    await supabase.from('app_store_snapshots').upsert({
-      id: DEFAULT_STORE_ID,
-      state: { ...fullState, cart: [] },
-    })
-  }
-
-  if (syncNormalizedTables && !shouldSyncNormalizedTables) {
-    const { count: catalogCount, error: catalogCountError } = await supabase
-      .from('catalog_products')
-      .select('id', { head: true, count: 'exact' })
-
-    if (catalogCountError) {
-      throw catalogCountError
+      fullState = normalizeState((storeRow.state as Partial<StoreState> | null) ?? null)
     }
 
-    shouldSyncNormalizedTables = !catalogCount
-  }
+    if (needsCanonicalPaymentTestProductSync(fullState)) {
+      fullState = normalizeState(fullState)
+      shouldUpsertSnapshot = true
+      shouldSyncPublicSnapshot = true
+      shouldSyncNormalizedTables = true
+    }
 
-  if (shouldSyncPublicSnapshot) {
-    await syncPublicStoreSnapshot({
-      ...fullState,
-      cart: [],
-    })
-  }
+    if (!publicStoreRow) {
+      shouldSyncPublicSnapshot = true
+    }
 
-  if (syncNormalizedTables && shouldSyncNormalizedTables) {
-    await syncNormalizedStoreTables({
-      ...fullState,
-      cart: [],
-    })
-  }
+    if (promotionTableAvailable && !promotionCount) {
+      await supabase.from('promotions').upsert(
+        seedPromotions.map((promotion) => ({
+          id: promotion.id,
+          code: promotion.code,
+          type: promotion.type,
+          discount: promotion.discount,
+          used_count: promotion.usedCount,
+          usage_limit: promotion.usageLimit,
+          status: promotion.status,
+          starts_at: promotion.startsAt,
+          expires_at: promotion.expiresAt,
+          description: promotion.description,
+        })),
+      )
+    }
+
+    if (shouldUpsertSnapshot) {
+      await supabase.from('app_store_snapshots').upsert({
+        id: DEFAULT_STORE_ID,
+        state: { ...fullState, cart: [] },
+      })
+    }
+
+    if (syncNormalizedTables && !shouldSyncNormalizedTables) {
+      const { count: catalogCount, error: catalogCountError } = await supabase
+        .from('catalog_products')
+        .select('id', { head: true, count: 'exact' })
+
+      if (catalogCountError) {
+        throw catalogCountError
+      }
+
+      shouldSyncNormalizedTables = !catalogCount
+    }
+
+    if (shouldSyncPublicSnapshot) {
+      await syncPublicStoreSnapshot({
+        ...fullState,
+        cart: [],
+      })
+    }
+
+    if (syncNormalizedTables && shouldSyncNormalizedTables) {
+      await syncNormalizedStoreTables({
+        ...fullState,
+        cart: [],
+      })
+    }
   })()
 
   storeSeedInFlight = seedOperation
@@ -1475,7 +1489,7 @@ async function loadOrdersForCustomer(actor: StoreActor) {
   const { data: orderRows, error: ordersError } = await supabase
     .from('store_orders')
     .select(
-      'id, source, customer_id, customer_name, customer_email, status, payment_method, payment_status, created_at, subtotal, tax, shipping, total, shipping_address, notes',
+      'id, source, customer_id, customer_name, customer_email, status, payment_method, payment_status, created_at, subtotal, tax, shipping, total, shipping_address, notes, courier, tracking_number, delivery_notes',
     )
     .eq('source', 'ONLINE')
     .eq('customer_id', actor.id)
@@ -1497,7 +1511,7 @@ async function loadOrdersForCustomer(actor: StoreActor) {
       .in('order_id', [...customerOrderIds]),
     supabase
       .from('order_timeline_entries')
-      .select('order_id, status, created_at, note')
+      .select('order_id, status, created_at, note, actor_name, previous_status')
       .in('order_id', [...customerOrderIds]),
   ])
 
@@ -1524,6 +1538,8 @@ async function loadOrdersForCustomer(actor: StoreActor) {
       status: row.status,
       createdAt: row.created_at,
       note: row.note,
+      actorName: row.actor_name ?? undefined,
+      previousStatus: row.previous_status ?? undefined,
     })
     timelineByOrderId.set(row.order_id, timeline)
   }
@@ -1549,6 +1565,9 @@ async function loadOrdersForCustomer(actor: StoreActor) {
           total: Number(row.total),
           shippingAddress: row.shipping_address ?? undefined,
           notes: row.notes ?? undefined,
+          courier: row.courier ?? undefined,
+          trackingNumber: row.tracking_number ?? undefined,
+          deliveryNotes: row.delivery_notes ?? undefined,
           items: (orderItemsByOrderId.get(row.id) ?? []).sort((left, right) =>
             left.productName.localeCompare(right.productName),
           ),

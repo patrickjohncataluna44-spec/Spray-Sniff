@@ -48,28 +48,60 @@ function getSignupErrorResponse(message: string) {
   }
 }
 
+import { validateContactNumber, validateBirthdate, validateEmailAddress } from '@/lib/customer-validation'
+
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as {
       email?: unknown
       password?: unknown
       name?: unknown
+      phone?: unknown
+      birthdate?: unknown
+      age?: unknown
+      address?: unknown
+      city?: unknown
+      postalCode?: unknown
     }
 
     const email = typeof payload.email === 'string' ? normalizeEmail(payload.email) : ''
     const password = typeof payload.password === 'string' ? payload.password : ''
     const name = typeof payload.name === 'string' ? normalizeName(payload.name) : ''
+    const phone = typeof payload.phone === 'string' ? payload.phone.trim() : ''
+    const birthdate = typeof payload.birthdate === 'string' ? payload.birthdate.trim() : ''
+    const address = typeof payload.address === 'string' ? payload.address.trim() : ''
+    const city = typeof payload.city === 'string' ? payload.city.trim() : ''
+    const postalCode = typeof payload.postalCode === 'string' ? payload.postalCode.trim() : ''
 
-    if (!email || !email.includes('@')) {
-      return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
+    const emailValidation = validateEmailAddress(email)
+    if (!emailValidation.isValid) {
+      return NextResponse.json({ error: emailValidation.error || 'Enter a valid email address.' }, { status: 400 })
     }
 
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters.' }, { status: 400 })
     }
 
-    if (!name) {
+    if (!name || name.length < 2) {
       return NextResponse.json({ error: 'Enter your full name.' }, { status: 400 })
+    }
+
+    let normalizedPhone: string | null = null
+    if (phone) {
+      const phoneValidation = validateContactNumber(phone)
+      if (!phoneValidation.isValid) {
+        return NextResponse.json({ error: phoneValidation.error || 'Invalid contact number.' }, { status: 400 })
+      }
+      normalizedPhone = phoneValidation.normalized
+    }
+
+    let validAge: number | null = null
+    if (birthdate) {
+      const birthValidation = validateBirthdate(birthdate, 13)
+      if (!birthValidation.isValid) {
+        return NextResponse.json({ error: birthValidation.error || 'Invalid birthdate.' }, { status: 400 })
+      }
+      validAge = birthValidation.age
     }
 
     const isAdminSignup = email === ADMIN_EMAIL.trim().toLowerCase()
@@ -93,13 +125,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Supabase did not return the new user id.' }, { status: 500 })
     }
 
+    const profileData: Record<string, unknown> = {
+      id: userId,
+      email,
+      name,
+      role: isAdminSignup ? 'ADMIN' : 'USER',
+    }
+
+    if (normalizedPhone) profileData.phone = normalizedPhone
+    if (birthdate) profileData.birthdate = birthdate
+    if (validAge !== null) profileData.age = validAge
+    if (address) profileData.address = address
+    if (city) profileData.city = city
+    if (postalCode) profileData.postal_code = postalCode
+
     const { error: profileError } = await supabase.from('profiles').upsert(
-      {
-        id: userId,
-        email,
-        name,
-        role: isAdminSignup ? 'ADMIN' : 'USER',
-      },
+      profileData,
       { onConflict: 'id' },
     )
 

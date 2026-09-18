@@ -61,6 +61,7 @@ function CheckoutContent() {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     address: '',
     city: '',
     state: '',
@@ -98,6 +99,10 @@ function CheckoutContent() {
       firstName: current.firstName || firstName,
       lastName: current.lastName || rest.join(' '),
       email: user.email,
+      phone: current.phone || user.phone || '',
+      address: current.address || user.address || '',
+      city: current.city || user.city || '',
+      zip: current.zip || user.postalCode || '',
     }))
   }, [user])
 
@@ -347,6 +352,20 @@ function CheckoutContent() {
       })
       router.replace(CHECKOUT_SIGN_IN_HREF)
       return
+    }
+
+    if (step === 0) {
+      const cleanPhone = formData.phone.trim().replace(/[\s\-()]/g, '')
+      const phPattern = /^(09\d{9}|\+639\d{9})$/
+      const generalPattern = /^\+?[0-9]{10,15}$/
+      if (!cleanPhone || (!phPattern.test(cleanPhone) && !generalPattern.test(cleanPhone))) {
+        toast({
+          title: 'Invalid Contact Number',
+          description: 'Please enter a valid phone number (e.g. 0917 123 4567 or +63 917 123 4567) so our delivery courier can contact you.',
+          variant: 'destructive',
+        })
+        return
+      }
     }
 
     if (step < STEPS.length - 1) {
@@ -623,18 +642,37 @@ function CheckoutContent() {
                     />
                   </div>
 
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Email"
-                    value={formData.email}
-                    required
-                    readOnly
-                    className="storefront-input h-12 w-full"
-                  />
-                  <p className="text-sm text-foreground/60">
-                    Your order confirmation will be sent to your signed-in email.
-                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <input
+                        type="email"
+                        name="email"
+                        placeholder="Email"
+                        value={formData.email}
+                        required
+                        readOnly
+                        className="storefront-input h-12 w-full"
+                      />
+                      <p className="mt-1 text-xs text-foreground/60">
+                        Signed-in account email
+                      </p>
+                    </div>
+
+                    <div>
+                      <input
+                        type="tel"
+                        name="phone"
+                        placeholder="Contact Number (e.g. 0917 123 4567)"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        required
+                        className="storefront-input h-12 w-full"
+                      />
+                      <p className="mt-1 text-xs text-foreground/60">
+                        Required for courier delivery updates
+                      </p>
+                    </div>
+                  </div>
 
                   <input
                     type="text"

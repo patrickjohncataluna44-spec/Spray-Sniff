@@ -14,7 +14,6 @@ export type SupportQuickActionId =
   | 'track_order'
   | 'check_payment'
   | 'cancel_order'
-  | 'confirm_received'
   | 'request_refund'
   | 'talk_to_support'
   | 'view_cases'
@@ -98,7 +97,6 @@ export type SupportAction =
   | 'getOrderDetails'
   | 'getPaymentDetails'
   | 'cancelOwnOrder'
-  | 'confirmOwnDelivery'
   | 'createRefundRequest'
   | 'createSupportCase'
 
@@ -107,7 +105,6 @@ export type SupportActionRequest =
   | { action: 'getOrderDetails'; orderId: string }
   | { action: 'getPaymentDetails'; orderId: string }
   | { action: 'cancelOwnOrder'; orderId: string }
-  | { action: 'confirmOwnDelivery'; orderId: string }
   | { action: 'createRefundRequest'; orderId: string; message?: string }
   | {
       action: 'createSupportCase'

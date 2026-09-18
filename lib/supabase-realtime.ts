@@ -92,10 +92,19 @@ export function subscribeToStockMovements(onChange: () => void) {
   return subscribeToTableChanges('stock-movements-sync', 'stock_movements', onChange)
 }
 
+export function subscribeToProductCategories(onChange: () => void) {
+  return subscribeToTableChanges('product-categories-sync', 'product_categories', onChange)
+}
+
+export function subscribeToProductReviews(productId: string, onChange: () => void) {
+  return subscribeToTableChanges('product-reviews-sync', 'product_reviews', onChange, `product_id=eq.${productId}`)
+}
+
 export function subscribeToBackofficeStoreData(onChange: () => void) {
   const cleanups = [
     subscribeToStoreSnapshot(onChange),
     subscribeToCatalogProducts(onChange),
+    subscribeToProductCategories(onChange),
     subscribeToInventoryItems(onChange),
     subscribeToStoreOrders(onChange),
     subscribeToOrderTimelineEntries(onChange),

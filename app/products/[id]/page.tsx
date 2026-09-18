@@ -1,16 +1,28 @@
-/* eslint-disable @next/next/no-img-element */
 'use client'
 
 import Link from 'next/link'
-import { use, useEffect, useState } from 'react'
-import { Heart, ShoppingBag, Star } from 'lucide-react'
+import { use, useEffect, useState, useCallback } from 'react'
+import { CheckCircle2, Heart, MessageSquarePlus, ShoppingBag, Star, ShieldCheck, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { ProductCard } from '@/components/product-card'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
+import { subscribeToProductReviews } from '@/lib/supabase-realtime'
 import { toast } from '@/hooks/use-toast'
+
+interface ReviewData {
+  id: string
+  productId: string
+  orderId: string
+  customerId: string
+  customerName: string
+  rating: number
+  comment: string
+  createdAt: string
+}
 
 export default function ProductPage({
   params,
@@ -36,6 +48,49 @@ export default function ProductPage({
   const [mainImage, setMainImage] = useState('')
   const [isAddingToCart, setIsAddingToCart] = useState(false)
 
+  // Reviews state
+  const [reviews, setReviews] = useState<ReviewData[]>([])
+  const [averageRating, setAverageRating] = useState<number>(0)
+  const [totalReviews, setTotalReviews] = useState<number>(0)
+  const [canReview, setCanReview] = useState<boolean>(false)
+  const [alreadyReviewed, setAlreadyReviewed] = useState<boolean>(false)
+  const [newRating, setNewRating] = useState<number>(5)
+  const [newComment, setNewComment] = useState<string>('')
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false)
+  const [isLoadingReviews, setIsLoadingReviews] = useState<boolean>(true)
+
+  // Fetch reviews & customer eligibility from /api/reviews
+  const fetchProductReviews = useCallback(async () => {
+    if (!id) return
+    try {
+      const res = await fetch(`/api/reviews?productId=${encodeURIComponent(id)}`)
+      if (res.ok) {
+        const data = await res.json()
+        setReviews(Array.isArray(data.reviews) ? data.reviews : [])
+        setAverageRating(typeof data.averageRating === 'number' ? data.averageRating : 0)
+        setTotalReviews(typeof data.totalReviews === 'number' ? data.totalReviews : 0)
+        setCanReview(Boolean(data.canReview))
+        setAlreadyReviewed(Boolean(data.alreadyReviewed))
+      }
+    } catch (err) {
+      console.warn('Failed to load reviews:', err)
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    void fetchProductReviews()
+
+    const unsubscribe = subscribeToProductReviews(id, () => {
+      void fetchProductReviews()
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [fetchProductReviews, id])
+
   useEffect(() => {
     if (!product) {
       return
@@ -45,6 +100,56 @@ export default function ProductPage({
     setMainImage(product.images[0] ?? '')
     setQuantity(1)
   }, [product])
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newComment.trim()) {
+      toast({
+        title: 'Review text required',
+        description: 'Please write your feedback before submitting.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsSubmittingReview(true)
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: id,
+          rating: newRating,
+          comment: newComment.trim(),
+        }),
+      })
+      const result = await res.json()
+
+      if (!res.ok) {
+        toast({
+          title: 'Review not allowed',
+          description: result.error || 'Only delivered orders can be reviewed.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      toast({
+        title: 'Review submitted!',
+        description: 'Thank you for your rating and feedback.',
+      })
+      setNewComment('')
+      void fetchProductReviews()
+    } catch (error) {
+      toast({
+        title: 'Failed to submit review',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSubmittingReview(false)
+    }
+  }
 
   if (!product) {
     return (
@@ -164,8 +269,12 @@ export default function ProductPage({
                 </span>
                 <span className="inline-flex items-center gap-2 text-sm text-foreground/58">
                   <Star className="h-4 w-4 fill-primary text-primary" />
-                  <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
-                  <span>({product.reviewCount} reviews)</span>
+                  <span className="font-semibold text-foreground">
+                    {totalReviews > 0 ? averageRating.toFixed(1) : product.rating.toFixed(1)}
+                  </span>
+                  <span>
+                    ({totalReviews > 0 ? totalReviews : product.reviewCount} reviews)
+                  </span>
                 </span>
               </div>
 
@@ -377,6 +486,214 @@ export default function ProductPage({
                   <p className="mt-3 text-lg font-semibold capitalize text-foreground">{product.gender}</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Verified Buyer Ratings & Reviews Section */}
+      <section className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="storefront-panel rounded-[2.25rem] p-6 sm:p-10">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border/60 pb-6">
+              <div>
+                <p className="storefront-eyebrow">Customer Feedback</p>
+                <h2 className="mt-2 text-3xl font-serif text-foreground sm:text-4xl">Ratings & Reviews</h2>
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="flex items-center gap-1 text-primary">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-5 w-5 ${
+                          i < Math.round(totalReviews > 0 ? averageRating : product.rating)
+                            ? 'fill-primary text-primary'
+                            : 'text-muted-foreground/30'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-lg font-bold text-foreground">
+                    {totalReviews > 0 ? averageRating.toFixed(1) : product.rating.toFixed(1)}
+                  </span>
+                  <span className="text-sm text-foreground/60">
+                    ({totalReviews > 0 ? totalReviews : product.reviewCount} verified reviews)
+                  </span>
+                </div>
+              </div>
+
+              {/* Verified purchase status pill */}
+              <div className="flex items-center gap-2 rounded-2xl bg-muted/40 px-4 py-2.5 text-xs text-foreground/75 border border-border/50">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Only customers with <strong>Delivered</strong> orders can submit reviews</span>
+              </div>
+            </div>
+
+            {/* Review Submission Form - Gated strictly for customers with a Delivered order */}
+            <div className="my-8">
+              {canReview ? (
+                <div className="rounded-[1.75rem] border border-primary/25 bg-primary/5 p-6 sm:p-8">
+                  <div className="flex items-center gap-2 text-primary font-medium text-sm">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>You purchased and received this product! Leave your rating & review:</span>
+                  </div>
+
+                  <form onSubmit={handleReviewSubmit} className="mt-5 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-foreground/60 mb-2">
+                        Your Rating
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setNewRating(star)}
+                            className="p-1 transition-transform hover:scale-110 focus:outline-none"
+                          >
+                            <Star
+                              className={`h-7 w-7 ${
+                                star <= newRating
+                                  ? 'fill-primary text-primary'
+                                  : 'text-muted-foreground/30 hover:text-primary/50'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                        <span className="ml-2 text-sm font-semibold text-foreground">
+                          {newRating} Star{newRating > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="reviewComment" className="block text-xs font-semibold uppercase tracking-[0.18em] text-foreground/60 mb-2">
+                        Your Review & Experience
+                      </label>
+                      <Textarea
+                        id="reviewComment"
+                        rows={3}
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Tell others how it smells, its projection, longevity, and what you loved about it..."
+                        className="rounded-2xl border-border bg-background/90"
+                      />
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="submit"
+                        disabled={isSubmittingReview || !newComment.trim()}
+                        className="rounded-full px-6 gap-2"
+                      >
+                        {isSubmittingReview ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquarePlus className="h-4 w-4" />
+                            Post Verified Review
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              ) : alreadyReviewed ? (
+                <div className="rounded-[1.5rem] bg-emerald-500/10 border border-emerald-500/20 p-5 text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span>You have already submitted a verified review for this delivered fragrance. Thank you!</span>
+                </div>
+              ) : (
+                <div className="rounded-[1.5rem] bg-muted/30 border border-border/60 p-5 text-sm text-foreground/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
+                    <p>
+                      Rating and reviews are available only to customers whose order has been <strong>successfully delivered</strong>.
+                    </p>
+                  </div>
+                  {isAuthenticated ? (
+                    <Link
+                      href="/orders"
+                      className="inline-flex items-center justify-center text-xs font-semibold text-primary hover:underline shrink-0"
+                    >
+                      Check My Orders &rarr;
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/auth/signin?redirectTo=/products/${product.id}`}
+                      className="inline-flex items-center justify-center text-xs font-semibold text-primary hover:underline shrink-0"
+                    >
+                      Sign In to Review &rarr;
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Reviews List */}
+            <div className="mt-8 space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">
+                Verified Customer Reviews ({reviews.length})
+              </h3>
+
+              {isLoadingReviews ? (
+                <div className="py-8 text-center text-sm text-foreground/50">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
+                  Loading customer reviews...
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="rounded-[1.5rem] bg-muted/20 border border-border/40 p-8 text-center">
+                  <p className="font-medium text-foreground">No customer feedback yet for this product.</p>
+                  <p className="mt-1 text-sm text-foreground/55">
+                    Be the first customer to receive and review this fragrance!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {reviews.map((rev) => (
+                    <div
+                      key={rev.id}
+                      className="rounded-[1.5rem] bg-muted/25 border border-border/50 p-5 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                            {rev.customerName}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Delivered Buyer
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-foreground/45 mt-0.5">
+                            {new Date(rev.createdAt).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-0.5 text-primary">
+                          {Array.from({ length: 5 }).map((_, idx) => (
+                            <Star
+                              key={idx}
+                              className={`h-3.5 w-3.5 ${
+                                idx < rev.rating
+                                  ? 'fill-primary text-primary'
+                                  : 'text-muted-foreground/30'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-foreground/75 leading-relaxed italic">
+                        &ldquo;{rev.comment}&rdquo;
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

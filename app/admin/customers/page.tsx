@@ -17,6 +17,12 @@ type CustomerSummary = {
   name: string
   email: string
   role: 'ADMIN' | 'STAFF' | 'USER'
+  phone?: string | null
+  birthdate?: string | null
+  age?: number | null
+  address?: string | null
+  city?: string | null
+  postalCode?: string | null
   orders: number
   spent: number
   joined: string
@@ -358,9 +364,10 @@ export default function AdminCustomersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-4 px-6 font-medium text-foreground/60">Name</th>
+                    <th className="text-left py-4 px-6 font-medium text-foreground/60">Name / Contact</th>
                     <th className="text-left py-4 px-6 font-medium text-foreground/60">Email</th>
                     <th className="text-left py-4 px-6 font-medium text-foreground/60">Role</th>
+                    <th className="text-left py-4 px-6 font-medium text-foreground/60">Location / Age</th>
                     <th className="text-left py-4 px-6 font-medium text-foreground/60">Orders</th>
                     <th className="text-left py-4 px-6 font-medium text-foreground/60">Total Spent</th>
                     <th className="text-left py-4 px-6 font-medium text-foreground/60">Joined</th>
@@ -370,7 +377,7 @@ export default function AdminCustomersPage() {
                 <tbody>
                   {!isLoading && filteredCustomers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 px-6 text-center text-foreground/60">
+                      <td colSpan={8} className="py-12 px-6 text-center text-foreground/60">
                         No account records matched your search.
                       </td>
                     </tr>
@@ -382,12 +389,28 @@ export default function AdminCustomersPage() {
                       >
                         <td className="py-4 px-6">
                           <p className="font-medium text-foreground">{customer.name}</p>
+                          {customer.phone ? (
+                            <p className="text-xs text-foreground/55 mt-0.5">{customer.phone}</p>
+                          ) : null}
                         </td>
                         <td className="py-4 px-6 text-foreground/60">{customer.email}</td>
                         <td className="py-4 px-6">
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getRoleTone(customer.role)}`}>
                             {customer.role}
                           </span>
+                        </td>
+                        <td className="py-4 px-6 text-xs text-foreground/70">
+                          {customer.city || customer.address ? (
+                            <p className="font-medium text-foreground">
+                              {customer.city || customer.address}
+                              {customer.postalCode ? ` (${customer.postalCode})` : ''}
+                            </p>
+                          ) : (
+                            <p className="text-foreground/40 italic">Not specified</p>
+                          )}
+                          {customer.age ? (
+                            <p className="text-foreground/50 mt-0.5">{customer.age} years old</p>
+                          ) : null}
                         </td>
                         <td className="py-4 px-6 text-foreground">{customer.orders}</td>
                         <td className="py-4 px-6 font-medium text-foreground">{formatPHP(customer.spent)}</td>
@@ -402,7 +425,7 @@ export default function AdminCustomersPage() {
                               onClick={() =>
                                 toast({
                                   title: customer.name,
-                                  description: `${customer.orders} order(s) recorded with ${customer.email}.`,
+                                  description: `${customer.phone ? `Phone: ${customer.phone} • ` : ''}${customer.orders} order(s) recorded with ${customer.email}.`,
                                 })
                               }
                             >

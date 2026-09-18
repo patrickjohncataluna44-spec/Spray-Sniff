@@ -38,7 +38,7 @@ import type {
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/use-toast'
 
-type OrderSelectionMode = 'details' | 'payment' | 'cancel' | 'confirm' | 'refund'
+type OrderSelectionMode = 'details' | 'payment' | 'cancel' | 'refund'
 
 type BaseChatMessage = {
   id: string
@@ -153,8 +153,6 @@ function getActionLabel(mode: OrderSelectionMode) {
       return 'Check payment'
     case 'cancel':
       return 'Cancel order'
-    case 'confirm':
-      return 'Confirm received'
     case 'refund':
       return 'Request help'
   }
@@ -168,8 +166,6 @@ function getQuickActionIcon(actionId: SupportQuickAction['id']) {
       return <CreditCard className="h-3.5 w-3.5" />
     case 'cancel_order':
       return <Package className="h-3.5 w-3.5" />
-    case 'confirm_received':
-      return <Truck className="h-3.5 w-3.5" />
     case 'request_refund':
     case 'view_cases':
       return <LifeBuoy className="h-3.5 w-3.5" />
@@ -226,7 +222,7 @@ function MessageAvatar({
 export function CustomerSupportWidget() {
   const pathname = usePathname()
   const { user, isAuthenticated, isLoading } = useAuth()
-  const { cancelOwnOrder, confirmOwnDelivery } = useStore()
+  const { cancelOwnOrder } = useStore()
   const [open, setOpen] = useState(false)
   const [bootstrap, setBootstrap] = useState<SupportBootstrapPayload | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -611,22 +607,6 @@ export function CustomerSupportWidget() {
       return
     }
 
-    if (actionId === 'confirm_received') {
-      const confirmableOrders = recentOrders.filter(
-        (order) => order.actionAvailability?.canConfirmReceived,
-      )
-      if (confirmableOrders.length === 0) {
-        appendTextMessage('bot', 'There are no deliveries waiting for customer confirmation right now.')
-      } else {
-        appendOrdersMessage(
-          "Pick the parcel you already received and I'll mark it as delivered for your account.",
-          confirmableOrders,
-          'confirm',
-        )
-      }
-      return
-    }
-
     if (actionId === 'request_refund') {
       // Always show refund policy first so customers know what to expect
       appendTextMessage(
@@ -699,22 +679,6 @@ export function CustomerSupportWidget() {
 
       if (mode === 'cancel') {
         const result = await cancelOwnOrder(order.id)
-        if (!result.ok) {
-          throw new Error(result.message)
-        }
-
-        const refreshed = await loadBootstrap()
-        const refreshedOrder = refreshed?.recentOrders.find((currentOrder) => currentOrder.id === order.id)
-        if (refreshedOrder) {
-          appendOrderDetailMessage(result.message, refreshedOrder)
-        } else {
-          appendTextMessage('bot', result.message)
-        }
-        return
-      }
-
-      if (mode === 'confirm') {
-        const result = await confirmOwnDelivery(order.id)
         if (!result.ok) {
           throw new Error(result.message)
         }
@@ -1077,15 +1041,6 @@ export function CustomerSupportWidget() {
                                       className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700"
                                     >
                                       Cancel order
-                                    </button>
-                                  ) : null}
-                                  {message.order.actionAvailability?.canConfirmReceived ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleOrderSelection('confirm', message.order)}
-                                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-semibold text-emerald-700"
-                                    >
-                                      Confirm received
                                     </button>
                                   ) : null}
                                   <button

@@ -3,6 +3,7 @@ import { products } from '@/lib/products'
 import { SITE_NAME } from '@/lib/site'
 
 export const ADMIN_PRODUCTS_STORAGE_KEY = 'admin-products'
+export const CUSTOM_CATEGORIES_STORAGE_KEY = 'custom-product-categories'
 
 export const PRODUCT_CATEGORIES = [
   'Bath & Body Works',
@@ -15,6 +16,40 @@ export const PRODUCT_CATEGORIES = [
   'Mardussia',
   'Charlie',
 ] as const
+
+export function getStoredCustomCategories(): string[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_CATEGORIES_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+export function saveStoredCustomCategory(category: string): string[] {
+  if (typeof window === 'undefined') return []
+  const trimmed = category.trim()
+  if (!trimmed) return getStoredCustomCategories()
+
+  const existing = getStoredCustomCategories()
+  const isDefault = (PRODUCT_CATEGORIES as readonly string[]).some(
+    (c) => c.toLowerCase() === trimmed.toLowerCase(),
+  )
+  if (!isDefault && !existing.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+    const next = [...existing, trimmed]
+    window.localStorage.setItem(
+      CUSTOM_CATEGORIES_STORAGE_KEY,
+      JSON.stringify(next),
+    )
+    return next
+  }
+  return existing
+}
 
 export interface ProductFormValues {
   name: string
