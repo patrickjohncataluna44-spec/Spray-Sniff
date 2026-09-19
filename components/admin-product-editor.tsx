@@ -22,6 +22,7 @@ import { PRODUCT_CATEGORIES, type ProductFormValues } from '@/lib/admin-products
 import { type UserRole } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { optimizeProductImage } from '@/lib/product-image'
+import type { ProductPriceHistoryEntry } from '@/lib/products'
 import { SITE_NAME } from '@/lib/site'
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -35,6 +36,7 @@ interface AdminProductEditorProps {
   cancelHref: string
   description: string
   initialValues: ProductFormValues
+  priceHistory?: ProductPriceHistoryEntry[]
   signedInName: string
   signedInRole: UserRole | undefined
   submitLabel: string
@@ -104,6 +106,7 @@ export function AdminProductEditor({
   cancelHref,
   description,
   initialValues,
+  priceHistory,
   signedInName,
   signedInRole,
   submitLabel,
@@ -349,6 +352,9 @@ export function AdminProductEditor({
                         onChange={(event) => updateField('price', event.target.value)}
                         placeholder="245"
                       />
+                      <p className="text-[11px] text-foreground/60 leading-relaxed">
+                        🔒 <strong>Price Protection:</strong> Changing the price takes effect for upcoming sales only. Past completed orders (e.g. from June or earlier) permanently retain their original purchase prices.
+                      </p>
                       <FieldError message={errors.price} />
                     </div>
 
@@ -559,6 +565,55 @@ export function AdminProductEditor({
                       </span>
                     </label>
                   </div>
+                </section>
+
+                <section className="rounded-3xl border border-border bg-card p-8 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="font-serif text-2xl text-foreground">
+                        Price History & Immutability
+                      </h2>
+                      <p className="mt-2 text-sm text-foreground/60">
+                        Historical audit of price revisions. Completed orders and previous monthly reports always preserve their locked purchase prices.
+                      </p>
+                    </div>
+                  </div>
+
+                  {priceHistory && priceHistory.length > 0 ? (
+                    <div className="mt-6 overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-border text-foreground/60">
+                            <th className="pb-3 font-medium">Date</th>
+                            <th className="pb-3 font-medium">Previous Price</th>
+                            <th className="pb-3 font-medium">New Price</th>
+                            <th className="pb-3 font-medium">Updated By</th>
+                            <th className="pb-3 font-medium">Audit Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {priceHistory.map((entry) => (
+                            <tr key={entry.id}>
+                              <td className="py-2.5 font-medium text-foreground">
+                                {new Date(entry.changedAt).toLocaleString('en-PH', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })}
+                              </td>
+                              <td className="py-2.5 text-foreground/70">{formatPHP(entry.oldPrice)}</td>
+                              <td className="py-2.5 font-semibold text-emerald-600 dark:text-emerald-400">{formatPHP(entry.newPrice)}</td>
+                              <td className="py-2.5 text-foreground/70">{entry.changedBy}</td>
+                              <td className="py-2.5 text-foreground/60 max-w-xs">{entry.note}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="mt-6 rounded-2xl border border-dashed border-border p-4 text-center text-xs text-foreground/60">
+                      No price revisions logged yet. When you update the base price, the change and timestamp will be recorded here while preserving older order prices.
+                    </div>
+                  )}
                 </section>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">

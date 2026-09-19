@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
@@ -14,6 +15,81 @@ import { isPaymentTestCart } from '@/lib/store-engine'
 import { toast } from '@/hooks/use-toast'
 
 const CHECKOUT_SIGN_IN_HREF = '/auth/signin?redirectTo=%2Fcheckout&reason=checkout'
+
+function CartQuantityInput({
+  quantity,
+  maxStock,
+  onChange,
+}: {
+  quantity: number
+  maxStock: number
+  onChange: (nextQuantity: number) => void
+}) {
+  const [val, setVal] = useState(String(quantity))
+
+  useEffect(() => {
+    setVal(String(quantity))
+  }, [quantity])
+
+  const commit = (inputStr: string) => {
+    const parsed = parseInt(inputStr, 10)
+    if (isNaN(parsed) || parsed < 1) {
+      setVal('1')
+      onChange(1)
+    } else {
+      const clamped = Math.min(Math.max(1, parsed), Math.max(1, maxStock))
+      setVal(String(clamped))
+      if (clamped !== quantity) {
+        onChange(clamped)
+      }
+    }
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1 rounded-2xl border border-border/70 bg-white/75 p-1">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(1, quantity - 1))}
+        disabled={quantity <= 1}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Decrease quantity"
+      >
+        -
+      </button>
+      <input
+        type="number"
+        min={1}
+        max={Math.max(1, maxStock)}
+        value={val}
+        onChange={(e) => {
+          setVal(e.target.value)
+          const parsed = parseInt(e.target.value, 10)
+          if (!isNaN(parsed) && parsed >= 1 && parsed <= maxStock) {
+            onChange(parsed)
+          }
+        }}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            commit(val)
+            ;(e.target as HTMLInputElement).blur()
+          }
+        }}
+        className="w-12 text-center font-semibold text-foreground bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-accent rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        aria-label="Quantity"
+      />
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(Math.max(1, maxStock), quantity + 1))}
+        disabled={maxStock <= 0 || quantity >= maxStock}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Increase quantity"
+      >
+        +
+      </button>
+    </div>
+  )
+}
 
 export default function CartPage() {
   const {
@@ -151,25 +227,11 @@ export default function CartPage() {
                     </p>
 
                     <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-white/75 p-1">
-                        <button
-                          type="button"
-                          onClick={() => void handleQuantityChange(item.productId, item.size, item.quantity - 1)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted"
-                          aria-label="Decrease quantity"
-                        >
-                          -
-                        </button>
-                        <span className="w-10 text-center font-semibold text-foreground">{item.quantity}</span>
-                        <button
-                          type="button"
-                          onClick={() => void handleQuantityChange(item.productId, item.size, item.quantity + 1)}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted"
-                          aria-label="Increase quantity"
-                        >
-                          +
-                        </button>
-                      </div>
+                      <CartQuantityInput
+                        quantity={item.quantity}
+                        maxStock={availableStock}
+                        onChange={(next) => void handleQuantityChange(item.productId, item.size, next)}
+                      />
 
                       <div className="text-left sm:text-right">
                         <p className="text-3xl text-foreground">{formatPHP(item.unitPrice * item.quantity)}</p>
@@ -186,37 +248,45 @@ export default function CartPage() {
             <p className="storefront-eyebrow">Order Summary</p>
             <h2 className="mt-3 text-3xl text-foreground">Ready For Checkout</h2>
 
-            <div className="mt-6 space-y-4 text-sm text-foreground/68">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{formatPHP(subtotal)}</span>
+            <div className="mt-6 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center text-foreground/70">
+                <span className="text-foreground/60">Price (Subtotal)</span>
+                <span className="font-mono font-medium text-foreground">{formatPHP(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Shipping</span>
-                <span>{shipping === 0 ? 'Free' : formatPHP(shipping)}</span>
+              <div className="flex justify-between items-center text-foreground/70">
+                <span className="inline-flex items-center gap-1.5 text-foreground/60">
+                  VAT (12%)
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">BIR</span>
+                </span>
+                <span className="font-mono font-medium text-foreground">{formatPHP(tax)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Tax</span>
-                <span>{formatPHP(tax)}</span>
+              <div className="flex justify-between items-center text-foreground/70">
+                <span className="text-foreground/60">Shipping</span>
+                <span className="font-mono font-medium text-foreground">
+                  {shipping === 0 ? <span className="text-emerald-600 font-semibold text-[11px] uppercase">Free</span> : formatPHP(shipping)}
+                </span>
               </div>
 
               {isTestCart ? (
-                <p className="rounded-[1.25rem] bg-[#fff0be] px-4 py-3 text-xs leading-6 text-foreground/70">
+                <p className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 text-[10px] leading-4 text-amber-900">
                   Payment test item: tax and shipping are waived for this cart.
                 </p>
               ) : null}
 
               {!isTestCart && shipping === 0 && subtotal > 0 ? (
-                <p className="rounded-[1.25rem] bg-[#fff0be] px-4 py-3 text-xs leading-6 text-foreground/70">
+                <p className="rounded-lg bg-primary/5 border border-primary/15 px-2.5 py-1.5 text-[10px] leading-4 text-foreground/70">
                   Shipping is free on perfume orders of {formatPHP(400)} or more.
                 </p>
               ) : null}
             </div>
 
-            <div className="mt-6 border-t border-border/70 pt-5">
-              <div className="flex items-end justify-between gap-4">
-                <span className="text-base font-semibold text-foreground">Total</span>
-                <span className="text-4xl text-foreground">{formatPHP(total)}</span>
+            <div className="mt-6 border-t border-border/70 pt-4">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Total</span>
+                  <p className="text-[10px] text-foreground/45 mt-0.5">Incl. 12% VAT & delivery</p>
+                </div>
+                <span className="text-3xl font-serif font-bold text-foreground">{formatPHP(total)}</span>
               </div>
             </div>
 

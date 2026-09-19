@@ -219,7 +219,7 @@ export async function createPaymongoCheckoutSession(input: PaymongoCheckoutSessi
           payment_method_types: [checkoutMethod.paymentMethodType],
           send_email_receipt: false,
           show_description: true,
-          show_line_items: true,
+          show_line_items: false,
           success_url: input.successUrl,
           metadata: input.metadata ?? {},
         },

@@ -97,11 +97,34 @@ export interface CartItem {
   unitPrice: number
 }
 
+export type InventoryStockHealth = 'in_stock' | 'low_stock' | 'over_stock' | 'out_of_stock'
+
+export const DEFAULT_OVERSTOCK_THRESHOLD = 50
+
+export function getInventoryStockHealth(
+  stock: number,
+  reorderPoint: number = 3,
+  overStockThreshold: number = DEFAULT_OVERSTOCK_THRESHOLD,
+  isArchived = false,
+): InventoryStockHealth {
+  if (isArchived || stock <= 0) {
+    return 'out_of_stock'
+  }
+  if (stock <= reorderPoint) {
+    return 'low_stock'
+  }
+  if (stock >= overStockThreshold) {
+    return 'over_stock'
+  }
+  return 'in_stock'
+}
+
 export interface InventoryRecord {
   productId: string
   sku: string
   stock: number
   reorderPoint: number
+  overStockThreshold?: number
   location: string
   lastUpdated: string
   lastUpdatedBy?: string
@@ -215,6 +238,7 @@ export interface CreatePosSaleInput {
 export interface AddCatalogProductOptions {
   initialStock: number
   reorderPoint?: number
+  overStockThreshold?: number
   location?: string
   actor?: string
 }
@@ -222,6 +246,7 @@ export interface AddCatalogProductOptions {
 export interface UpdateCatalogProductOptions {
   stock: number
   reorderPoint?: number
+  overStockThreshold?: number
   location?: string
   actor?: string
 }
@@ -230,6 +255,7 @@ export interface UpdateInventoryInput {
   productId: string
   stock: number
   reorderPoint?: number
+  overStockThreshold?: number
   location?: string
   actor?: string
   note?: string
@@ -486,6 +512,7 @@ function createInventoryRecord(
     sku: createSku(product, index),
     stock: clampToWholeNumber(stock),
     reorderPoint: clampToWholeNumber(reorderPoint),
+    overStockThreshold: DEFAULT_OVERSTOCK_THRESHOLD,
     location,
     lastUpdated: new Date().toISOString(),
     lastUpdatedBy: undefined,
@@ -508,6 +535,7 @@ function ensureInventoryRecords(catalog: Product[], existingInventory: Inventory
       location: existing.location || DEFAULT_LOCATIONS[index % DEFAULT_LOCATIONS.length],
       stock: clampToWholeNumber(existing.stock),
       reorderPoint: clampToWholeNumber(existing.reorderPoint || 0),
+      overStockThreshold: existing.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD,
       lastUpdated: existing.lastUpdated || new Date().toISOString(),
       lastUpdatedBy: existing.lastUpdatedBy,
       isArchived: existing.isArchived ?? false,
@@ -1005,8 +1033,27 @@ export function performStoreAction(
         return { nextState: currentState, result: { ok: false, message: 'Product identifiers cannot be changed.' } }
       }
 
-      const updatedProduct: Product = { ...action.product, inStock: clampToWholeNumber(action.options.stock) > 0 }
       const timestamp = new Date().toISOString()
+      const existingPriceHistory = existingProduct.priceHistory || []
+      const priceHistory = [...existingPriceHistory]
+
+      if (existingProduct.price !== action.product.price) {
+        priceHistory.unshift({
+          id: `ph_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          oldPrice: existingProduct.price,
+          newPrice: action.product.price,
+          effectiveDate: timestamp,
+          changedAt: timestamp,
+          changedBy: action.options.actor || getActorName(actor, 'Store Admin'),
+          note: `Price changed from ₱${existingProduct.price} to ₱${action.product.price}. Historical orders retain original purchase prices.`,
+        })
+      }
+
+      const updatedProduct: Product = {
+        ...action.product,
+        priceHistory,
+        inStock: clampToWholeNumber(action.options.stock) > 0,
+      }
       const existingInventoryRecord = currentState.inventory.find((record) => record.productId === action.productId)
       const nextCatalog = currentState.catalog.map((item) => (item.id === action.productId ? updatedProduct : item))
 
@@ -1018,6 +1065,10 @@ export function performStoreAction(
               typeof action.options.reorderPoint === 'number'
                 ? clampToWholeNumber(action.options.reorderPoint)
                 : existingInventoryRecord.reorderPoint,
+            overStockThreshold:
+              typeof action.options.overStockThreshold === 'number'
+                ? clampToWholeNumber(action.options.overStockThreshold)
+                : (existingInventoryRecord.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
             location: action.options.location || existingInventoryRecord.location,
             lastUpdated: timestamp,
             lastUpdatedBy: action.options.actor || getActorName(actor, 'Store Admin'),
@@ -1027,6 +1078,7 @@ export function performStoreAction(
             sku: createSku(updatedProduct, 0),
             stock: clampToWholeNumber(action.options.stock),
             reorderPoint: clampToWholeNumber(action.options.reorderPoint ?? 3),
+            overStockThreshold: clampToWholeNumber(action.options.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
             location: action.options.location || DEFAULT_LOCATIONS[0],
             lastUpdated: timestamp,
             lastUpdatedBy: action.options.actor || getActorName(actor, 'Store Admin'),
@@ -1105,6 +1157,10 @@ export function performStoreAction(
           typeof action.input.reorderPoint === 'number'
             ? clampToWholeNumber(action.input.reorderPoint)
             : existingRecord.reorderPoint,
+        overStockThreshold:
+          typeof action.input.overStockThreshold === 'number'
+            ? clampToWholeNumber(action.input.overStockThreshold)
+            : (existingRecord.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
         location: action.input.location || existingRecord.location,
         lastUpdated: new Date().toISOString(),
         lastUpdatedBy: action.input.actor || getActorName(actor, 'Inventory update'),

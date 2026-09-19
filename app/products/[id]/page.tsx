@@ -322,16 +322,35 @@ export default function ProductPage({
                     <button
                       type="button"
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted"
+                      disabled={quantity <= 1}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       -
                     </button>
-                    <span className="w-10 text-center font-semibold text-foreground">{quantity}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={Math.max(1, availableStock)}
+                      value={quantity}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (val === '') {
+                          setQuantity(1)
+                          return
+                        }
+                        const parsed = parseInt(val, 10)
+                        if (!isNaN(parsed)) {
+                          setQuantity(Math.min(Math.max(1, parsed), Math.max(1, availableStock)))
+                        }
+                      }}
+                      className="w-12 text-center font-semibold text-foreground bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-accent rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      aria-label="Product quantity"
+                    />
                     <button
                       type="button"
                       onClick={() => setQuantity(Math.min(Math.max(1, availableStock), quantity + 1))}
-                      disabled={availableStock === 0}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={availableStock === 0 || quantity >= availableStock}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       +
                     </button>

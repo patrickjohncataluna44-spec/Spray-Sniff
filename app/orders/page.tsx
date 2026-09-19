@@ -226,8 +226,11 @@ export default function OrdersPage() {
                             >
                               {order.status}
                             </span>
-                            <p className="mt-3 text-sm text-foreground/60">
-                              Total: <span className="font-semibold text-foreground">{formatPHP(order.total)}</span>
+                            <p className="mt-2 text-xs text-foreground/50">
+                              Price: <span className="font-medium text-foreground">{formatPHP(order.subtotal)}</span> &bull; VAT (12%): <span className="font-medium text-foreground">{formatPHP(order.tax)}</span>
+                            </p>
+                            <p className="mt-1 text-sm text-foreground/60">
+                              Total: <span className="font-bold text-foreground text-base">{formatPHP(order.total)}</span>
                             </p>
                           </div>
                         </div>
@@ -409,7 +412,7 @@ export default function OrdersPage() {
                                     <div>
                                       <p className="font-semibold text-foreground">{item.productName}</p>
                                       <p className="text-sm text-foreground/55">
-                                        {item.quantity} x {item.size}ml
+                                        {item.quantity} x {item.size}ml &bull; {formatPHP(item.unitPrice)} each ({formatPHP(item.unitPrice * item.quantity)})
                                       </p>
                                     </div>
                                     {order.status === 'Delivered' ? (
@@ -427,6 +430,37 @@ export default function OrdersPage() {
                                   </p>
                                 </div>
                               ))}
+                            </div>
+
+                            <div className="rounded-2xl border border-border/70 bg-white/70 p-4 space-y-2.5 text-xs">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/50">
+                                  Payment Breakdown
+                                </h3>
+                                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">
+                                  BIR 12%
+                                </span>
+                              </div>
+                              <div className="space-y-1.5 text-foreground/75">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-foreground/60">Price (Subtotal)</span>
+                                  <span className="font-mono font-medium text-foreground">{formatPHP(order.subtotal)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-foreground/60">VAT (12%)</span>
+                                  <span className="font-mono font-medium text-foreground">{formatPHP(order.tax)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-foreground/60">Shipping</span>
+                                  <span className="font-mono font-medium text-foreground">
+                                    {order.shipping === 0 ? <span className="text-emerald-600 font-semibold uppercase text-[10px]">Free</span> : formatPHP(order.shipping)}
+                                  </span>
+                                </div>
+                                <div className="border-t border-border/70 pt-2 flex justify-between items-baseline font-semibold text-foreground">
+                                  <span className="text-xs uppercase tracking-wider">Total Amount</span>
+                                  <span className="text-base font-bold font-serif text-primary">{formatPHP(order.total)}</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>

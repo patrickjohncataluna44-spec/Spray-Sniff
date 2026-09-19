@@ -427,8 +427,19 @@ export default function AdminOrdersPage() {
                             ) : null}
                           </div>
                         </td>
-                        <td className="py-4 px-6 font-medium text-foreground">
-                          {formatPHP(order.total)}
+                        <td className="py-4 px-6">
+                          <p className="font-semibold text-foreground">{formatPHP(order.total)}</p>
+                          <p className="text-[11px] text-foreground/55 mt-0.5">
+                            Subtotal: {formatPHP(order.subtotal)}
+                          </p>
+                          <p className="text-[11px] text-foreground/55">
+                            VAT (12%): {formatPHP(order.tax)}
+                          </p>
+                          {order.shipping > 0 ? (
+                            <p className="text-[11px] text-foreground/55">
+                              Ship: {formatPHP(order.shipping)}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(order.status)}`}>

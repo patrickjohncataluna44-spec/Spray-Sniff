@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
+  AlertTriangle,
   BarChart3,
   Boxes,
   LayoutDashboard,
@@ -21,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth, type UserRole } from '@/lib/auth-context'
 import { getRoleLabel } from '@/lib/auth'
 import { useStore } from '@/lib/store-context'
+import { DEFAULT_OVERSTOCK_THRESHOLD } from '@/lib/store-engine'
 
 const adminMenuItems: Array<{
   href: string
@@ -44,11 +46,22 @@ export function AdminSidebar() {
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { logout, user } = useAuth()
-  const { isRealtimeRefreshing, lastSyncedAt } = useStore()
+  const { inventory, isRealtimeRefreshing, lastSyncedAt } = useStore()
   const roleLabel = getRoleLabel(user?.role)
   const visibleItems = adminMenuItems.filter((item) =>
     user ? item.roles.includes(user.role) : false,
   )
+
+  const activeInventory = inventory.filter((item) => !item.isArchived)
+  const lowStockCount = activeInventory.filter(
+    (item) => item.stock > 0 && item.stock <= item.reorderPoint,
+  ).length
+  const overStockCount = activeInventory.filter(
+    (item) => item.stock >= (item.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
+  ).length
+  const outOfStockCount = activeInventory.filter((item) => item.stock === 0).length
+  const totalStockAlerts = lowStockCount + overStockCount + outOfStockCount
+
   const syncLabel = isRealtimeRefreshing ? 'Syncing' : 'Live'
   const syncTimeLabel = lastSyncedAt
     ? new Date(lastSyncedAt).toLocaleTimeString('en-PH', {
@@ -136,6 +149,58 @@ export function AdminSidebar() {
           </div>
           <span className="text-xs text-sidebar-foreground/55">{syncTimeLabel}</span>
         </div>
+
+        {totalStockAlerts > 0 && (
+          <div className="mt-3 rounded-2xl border border-amber-200/90 bg-amber-50/90 p-3 text-xs shadow-sm">
+            <div className="flex items-center justify-between font-semibold text-amber-900">
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                Stock Notifications
+              </span>
+              <span className="rounded-full bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                {totalStockAlerts}
+              </span>
+            </div>
+            <div className="mt-2 space-y-1.5 text-amber-800">
+              {lowStockCount > 0 && (
+                <Link
+                  href="/admin/inventory?filter=low_stock"
+                  className="flex items-center justify-between rounded-lg px-1.5 py-1 transition hover:bg-amber-100/80"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Low stock alerts
+                  </span>
+                  <span className="font-bold">{lowStockCount}</span>
+                </Link>
+              )}
+              {overStockCount > 0 && (
+                <Link
+                  href="/admin/inventory?filter=over_stock"
+                  className="flex items-center justify-between rounded-lg px-1.5 py-1 transition hover:bg-amber-100/80"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                    Overstocked items
+                  </span>
+                  <span className="font-bold">{overStockCount}</span>
+                </Link>
+              )}
+              {outOfStockCount > 0 && (
+                <Link
+                  href="/admin/inventory?filter=out_of_stock"
+                  className="flex items-center justify-between rounded-lg px-1.5 py-1 transition hover:bg-amber-100/80"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                    Out of stock
+                  </span>
+                  <span className="font-bold">{outOfStockCount}</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -143,6 +208,7 @@ export function AdminSidebar() {
         {visibleItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname.startsWith(item.href)
+          const isInventory = item.href === '/admin/inventory'
           
           return (
             <Link
@@ -155,7 +221,18 @@ export function AdminSidebar() {
               }`}
             >
               <Icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
+              <span className="font-medium flex-1">{item.label}</span>
+              {isInventory && totalStockAlerts > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                    isActive
+                      ? 'bg-white text-primary'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {totalStockAlerts}
+                </span>
+              )}
             </Link>
           )
         })}

@@ -218,15 +218,40 @@ export default function PosPage() {
                             type="button"
                             variant="outline"
                             size="icon"
+                            disabled={quantity <= 1}
                             onClick={() => setQuantity((current) => Math.max(1, current - 1))}
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
-                          <span className="min-w-8 text-center font-medium text-foreground">{quantity}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={Math.max(1, getAvailableStock(selectedProduct.id))}
+                            value={quantity}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === '') {
+                                setQuantity(1)
+                                return
+                              }
+                              const parsed = parseInt(val, 10)
+                              if (!isNaN(parsed)) {
+                                setQuantity(
+                                  Math.min(
+                                    Math.max(1, parsed),
+                                    Math.max(1, getAvailableStock(selectedProduct.id)),
+                                  ),
+                                )
+                              }
+                            }}
+                            className="w-16 rounded-md border border-border bg-background py-1.5 text-center font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            aria-label="POS Item Quantity"
+                          />
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
+                            disabled={quantity >= getAvailableStock(selectedProduct.id)}
                             onClick={() =>
                               setQuantity((current) =>
                                 Math.min(getAvailableStock(selectedProduct.id), current + 1),
@@ -351,11 +376,11 @@ export default function PosPage() {
 
                 <div className="mt-8 border-t border-border pt-6 space-y-3">
                   <div className="flex justify-between text-foreground/70">
-                    <span>Subtotal</span>
+                    <span>Price (Subtotal)</span>
                     <span>{formatPHP(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-foreground/70">
-                    <span>Tax</span>
+                    <span>VAT (12%)</span>
                     <span>{formatPHP(tax)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-medium text-foreground">

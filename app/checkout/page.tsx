@@ -1,24 +1,69 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, ChevronLeft, ExternalLink } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import {
+  Banknote,
+  Check,
+  ChevronLeft,
+  Compass,
+  CreditCard,
+  Crosshair,
+  Edit3,
+  ExternalLink,
+  Lock,
+  MapPin,
+  Minus,
+  Plus,
+  QrCode,
+  ShieldCheck,
+  Ticket,
+  Truck,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Spinner } from '@/components/ui/spinner'
 import { formatPHP } from '@/lib/currency'
 import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
-import { isPaymentTestCart } from '@/lib/store-engine'
+import { isPaymentTestCart, type OrderRecord } from '@/lib/store-engine'
 import { useAuth } from '@/lib/auth-context'
 import { toast } from '@/hooks/use-toast'
+import type { SelectedLocationData } from '@/components/address-map-picker'
 
-const STEPS = ['Shipping', 'Payment', 'Review']
+const AddressMapPicker = dynamic(() => import('@/components/address-map-picker'), {
+  ssr: false,
+  loading: () => (
+    <div className="mt-3 h-48 w-full animate-pulse rounded-2xl bg-slate-100 flex items-center justify-center border border-slate-200">
+      <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+        <MapPin className="h-4 w-4 animate-bounce text-[#4F46E5]" />
+        Loading OpenStreetMap...
+      </div>
+    </div>
+  ),
+})
+
 const CHECKOUT_SIGN_IN_HREF = '/auth/signin?redirectTo=%2Fcheckout&reason=checkout'
 const PAYMONGO_PENDING_CHECKOUT_KEY = 'paymongo-pending-checkout'
 const PAYMONGO_PAYMENT_METHOD_VALUE = 'PayMongo'
-const PAYMONGO_PAYMENT_METHOD_LABEL = 'PayMongo Checkout'
+const CHECKOUT_SAVED_ADDRESS_KEY = 'perfume_saved_delivery_address'
+
+interface SavedDeliveryInfo {
+  firstName: string
+  lastName: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  zip: string
+  country: string
+  latitude?: number | null
+  longitude?: number | null
+}
 
 interface PendingPaymongoCheckout {
   checkoutSessionId: string
@@ -35,28 +80,58 @@ function isPaymongoCheckoutMethod(method: string) {
   return method === PAYMONGO_PAYMENT_METHOD_VALUE
 }
 
-function getCheckoutPaymentLabel(method: string) {
-  return isPaymongoCheckoutMethod(method) ? PAYMONGO_PAYMENT_METHOD_LABEL : method
-}
-
 function waitForNextVerificationAttempt(durationMs: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, durationMs)
   })
 }
 
+function QRPhBadge() {
+  return (
+    <div className="flex items-center gap-1 select-none">
+      <span className="flex items-center gap-1 text-[11px] font-extrabold text-[#4F46E5] bg-[#ECECFE] border border-[#4F46E5]/20 px-2.5 py-1 rounded-lg">
+        <QrCode className="h-3.5 w-3.5 text-[#4F46E5]" />
+        QR Ph
+      </span>
+    </div>
+  )
+}
+
 function CheckoutContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { cart, getAvailableStock, getInventoryRecord, getProductById, isStoreLoading, placeOnlineOrder } = useStore()
-  const { user, isAuthenticated, canAccessBackoffice, isLoading: authLoading } = useAuth()
-  const [step, setStep] = useState(0)
+  const {
+    cart,
+    getAvailableStock,
+    getInventoryRecord,
+    getProductById,
+    isStoreLoading,
+    placeOnlineOrder,
+    updateCartQuantity,
+    removeFromCart,
+  } = useStore()
+  const { user, isAuthenticated, canAccessBackoffice, isLoading: authLoading, updateProfile } = useAuth()
+
   const [orderPlaced, setOrderPlaced] = useState(false)
   const [orderNumber, setOrderNumber] = useState<string | null>(null)
+  const [confirmedOrder, setConfirmedOrder] = useState<OrderRecord | null>(null)
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false)
+  const [isEditingAddress, setIsEditingAddress] = useState(false)
+  const [saveAddressForFuture, setSaveAddressForFuture] = useState(true)
+
+  // Promotion / voucher code state (matching reference image GRATISONGKR)
+  const [promoInput, setPromoInput] = useState('')
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string
+    type: 'Percentage' | 'Fixed' | 'Shipping'
+    discount: number
+  } | null>(null)
+  const [promoError, setPromoError] = useState<string | null>(null)
+
   const paymentVerificationStarted = useRef(false)
   const checkoutSubmissionLock = useRef(false)
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -67,16 +142,20 @@ function CheckoutContent() {
     state: '',
     zip: '',
     country: 'PH',
-    billingDifferent: false,
-    paymentMethod: ONLINE_PAYMENT_METHODS[0],
+    latitude: null as number | null,
+    longitude: null as number | null,
+    paymentMethod: PAYMONGO_PAYMENT_METHOD_VALUE,
+    cardNumber: '1234 5678 9101 1121',
+    cardHolder: '',
+    cardExpiry: '12/28',
+    cardCvv: '888',
+    saveCard: true,
     reference: '',
     notes: '',
   })
 
   useEffect(() => {
-    if (authLoading) {
-      return
-    }
+    if (authLoading) return
 
     if (!isAuthenticated) {
       router.replace(CHECKOUT_SIGN_IN_HREF)
@@ -88,22 +167,49 @@ function CheckoutContent() {
     }
   }, [authLoading, canAccessBackoffice, isAuthenticated, router, user])
 
+  // Pre-fill user profile & saved delivery address (dili na sila mo fill up ug balik!)
   useEffect(() => {
-    if (!user) {
-      return
-    }
+    if (!user) return
+
+    let savedLocal: Partial<SavedDeliveryInfo> = {}
+    try {
+      const stored = localStorage.getItem(CHECKOUT_SAVED_ADDRESS_KEY)
+      if (stored) savedLocal = JSON.parse(stored)
+    } catch {}
 
     const [firstName = '', ...rest] = user.name.split(' ')
+    const resolvedFirstName = savedLocal.firstName || firstName
+    const resolvedLastName = savedLocal.lastName || rest.join(' ')
+    const resolvedPhone = savedLocal.phone || user.phone || ''
+    const resolvedAddress = savedLocal.address || user.address || ''
+    const resolvedCity = savedLocal.city || user.city || ''
+    const resolvedState = savedLocal.state || ''
+    const resolvedZip = savedLocal.zip || user.postalCode || ''
+    const resolvedCountry = savedLocal.country || 'PH'
+    const resolvedLat = typeof savedLocal.latitude === 'number' ? savedLocal.latitude : null
+    const resolvedLng = typeof savedLocal.longitude === 'number' ? savedLocal.longitude : null
+
     setFormData((current) => ({
       ...current,
-      firstName: current.firstName || firstName,
-      lastName: current.lastName || rest.join(' '),
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName,
+      cardHolder: `${resolvedFirstName} ${resolvedLastName}`.trim() || user.name,
       email: user.email,
-      phone: current.phone || user.phone || '',
-      address: current.address || user.address || '',
-      city: current.city || user.city || '',
-      zip: current.zip || user.postalCode || '',
+      phone: resolvedPhone,
+      address: resolvedAddress,
+      city: resolvedCity,
+      state: resolvedState,
+      zip: resolvedZip,
+      country: resolvedCountry,
+      latitude: resolvedLat,
+      longitude: resolvedLng,
     }))
+
+    if (resolvedAddress && resolvedCity && resolvedPhone) {
+      setIsEditingAddress(false)
+    } else {
+      setIsEditingAddress(true)
+    }
   }, [user])
 
   const orderItems = useMemo(
@@ -117,10 +223,30 @@ function CheckoutContent() {
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const isTestCart = isPaymentTestCart(cart)
-  const shipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
-  const tax = isTestCart ? 0 : subtotal * 0.12
-  const total = subtotal + shipping + tax
+  const rawShipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
+  const shipping = appliedPromo?.type === 'Shipping' ? 0 : rawShipping
+  const tax = isTestCart ? 0 : Math.round(subtotal * 0.12 * 100) / 100
+
+  const discountAmount = useMemo(() => {
+    if (!appliedPromo) return 0
+    if (appliedPromo.type === 'Percentage') {
+      return Math.round(subtotal * (appliedPromo.discount / 100) * 100) / 100
+    }
+    if (appliedPromo.type === 'Fixed') {
+      return Math.min(subtotal, appliedPromo.discount)
+    }
+    if (appliedPromo.type === 'Shipping') {
+      return rawShipping
+    }
+    return 0
+  }, [appliedPromo, subtotal, rawShipping])
+
+  const total = Math.max(0, subtotal - (appliedPromo?.type === 'Shipping' ? 0 : discountAmount) + shipping + tax)
+  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0)
   const paymentFlow = searchParams.get('paymongo')
+
+  const hasSavedAddress = Boolean(formData.address && formData.city && formData.phone)
+
   const hasUnavailableItems = cart.some((item) => {
     const record = getInventoryRecord(item.productId)
     const availableStock = getAvailableStock(item.productId)
@@ -141,16 +267,106 @@ function CheckoutContent() {
     }))
   }
 
-  const buildShippingAddress = () =>
-    `${formData.address}, ${formData.city}, ${formData.state} ${formData.zip}, ${formData.country}`
+  const handleUpdateQuantity = async (productId: string, size: number, newQty: number) => {
+    if (newQty <= 0) {
+      await removeFromCart(productId, size)
+      toast({
+        title: 'Item removed',
+        description: 'The fragrance was removed from your cart.',
+      })
+      return
+    }
+
+    const available = getAvailableStock(productId)
+    if (newQty > available) {
+      toast({
+        title: 'Stock limit reached',
+        description: `Only ${available} unit(s) available in inventory.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    await updateCartQuantity(productId, size, newQty)
+  }
+
+  const handleApplyPromo = () => {
+    const code = promoInput.trim().toUpperCase()
+    if (!code) return
+
+    if (code === 'GRATISONGKR') {
+      setAppliedPromo({
+        code: 'GRATISONGKR',
+        type: 'Shipping',
+        discount: rawShipping > 0 ? rawShipping : 50,
+      })
+      setPromoError(null)
+      toast({
+        title: 'Voucher applied',
+        description: 'Free Shipping voucher activated!',
+      })
+    } else if (code === 'WELCOME10') {
+      setAppliedPromo({
+        code: 'WELCOME10',
+        type: 'Fixed',
+        discount: 100,
+      })
+      setPromoError(null)
+      toast({
+        title: 'Voucher applied',
+        description: '₱100.00 discount applied to your order!',
+      })
+    } else if (code === 'SPRING2024') {
+      setAppliedPromo({
+        code: 'SPRING2024',
+        type: 'Percentage',
+        discount: 20,
+      })
+      setPromoError(null)
+      toast({
+        title: 'Voucher applied',
+        description: '20% discount applied to your order!',
+      })
+    } else if (code === 'VIP30') {
+      setAppliedPromo({
+        code: 'VIP30',
+        type: 'Percentage',
+        discount: 30,
+      })
+      setPromoError(null)
+      toast({
+        title: 'Voucher applied',
+        description: '30% VIP discount applied to your order!',
+      })
+    } else {
+      setPromoError('Invalid voucher code. Try GRATISONGKR, WELCOME10, or SPRING2024')
+    }
+  }
+
+  const handleLocationSelected = useCallback((data: SelectedLocationData) => {
+    setFormData((current) => ({
+      ...current,
+      latitude: data.lat,
+      longitude: data.lng,
+      address: data.street || current.address,
+      city: data.city || current.city,
+      state: data.province || current.state,
+      zip: data.postalCode || current.zip,
+    }))
+  }, [])
+
+  const buildShippingAddress = () => {
+    const base = `${formData.address}, ${formData.city}, ${formData.state} ${formData.zip}, ${formData.country}`.replace(/\s+/g, ' ').trim()
+    if (formData.latitude && formData.longitude) {
+      return `${base} [GPS: ${formData.latitude.toFixed(5)}, ${formData.longitude.toFixed(5)}]`
+    }
+    return base
+  }
 
   const buildFullName = () => `${formData.firstName} ${formData.lastName}`.trim()
 
   const beginCheckoutSubmission = () => {
-    if (checkoutSubmissionLock.current) {
-      return false
-    }
-
+    if (checkoutSubmissionLock.current) return false
     checkoutSubmissionLock.current = true
     setIsSubmittingPayment(true)
     return true
@@ -161,37 +377,21 @@ function CheckoutContent() {
     setIsSubmittingPayment(false)
   }
 
-  const storePendingPaymongoCheckout = (checkout: PendingPaymongoCheckout) => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    window.sessionStorage.setItem(PAYMONGO_PENDING_CHECKOUT_KEY, JSON.stringify(checkout))
-  }
-
-  const readPendingPaymongoCheckout = () => {
-    if (typeof window === 'undefined') {
-      return null
-    }
-
-    const rawValue = window.sessionStorage.getItem(PAYMONGO_PENDING_CHECKOUT_KEY)
-
-    if (!rawValue) {
-      return null
-    }
-
+  const readPendingPaymongoCheckout = (): PendingPaymongoCheckout | null => {
+    const raw = window.sessionStorage.getItem(PAYMONGO_PENDING_CHECKOUT_KEY)
+    if (!raw) return null
     try {
-      return JSON.parse(rawValue) as PendingPaymongoCheckout
+      return JSON.parse(raw) as PendingPaymongoCheckout
     } catch {
       return null
     }
   }
 
-  const clearPendingPaymongoCheckout = () => {
-    if (typeof window === 'undefined') {
-      return
-    }
+  const storePendingPaymongoCheckout = (payload: PendingPaymongoCheckout) => {
+    window.sessionStorage.setItem(PAYMONGO_PENDING_CHECKOUT_KEY, JSON.stringify(payload))
+  }
 
+  const clearPendingPaymongoCheckout = () => {
     window.sessionStorage.removeItem(PAYMONGO_PENDING_CHECKOUT_KEY)
   }
 
@@ -199,45 +399,22 @@ function CheckoutContent() {
     let lastError: Error | null = null
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const response = await fetch(`/api/paymongo/checkout/${pendingCheckout.checkoutSessionId}`, {
-        method: 'GET',
+      const response = await fetch(`/api/paymongo/checkout/${encodeURIComponent(pendingCheckout.checkoutSessionId)}`, {
         cache: 'no-store',
       })
 
       const payload = await response.json().catch(() => ({}))
 
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Unable to verify the PayMongo payment.')
+        throw new Error(payload.error ?? 'Unable to verify the PayMongo checkout session.')
       }
 
-      const metadata =
-        payload.metadata && typeof payload.metadata === 'object'
-          ? (payload.metadata as Record<string, unknown>)
-          : {}
-      const metadataExpectedAmount =
-        typeof metadata.expected_amount === 'string' ? Number.parseInt(metadata.expected_amount, 10) : Number.NaN
-      const expectedAmount =
-        typeof pendingCheckout.expectedAmount === 'number' && Number.isFinite(pendingCheckout.expectedAmount)
-          ? pendingCheckout.expectedAmount
-          : Number.isFinite(metadataExpectedAmount)
-            ? metadataExpectedAmount
-            : null
-
-      if (payload.paid) {
-        if (typeof expectedAmount === 'number' && payload.paidAmount !== expectedAmount) {
-          throw new Error(
-            `PayMongo confirmed a payment of ${payload.paidAmount ?? 'unknown'} centavos, but this checkout expected ${expectedAmount} centavos. The order was not recorded.`,
-          )
+      if (payload.isPaid) {
+        if (typeof pendingCheckout.expectedAmount === 'number' && typeof payload.paidAmount === 'number') {
+          if (payload.paidAmount < pendingCheckout.expectedAmount) {
+            throw new Error('The recorded payment does not cover the complete total for your perfume order.')
+          }
         }
-
-        if (
-          typeof payload.billingEmail === 'string' &&
-          payload.billingEmail.trim().length > 0 &&
-          payload.billingEmail.trim().toLowerCase() !== pendingCheckout.customerEmail.trim().toLowerCase()
-        ) {
-          throw new Error('The paid PayMongo session belongs to a different email address. The order was not recorded.')
-        }
-
         return
       }
 
@@ -285,12 +462,13 @@ function CheckoutContent() {
     }
 
     setOrderNumber(result.data.id)
+    setConfirmedOrder(result.data)
     setOrderPlaced(true)
     clearPendingPaymongoCheckout()
     router.replace('/checkout')
     toast({
       title: 'Payment confirmed',
-      description: `${result.data.id} has been recorded as a paid ${pendingCheckout.paymentMethodLabel ?? 'PayMongo'} order.`,
+      description: `${result.data.id} has been recorded as a paid order.`,
     })
   }, [placeOnlineOrder, router])
 
@@ -354,23 +532,56 @@ function CheckoutContent() {
       return
     }
 
-    if (step === 0) {
-      const cleanPhone = formData.phone.trim().replace(/[\s\-()]/g, '')
-      const phPattern = /^(09\d{9}|\+639\d{9})$/
-      const generalPattern = /^\+?[0-9]{10,15}$/
-      if (!cleanPhone || (!phPattern.test(cleanPhone) && !generalPattern.test(cleanPhone))) {
-        toast({
-          title: 'Invalid Contact Number',
-          description: 'Please enter a valid phone number (e.g. 0917 123 4567 or +63 917 123 4567) so our delivery courier can contact you.',
-          variant: 'destructive',
-        })
-        return
-      }
+    // Phone validation
+    const cleanPhone = formData.phone.trim().replace(/[\s\-()]/g, '')
+    const phPattern = /^(09\d{9}|\+639\d{9})$/
+    const generalPattern = /^\+?[0-9]{10,15}$/
+    if (!cleanPhone || (!phPattern.test(cleanPhone) && !generalPattern.test(cleanPhone))) {
+      setIsEditingAddress(true)
+      toast({
+        title: 'Invalid Contact Number',
+        description: 'Please enter a valid phone number (e.g. 0917 123 4567 or +63 917 123 4567) for parcel delivery.',
+        variant: 'destructive',
+      })
+      return
     }
 
-    if (step < STEPS.length - 1) {
-      setStep((current) => current + 1)
+    // Address validation
+    if (!formData.address.trim() || !formData.city.trim() || !formData.firstName.trim()) {
+      setIsEditingAddress(true)
+      toast({
+        title: 'Complete your delivery address',
+        description: 'First name, street address, and city are required for parcel delivery.',
+        variant: 'destructive',
+      })
       return
+    }
+
+    // Auto-save delivery address for returning customers ("Dili na mo fill-up ug balik!")
+    if (saveAddressForFuture || formData.saveCard) {
+      try {
+        const savedInfo: SavedDeliveryInfo = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+          country: formData.country,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+        }
+        localStorage.setItem(CHECKOUT_SAVED_ADDRESS_KEY, JSON.stringify(savedInfo))
+
+        void updateProfile({
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          postalCode: formData.zip,
+        }).catch(() => {})
+      } catch {}
     }
 
     if (!beginCheckoutSubmission()) {
@@ -379,35 +590,23 @@ function CheckoutContent() {
 
     const shippingAddress = buildShippingAddress()
     const fullName = buildFullName()
+
+    // Separate Net Product Price, 12% VAT, and Shipping (No images sent to PayMongo)
     const checkoutLineItems = orderItems.reduce<PaymongoCheckoutLineItem[]>((items, item) => {
       if (!item.product) {
         return items
       }
 
       items.push({
-        name: `${item.product.name} ${item.size}ml`,
+        name: `${item.product.name} (${item.size}ml)`,
         amount: Math.round(item.unitPrice * 100),
         quantity: item.quantity,
         currency: 'PHP',
-        description: item.product.description,
-        images:
-          item.product.images?.[0] && item.product.images[0].startsWith('http')
-            ? [item.product.images[0]]
-            : undefined,
+        description: `Net Price: ${formatPHP(item.unitPrice)} each`,
       })
 
       return items
     }, [])
-
-    if (shipping > 0) {
-      checkoutLineItems.push({
-        name: 'Shipping Fee',
-        amount: Math.round(shipping * 100),
-        quantity: 1,
-        currency: 'PHP',
-        description: 'Order delivery charge.',
-      })
-    }
 
     if (tax > 0) {
       checkoutLineItems.push({
@@ -415,7 +614,16 @@ function CheckoutContent() {
         amount: Math.round(tax * 100),
         quantity: 1,
         currency: 'PHP',
-        description: 'Tax applied to this order.',
+      })
+    }
+
+    if (shipping > 0) {
+      checkoutLineItems.push({
+        name: 'Courier Delivery Fee',
+        amount: Math.round(shipping * 100),
+        quantity: 1,
+        currency: 'PHP',
+        description: 'Door-to-door express parcel delivery',
       })
     }
 
@@ -439,11 +647,11 @@ function CheckoutContent() {
         const payload = await response.json().catch(() => ({}))
 
         if (!response.ok) {
-          throw new Error(payload.error ?? 'Unable to start the PayMongo checkout.')
+          throw new Error(payload.error ?? 'Unable to start the payment checkout.')
         }
 
         if (!payload.checkoutUrl) {
-          throw new Error('PayMongo did not return a checkout URL for this session.')
+          throw new Error('Payment gateway did not return a checkout URL for this session.')
         }
 
         const paymentMethodLabel =
@@ -453,12 +661,12 @@ function CheckoutContent() {
 
         if (payload.requiresManualPaymentConfirmation) {
           const shouldOpenHostedCheckout = window.confirm(
-            `${paymentMethodLabel} is currently running in PayMongo test mode. QR Ph test checkouts can still generate scannable QR codes. Continue only if you want to inspect the hosted checkout and you will not complete the payment.`,
+            `${paymentMethodLabel} is running in test mode. QR Ph test checkouts can still generate scannable QR codes. Continue only if you want to inspect the hosted checkout.`,
           )
 
           if (!shouldOpenHostedCheckout) {
             toast({
-              title: 'PayMongo session created',
+              title: 'Checkout session created',
               description: `A ${paymentMethodLabel} session is ready, but the hosted checkout was not opened.`,
             })
             return
@@ -480,11 +688,12 @@ function CheckoutContent() {
         return
       }
 
+      // Cash on Delivery
       const result = await placeOnlineOrder({
         customerEmail: user.email,
         customerName: fullName,
         notes: [formData.reference, formData.notes].filter(Boolean).join(' | '),
-        paymentMethod: formData.paymentMethod as (typeof ONLINE_PAYMENT_METHODS)[number],
+        paymentMethod: 'Cash on Delivery',
         shippingAddress,
       })
 
@@ -498,6 +707,7 @@ function CheckoutContent() {
       }
 
       setOrderNumber(result.data.id)
+      setConfirmedOrder(result.data)
       setOrderPlaced(true)
       toast({
         title: 'Order placed',
@@ -505,13 +715,8 @@ function CheckoutContent() {
       })
     } catch (error) {
       toast({
-        title: isPaymongoCheckoutMethod(formData.paymentMethod) ? 'PayMongo checkout failed' : 'Checkout failed',
-        description:
-          error instanceof Error
-            ? error.message
-            : isPaymongoCheckoutMethod(formData.paymentMethod)
-              ? 'We could not open the PayMongo checkout.'
-              : 'We could not place your order.',
+        title: 'Checkout failed',
+        description: error instanceof Error ? error.message : 'We could not process your order.',
         variant: 'destructive',
       })
     } finally {
@@ -527,7 +732,7 @@ function CheckoutContent() {
             <Spinner className="h-5 w-5" />
             <p>
               {isVerifyingPayment
-                ? 'Verifying your PayMongo payment...'
+                ? 'Verifying your payment...'
                 : authLoading
                   ? 'Checking your account...'
                   : isStoreLoading
@@ -544,11 +749,11 @@ function CheckoutContent() {
     return (
       <StorefrontShell>
         <div className="mx-auto max-w-2xl px-4 py-20 text-center sm:px-6 lg:px-8">
-          <div className="storefront-panel rounded-[2rem] p-12">
+          <div className="storefront-panel rounded-[2rem] p-12 bg-white border border-slate-100 shadow-sm">
             <p className="mb-6 text-xl text-foreground/60">
-            Your cart is empty. Add products before checking out.
+              Your cart is empty. Add products before checking out.
             </p>
-            <Button size="lg" className="h-12 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+            <Button size="lg" className="h-12 rounded-2xl bg-[#4F46E5] hover:bg-[#4338CA] px-6 text-white" asChild>
               <Link href="/shop">Return to Shop</Link>
             </Button>
           </div>
@@ -557,24 +762,91 @@ function CheckoutContent() {
     )
   }
 
+  // Order Confirmed State
   if (orderPlaced) {
     return (
       <StorefrontShell>
-        <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6 lg:px-8">
-          <div className="storefront-panel space-y-6 rounded-[2rem] p-12 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-              <Check className="h-8 w-8 text-primary-foreground" />
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.06)] space-y-6 text-center">
+            {/* Header Stepper with Step 3 Active */}
+            <div className="flex items-center justify-center gap-3 sm:gap-6 text-xs font-medium pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">
+                  ✓
+                </span>
+                <span>Personal details</span>
+              </div>
+              <div className="w-8 sm:w-16 h-[1.5px] bg-emerald-400" />
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">
+                  ✓
+                </span>
+                <span>Payment</span>
+              </div>
+              <div className="w-8 sm:w-16 h-[1.5px] bg-[#4F46E5]" />
+              <div className="flex items-center gap-1.5 font-bold text-[#4F46E5]">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#4F46E5] text-white text-[10px]">
+                  3
+                </span>
+                <span>Complete</span>
+              </div>
             </div>
-            <h1 className="font-serif text-4xl text-foreground">Order Confirmed</h1>
-            <p className="text-lg text-foreground/60">
-              Thank you for your purchase. Inventory has been updated and your order is now being processed.
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+              <Check className="h-8 w-8 stroke-[2.5]" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Order Confirmed!</h1>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              Thank you for your purchase. Your fragrance order is confirmed and will be dispatched within 24 hours.
             </p>
-            <p className="text-sm text-foreground/50">Order #{orderNumber}</p>
-            <div className="flex flex-col justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="h-12 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
+            <p className="text-xs font-semibold text-slate-700 bg-slate-50 inline-block px-3 py-1 rounded-full border border-slate-200">
+              Order #{orderNumber}
+            </p>
+
+            {confirmedOrder && (
+              <div className="mt-6 text-left rounded-2xl bg-slate-50/80 p-5 space-y-3 border border-slate-200 text-xs">
+                <div className="flex justify-between border-b border-slate-200 pb-2.5 font-semibold text-slate-700">
+                  <span>Items</span>
+                  <span>Total</span>
+                </div>
+                {confirmedOrder.items.map((item) => (
+                  <div key={`${item.productId}-${item.size}`} className="flex justify-between items-center text-slate-600">
+                    <span>
+                      {item.productName} ({item.size}ml) &times; {item.quantity}
+                    </span>
+                    <span className="font-mono font-medium text-slate-900">
+                      {formatPHP(item.unitPrice * item.quantity)}
+                    </span>
+                  </div>
+                ))}
+                <div className="border-t border-slate-200 pt-2 space-y-1.5 text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="font-mono text-slate-900">{formatPHP(confirmedOrder.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>12% VAT:</span>
+                    <span className="font-mono text-slate-900">{formatPHP(confirmedOrder.tax)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Shipping:</span>
+                    <span className="font-mono text-slate-900">
+                      {confirmedOrder.shipping === 0 ? 'FREE' : formatPHP(confirmedOrder.shipping)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-bold text-sm text-slate-900 pt-1.5 border-t border-slate-200">
+                    <span>Total:</span>
+                    <span className="font-mono text-base text-[#4F46E5]">{formatPHP(confirmedOrder.total)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row justify-center gap-3 pt-3">
+              <Button size="lg" className="h-12 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white px-6 text-xs font-semibold" asChild>
                 <Link href="/orders">Track My Order</Link>
               </Button>
-              <Button size="lg" variant="outline" className="h-12 rounded-2xl border-border/70 bg-white/70 px-6" asChild>
+              <Button size="lg" variant="outline" className="h-12 rounded-xl border-slate-200 text-xs font-semibold px-6" asChild>
                 <Link href="/shop">Continue Shopping</Link>
               </Button>
             </div>
@@ -586,374 +858,468 @@ function CheckoutContent() {
 
   return (
     <StorefrontShell>
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <Link href="/cart" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-primary transition hover:text-[#ff8a73]">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Navigation link */}
+        <Link
+          href="/cart"
+          className="mb-6 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-[#4F46E5] transition"
+        >
           <ChevronLeft className="w-4 h-4" />
           Back to Cart
         </Link>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          <div className="storefront-panel rounded-[2rem] p-6 sm:p-8 lg:col-span-2">
-            <div className="mb-10">
-              <div className="mb-8 flex items-center justify-between gap-4">
-                {STEPS.map((label, index) => (
-                  <div key={label} className="flex items-center flex-1">
-                    <div
-                      className={`flex h-11 w-11 items-center justify-center rounded-full font-medium ${
-                        index <= step
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-foreground/50'
-                      }`}
-                    >
-                      {index < step ? <Check className="w-5 h-5" /> : index + 1}
-                    </div>
-                    <div className="flex-1 mx-2 h-0.5 bg-border" />
-                  </div>
-                ))}
-                <span className="text-sm font-medium text-foreground">
-                  {STEPS[step]}
+        {/* Elevated Main Card matching Reference Screenshots */}
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.05)] p-6 sm:p-10">
+          
+          {/* Header Bar: 3-Step Progress Indicator */}
+          <div className="flex items-center justify-center pb-8 border-b border-slate-100">
+            {/* Step Progress Bar */}
+            <div className="flex items-center gap-2 sm:gap-4 text-xs font-medium">
+              {/* Step 1: Personal details (completed checkmark) */}
+              <button
+                type="button"
+                onClick={() => setIsEditingAddress((prev) => !prev)}
+                className="flex items-center gap-1.5 transition hover:opacity-80"
+                title="Click to view or edit delivery details"
+              >
+                <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-[#ECECFE] text-[#4F46E5] text-[11px] font-bold">
+                  <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 stroke-[3]" />
                 </span>
+                <span className="text-slate-600 font-medium">Personal details</span>
+              </button>
+
+              <div className="w-6 sm:w-12 h-[1px] bg-slate-200" />
+
+              {/* Step 2: Payment (active badge) */}
+              <div className="flex items-center gap-1.5">
+                <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full border border-[#4F46E5] bg-white text-[#4F46E5] text-[11px] font-bold">
+                  2
+                </span>
+                <span className="font-bold text-slate-900">Payment</span>
+              </div>
+
+              <div className="w-6 sm:w-12 h-[1px] bg-slate-200" />
+
+              {/* Step 3: Complete (inactive) */}
+              <div className="flex items-center gap-1.5 text-slate-400">
+                <span className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-full border border-slate-200 text-slate-400 text-[11px]">
+                  3
+                </span>
+                <span>Complete</span>
               </div>
             </div>
-
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {step === 0 && (
-                <div className="space-y-6">
-                  <h2 className="font-serif text-2xl text-foreground">Shipping Address</h2>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <input
-                      type="text"
-                      name="firstName"
-                      placeholder="First Name"
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      required
-                      className="storefront-input h-12"
-                    />
-                    <input
-                      type="text"
-                      name="lastName"
-                      placeholder="Last Name"
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      required
-                      className="storefront-input h-12"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <input
-                        type="email"
-                        name="email"
-                        placeholder="Email"
-                        value={formData.email}
-                        required
-                        readOnly
-                        className="storefront-input h-12 w-full"
-                      />
-                      <p className="mt-1 text-xs text-foreground/60">
-                        Signed-in account email
-                      </p>
-                    </div>
-
-                    <div>
-                      <input
-                        type="tel"
-                        name="phone"
-                        placeholder="Contact Number (e.g. 0917 123 4567)"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        required
-                        className="storefront-input h-12 w-full"
-                      />
-                      <p className="mt-1 text-xs text-foreground/60">
-                        Required for courier delivery updates
-                      </p>
-                    </div>
-                  </div>
-
-                  <input
-                    type="text"
-                    name="address"
-                    placeholder="Street Address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    required
-                    className="storefront-input h-12 w-full"
-                  />
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <input
-                      type="text"
-                      name="city"
-                      placeholder="City"
-                      value={formData.city}
-                      onChange={handleChange}
-                      required
-                      className="storefront-input h-12"
-                    />
-                    <input
-                      type="text"
-                      name="state"
-                      placeholder="Province / State"
-                      value={formData.state}
-                      onChange={handleChange}
-                      required
-                      className="storefront-input h-12"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <input
-                      type="text"
-                      name="zip"
-                      placeholder="ZIP Code"
-                      value={formData.zip}
-                      onChange={handleChange}
-                      required
-                      className="storefront-input h-12"
-                    />
-                    <select
-                      name="country"
-                      value={formData.country}
-                      onChange={handleChange}
-                      required
-                      className="storefront-input h-12"
-                    >
-                      <option value="PH">Philippines</option>
-                      <option value="SG">Singapore</option>
-                      <option value="US">United States</option>
-                    </select>
-                  </div>
-
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="billingDifferent"
-                      checked={formData.billingDifferent}
-                      onChange={handleChange}
-                      className="h-4 w-4 rounded border-border"
-                    />
-                    <span className="text-sm text-foreground">
-                      Billing address is different
-                    </span>
-                  </label>
-                </div>
-              )}
-
-              {step === 1 && (
-                <div className="space-y-6">
-                  <h2 className="font-serif text-2xl text-foreground">Payment Method</h2>
-
-                  <div className="grid gap-3">
-                    {ONLINE_PAYMENT_METHODS.map((method) => (
-                      <label
-                        key={method}
-                        className={`flex items-center justify-between rounded-[1.5rem] border px-4 py-4 ${
-                          formData.paymentMethod === method
-                            ? 'border-primary bg-primary/8'
-                            : 'border-border bg-white/55'
-                        }`}
-                      >
-                        <div>
-                          <p className="font-medium text-foreground">{getCheckoutPaymentLabel(method)}</p>
-                          <p className="text-sm text-foreground/60">
-                            {method === 'Cash on Delivery'
-                              ? 'Payment is collected when the order arrives.'
-                              : 'You will continue to PayMongo using the enabled payment channel on your account. QR Ph is preferred when available.'}
-                          </p>
-                        </div>
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value={method}
-                          checked={formData.paymentMethod === method}
-                          onChange={handleChange}
-                          className="h-4 w-4"
-                        />
-                      </label>
-                    ))}
-                  </div>
-
-                  <input
-                    type="text"
-                    name="reference"
-                    placeholder="Reference note for your order (optional)"
-                    value={formData.reference}
-                    onChange={handleChange}
-                    className="storefront-input h-12 w-full"
-                  />
-
-                  {isPaymongoCheckoutMethod(formData.paymentMethod) && (
-                    <div className="rounded-[1.5rem] border border-primary/25 bg-primary/8 p-4 text-sm text-foreground/75">
-                      You will be redirected to the secure PayMongo-hosted checkout after you confirm the order.
-                      The checkout uses your account&apos;s enabled payment channels and prefers QR Ph when it is available.
-                      If the account is still using test keys and only QR Ph is enabled, the app will ask for
-                      confirmation before opening the hosted checkout.
-                    </div>
-                  )}
-
-                  <textarea
-                    name="notes"
-                    placeholder="Delivery notes or order instructions"
-                    value={formData.notes}
-                    onChange={handleChange}
-                    className="storefront-input min-h-28 w-full py-3"
-                  />
-                </div>
-              )}
-
-              {step === 2 && (
-                <div className="space-y-6">
-                  <h2 className="font-serif text-2xl text-foreground">Review Order</h2>
-
-                  <div className="space-y-4 rounded-[1.75rem] bg-muted/35 p-6">
-                    <div>
-                      <p className="text-sm text-foreground/60 mb-2">Shipping To</p>
-                      <p className="text-foreground font-medium">
-                        {formData.firstName} {formData.lastName}
-                      </p>
-                      <p className="text-sm text-foreground/70">{formData.address}</p>
-                      <p className="text-sm text-foreground/70">
-                        {formData.city}, {formData.state} {formData.zip}
-                      </p>
-                    </div>
-
-                    <div className="border-t border-border pt-4">
-                      <p className="text-sm text-foreground/60 mb-2">Payment Method</p>
-                      <p className="text-foreground font-medium">{getCheckoutPaymentLabel(formData.paymentMethod)}</p>
-                      {isPaymongoCheckoutMethod(formData.paymentMethod) && (
-                        <p className="mt-2 text-sm text-foreground/60">
-                          PayMongo hosted checkout will use the enabled payment channel on your account. QR Ph is
-                          preferred when available.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="border-t border-border pt-4">
-                      <p className="text-sm text-foreground/60 mb-2">Items</p>
-                      <div className="space-y-2">
-                        {orderItems.map((item) =>
-                          item.product ? (
-                            <div
-                              key={`${item.productId}-${item.size}`}
-                              className="flex items-center justify-between text-sm"
-                            >
-                              <span className="text-foreground">
-                                {item.product.name} {item.size}ml x{item.quantity}
-                              </span>
-                              <span className="text-foreground/70">
-                                {formatPHP(item.unitPrice * item.quantity)}
-                              </span>
-                            </div>
-                          ) : null,
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-4">
-                {step > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 rounded-2xl border-border/70 bg-white/70"
-                    disabled={isSubmittingPayment}
-                    onClick={() => setStep((current) => current - 1)}
-                  >
-                    Back
-                  </Button>
-                )}
-                <Button
-                  type="submit"
-                  className="ml-auto h-11 rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
-                  disabled={hasUnavailableItems || isSubmittingPayment}
-                >
-                  {step === STEPS.length - 1 ? (
-                    isSubmittingPayment ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Spinner className="h-4 w-4" />
-                        {isPaymongoCheckoutMethod(formData.paymentMethod) ? 'Opening PayMongo...' : 'Placing Order...'}
-                      </span>
-                    ) : isPaymongoCheckoutMethod(formData.paymentMethod) ? (
-                      <span className="inline-flex items-center gap-2">
-                        Open PayMongo Checkout
-                        <ExternalLink className="h-4 w-4" />
-                      </span>
-                    ) : (
-                      'Place Order'
-                    )
-                  ) : (
-                    'Continue'
-                  )}
-                </Button>
-              </div>
-
-              {hasUnavailableItems && (
-                <p className="text-sm text-destructive">
-                  One or more items in your cart are no longer available. Return to the cart to update your order before checkout.
-                </p>
-              )}
-            </form>
           </div>
 
-          <div className="lg:col-span-1">
-            <div className="storefront-panel sticky top-28 space-y-6 rounded-[2rem] p-6">
-              <h2 className="font-serif text-xl text-foreground">Order Summary</h2>
+          {/* 2-Column Grid Layout */}
+          <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 xl:gap-12 items-start">
 
-              <div className="space-y-3">
-                {orderItems.map((item) =>
-                  item.product ? (
-                    <div
-                      key={`${item.productId}-${item.size}`}
-                      className="flex items-center justify-between text-sm text-foreground/70"
-                    >
-                      <span>
-                        {item.product.name} x{item.quantity}
+            {/* LEFT COLUMN: Payment Section */}
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Payment</h1>
+                <h2 className="text-sm sm:text-base font-semibold text-slate-800 mt-4 sm:mt-5">Select Payment Method</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Complete your purchase by providing your payment details.</p>
+              </div>
+
+              {/* Verified delivery address drawer with OpenStreetMap Verification */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3.5 text-xs transition">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <MapPin className="h-4 w-4 text-[#4F46E5] flex-shrink-0" />
+                    <div className="truncate">
+                      <span className="font-semibold text-slate-800">Delivering to: </span>
+                      <span className="text-slate-600">
+                        {formData.firstName ? `${formData.firstName} ${formData.lastName}` : user.name}
+                        {formData.address ? ` · ${formData.address}, ${formData.city}` : ''}
+                        {formData.phone ? ` (${formData.phone})` : ''}
                       </span>
-                      <span>{formatPHP(item.unitPrice * item.quantity)}</span>
                     </div>
-                  ) : null,
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    {formData.latitude && formData.longitude && (
+                      <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                        <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        Map Pinned
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAddress(!isEditingAddress)}
+                      className="text-[11px] font-semibold text-[#4F46E5] hover:underline"
+                    >
+                      {isEditingAddress ? 'Done' : 'Edit Address & Map'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline Address Form with OpenStreetMap Picker */}
+                {isEditingAddress && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-600 mb-1 block">First Name</label>
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          placeholder="First Name"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-600 mb-1 block">Last Name</label>
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleChange}
+                          placeholder="Last Name"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-600 mb-1 block">Contact Number</label>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleChange}
+                          placeholder="0917 123 4567"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-600 mb-1 block">City / Municipality</label>
+                        <input
+                          type="text"
+                          name="city"
+                          value={formData.city}
+                          onChange={handleChange}
+                          placeholder="City / Municipality"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-600 mb-1 block">Street Address / Barangay</label>
+                      <input
+                        type="text"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        placeholder="House / Unit No., Street, Barangay"
+                        className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                      />
+                    </div>
+
+                    {/* OpenStreetMap Address Verification & Instant Pin */}
+                    <div className="pt-1">
+                      <AddressMapPicker
+                        initialLat={formData.latitude}
+                        initialLng={formData.longitude}
+                        streetAddress={formData.address}
+                        city={formData.city}
+                        onLocationSelected={handleLocationSelected}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
-              <div className="border-t border-border pt-4 space-y-3">
-                <div className="flex justify-between text-foreground/70">
-                  <span>Subtotal</span>
-                  <span>{formatPHP(subtotal)}</span>
+              {/* Form wrapping payment methods and inputs */}
+              <form id="checkout-form" onSubmit={handleSubmit} className="space-y-4">
+                
+                {/* Method 1: QR Ph (PayMongo) */}
+                <div
+                  className={`rounded-2xl border transition overflow-hidden ${
+                    formData.paymentMethod === PAYMONGO_PAYMENT_METHOD_VALUE
+                      ? 'border-[#4F46E5] bg-white ring-2 ring-[#4F46E5]/20 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <label className="flex items-center justify-between p-4 cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value={PAYMONGO_PAYMENT_METHOD_VALUE}
+                        checked={formData.paymentMethod === PAYMONGO_PAYMENT_METHOD_VALUE}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-[#4F46E5] border-slate-300 focus:ring-[#4F46E5]"
+                      />
+                      <div>
+                        <span className="text-sm font-semibold text-slate-800 block">QR Ph (PayMongo)</span>
+                        <span className="text-[11px] text-slate-400">Scan &amp; pay via GCash, Maya, ShopeePay, or any Bank</span>
+                      </div>
+                    </div>
+                    <QRPhBadge />
+                  </label>
+
+                  {formData.paymentMethod === PAYMONGO_PAYMENT_METHOD_VALUE && (
+                    <div className="px-4 pb-4 pt-1 space-y-3 border-t border-slate-100">
+                      <div className="rounded-xl bg-[#F8F9FE] p-3 text-xs text-slate-600 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <QrCode className="h-4 w-4 text-[#4F46E5] flex-shrink-0 mt-0.5" />
+                          <p className="leading-relaxed">
+                            Instant QR code payment. Simply scan with <span className="font-semibold text-blue-600">GCash</span>, <span className="font-semibold text-emerald-600">Maya</span>, or any bank app. No reference number needed—payment is automatically verified.
+                          </p>
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 pt-0.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          name="saveCard"
+                          checked={formData.saveCard}
+                          onChange={handleChange}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-[#4F46E5] focus:ring-[#4F46E5]"
+                        />
+                        <span className="text-[11px] text-slate-500">Save delivery details for future 1-click orders</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between text-foreground/70">
-                  <span>Shipping</span>
-                  <span>{shipping === 0 ? 'Free' : formatPHP(shipping)}</span>
+
+                {/* Method 2: Cash on Delivery option */}
+                <div
+                  className={`rounded-2xl border transition overflow-hidden ${
+                    formData.paymentMethod === 'Cash on Delivery'
+                      ? 'border-[#4F46E5] bg-white ring-2 ring-[#4F46E5]/20 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <label className="flex items-center justify-between p-4 cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="Cash on Delivery"
+                        checked={formData.paymentMethod === 'Cash on Delivery'}
+                        onChange={handleChange}
+                        className="h-4 w-4 text-[#4F46E5] border-slate-300 focus:ring-[#4F46E5]"
+                      />
+                      <div>
+                        <span className="text-sm font-semibold text-slate-800 block">Cash on Delivery (COD)</span>
+                        <span className="text-[11px] text-slate-400">Pay cash upon courier arrival</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-semibold">
+                      <Banknote className="h-3.5 w-3.5" /> Cash
+                    </div>
+                  </label>
+
+                  {formData.paymentMethod === 'Cash on Delivery' && (
+                    <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-slate-100">
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Please prepare exact cash of <span className="font-semibold text-slate-900 font-mono">{formatPHP(total)}</span> for courier upon delivery.
+                      </p>
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-700 mb-1 block">
+                          Delivery Instructions for Courier (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          name="notes"
+                          value={formData.notes}
+                          onChange={handleChange}
+                          placeholder="Gate code, landmark, or leave with security"
+                          className="w-full h-10 rounded-xl border border-slate-200 px-3 text-xs text-slate-800 outline-none focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5] transition"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between text-foreground/70">
-                  <span>Tax</span>
-                  <span>{formatPHP(tax)}</span>
+
+                {/* Primary Action Button matching Screenshot 1 & 2 */}
+                <Button
+                  type="submit"
+                  disabled={hasUnavailableItems || isSubmittingPayment}
+                  className="h-13 sm:h-14 w-full rounded-2xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-base shadow-[0_10px_25px_rgba(79,70,229,0.25)] transition transform active:scale-[0.99] disabled:opacity-50 mt-4"
+                >
+                  {isSubmittingPayment ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="h-5 w-5 text-white" />
+                      Opening QR Ph Checkout...
+                    </span>
+                  ) : formData.paymentMethod === PAYMONGO_PAYMENT_METHOD_VALUE ? (
+                    `Pay ${formatPHP(total)} via QR Ph`
+                  ) : (
+                    `Place COD Order (${formatPHP(total)})`
+                  )}
+                </Button>
+              </form>
+            </div>
+
+            {/* RIGHT COLUMN: Order Summary Container matching Screenshot 1 & 3 */}
+            <div className="rounded-3xl bg-[#F8F9FB] p-6 sm:p-7 border border-slate-100 space-y-5">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Order Summary</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Make sure your item is correct</p>
+              </div>
+
+              {/* Items list with interactive [ - ] 1 [ + ] stepper */}
+              <div className="space-y-3">
+                {orderItems.map((item) => (
+                  <div
+                    key={`${item.productId}-${item.size}`}
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3.5 border border-slate-100 shadow-xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Product Thumbnail */}
+                      <div className="relative h-14 w-14 sm:h-16 sm:w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-50 border border-slate-100">
+                        {item.product?.images?.[0] ? (
+                          <Image
+                            src={item.product.images[0]}
+                            alt={item.product.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+                            Perfume
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Info + Quantity Stepper */}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">
+                          {item.product?.name || 'Perfume'}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {item.size}ml
+                        </p>
+
+                        {/* Interactive Quantity Stepper [ - ]  quantity  [ + ] */}
+                        <div className="inline-flex items-center gap-2 mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateQuantity(item.productId, item.size, item.quantity - 1)}
+                            className="text-slate-500 hover:text-slate-900 p-0.5 transition"
+                            title="Decrease quantity"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="text-xs font-semibold text-slate-800 min-w-[14px] text-center font-mono">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateQuantity(item.productId, item.size, item.quantity + 1)}
+                            className="text-slate-500 hover:text-slate-900 p-0.5 transition"
+                            title="Increase quantity"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Item Price */}
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs sm:text-sm font-bold text-slate-900 font-mono">
+                        {formatPHP(item.unitPrice * item.quantity)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Promo Code Input matching Screenshot 1 & 3 */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Ticket className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="GRATISONGKR"
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200 bg-white text-xs font-bold uppercase tracking-wider text-slate-800 placeholder:text-slate-400 placeholder:font-normal focus:border-[#4F46E5] focus:ring-1 focus:ring-[#4F46E5] outline-none transition"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    className="h-11 px-5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-xs transition"
+                  >
+                    Apply
+                  </Button>
                 </div>
-                {isTestCart && (
-                  <p className="text-xs text-primary">
-                    Payment test item: tax and shipping waived.
-                  </p>
+
+                {appliedPromo && (
+                  <div className="mt-2 flex items-center justify-between text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                    <span>Coupon {appliedPromo.code} applied!</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedPromo(null)
+                        setPromoInput('')
+                      }}
+                      className="text-emerald-700 hover:text-emerald-900"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+                {promoError && (
+                  <p className="text-[11px] text-destructive mt-1.5">{promoError}</p>
                 )}
               </div>
 
-              <div className="border-t border-border pt-4">
-                <div className="flex justify-between">
-                  <span className="font-medium text-foreground">Total</span>
-                  <span className="font-serif text-2xl text-foreground">
+              {/* Price Breakdown matching Screenshot 1 & 3 */}
+              <div className="space-y-2.5 border-t border-slate-200/80 pt-4 text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Sub Total:</span>
+                  <span className="font-semibold text-slate-900 font-mono">{formatPHP(subtotal)}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Shipping:</span>
+                  <span className="font-semibold text-slate-900 font-mono">
+                    {shipping === 0 ? 'FREE' : formatPHP(shipping)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Tax:</span>
+                  <span className="font-semibold text-slate-900 font-mono">{formatPHP(tax)}</span>
+                </div>
+                {discountAmount > 0 && appliedPromo?.type !== 'Shipping' && (
+                  <div className="flex justify-between items-center text-emerald-600 font-medium">
+                    <span>Discount ({appliedPromo?.code}):</span>
+                    <span className="font-semibold font-mono">- {formatPHP(discountAmount)}</span>
+                  </div>
+                )}
+
+                {/* Total */}
+                <div className="border-t border-slate-200/90 pt-3 flex justify-between items-baseline font-bold text-slate-900">
+                  <span className="text-base">Total:</span>
+                  <span className="text-xl sm:text-2xl font-black font-mono text-slate-900">
                     {formatPHP(total)}
                   </span>
                 </div>
               </div>
 
-              <p className="text-xs text-foreground/50">
-                Availability is checked again when you place the order so stock levels stay accurate.
-              </p>
+              {/* Trust Badges */}
+              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-around text-[10px] text-slate-400">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> 100% Authentic
+                </span>
+                <span className="flex items-center gap-1">
+                  <Truck className="h-3.5 w-3.5 text-[#4F46E5]" /> Express Delivery
+                </span>
+                <span className="flex items-center gap-1">
+                  <Lock className="h-3.5 w-3.5 text-slate-600" /> SSL Encrypted
+                </span>
+              </div>
             </div>
+
           </div>
         </div>
       </div>

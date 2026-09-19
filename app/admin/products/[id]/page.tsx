@@ -103,6 +103,7 @@ export default function EditProductPage() {
       cancelHref="/admin/products"
       description="Update the fragrance details, stock levels, and merchandising settings used across the storefront, inventory workspace, and POS."
       initialValues={initialValues}
+      priceHistory={product.priceHistory}
       signedInName={user?.name || 'Store admin'}
       signedInRole={user?.role}
       submitLabel="Save Changes"

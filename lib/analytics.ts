@@ -137,6 +137,7 @@ export function buildTopProductData(orders: OrderRecord[], limit = 5) {
     Record<
       string,
       {
+        productId: string
         name: string
         revenue: number
         quantity: number
@@ -145,7 +146,8 @@ export function buildTopProductData(orders: OrderRecord[], limit = 5) {
   >((accumulator, order) => {
     order.items.forEach((item) => {
       const current = accumulator[item.productId] ?? {
-        name: item.productName,
+        productId: item.productId,
+        name: item.productName || 'Unknown Product',
         revenue: 0,
         quantity: 0,
       }
@@ -158,14 +160,27 @@ export function buildTopProductData(orders: OrderRecord[], limit = 5) {
     return accumulator
   }, {})
 
-  return Object.values(grouped)
+  const sorted = Object.values(grouped)
     .sort((left, right) => right.revenue - left.revenue)
     .slice(0, limit)
-    .map((item) => ({
-      name: item.name,
+
+  const seenCounts = new Map<string, number>()
+
+  return sorted.map((item, index) => {
+    const baseName = item.name || 'Unknown Product'
+    const occurrences = seenCounts.get(baseName) ?? 0
+    seenCounts.set(baseName, occurrences + 1)
+    const uniqueName = occurrences > 0 ? `${baseName} (#${occurrences + 1})` : baseName
+
+    return {
+      productId: item.productId,
+      key: `${item.productId}-${index}`,
+      name: uniqueName,
+      displayName: baseName,
       revenue: item.revenue,
       quantity: item.quantity,
-    }))
+    }
+  })
 }
 
 export function buildStockMovementData(movements: StockMovement[], limit = 6) {

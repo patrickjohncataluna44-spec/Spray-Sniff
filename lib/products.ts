@@ -1,5 +1,15 @@
 import { SITE_NAME } from '@/lib/site'
 
+export interface ProductPriceHistoryEntry {
+  id: string
+  oldPrice: number
+  newPrice: number
+  effectiveDate: string
+  changedAt: string
+  changedBy: string
+  note?: string
+}
+
 export interface Product {
   id: string
   name: string
@@ -24,6 +34,7 @@ export interface Product {
   occasions: string[]
   seasons: string[]
   relatedProducts: string[]
+  priceHistory?: ProductPriceHistoryEntry[]
 }
 
 export const products: Product[] = [

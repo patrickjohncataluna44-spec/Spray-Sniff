@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
 import {
@@ -65,8 +65,37 @@ const paymentColors = ['#dd729b', '#f2a7c0', '#f7bfd1', '#c86b8d', '#9e4c6d']
 const statusColors = ['#e888a8', '#f2b5c8', '#f7cad8', '#9e4c6d', '#7f6172']
 const inventoryColors = ['#e888a8', '#f2b5c8', '#9e4c6d']
 
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number)
+  const date = new Date(year, month - 1, 1)
+  return date.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
+}
+
 export default function ReportsPage() {
   const { catalog, getInventoryRecord, inventory, orders, posTransactions, stockMovements } = useStore()
+  const [selectedMonth, setSelectedMonth] = useState<string>('all')
+
+  const availableMonths = useMemo(() => {
+    const monthsSet = new Set<string>()
+    orders.forEach((o) => {
+      const date = new Date(o.createdAt)
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      monthsSet.add(key)
+    })
+    return Array.from(monthsSet).sort().reverse()
+  }, [orders])
+
+  const filteredOrders = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return orders
+    }
+    return orders.filter((o) => {
+      const date = new Date(o.createdAt)
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      return key === selectedMonth
+    })
+  }, [orders, selectedMonth])
+
   const activeInventory = useMemo(
     () => inventory.filter((item) => !item.isArchived),
     [inventory],
@@ -76,8 +105,8 @@ export default function ReportsPage() {
     [catalog, getInventoryRecord],
   )
   const successfulPayments = useMemo(
-    () => orders.filter(isSuccessfulPaymentOrder),
-    [orders],
+    () => filteredOrders.filter(isSuccessfulPaymentOrder),
+    [filteredOrders],
   )
 
   const totalRevenue = successfulPayments.reduce((sum, order) => sum + order.total, 0)
@@ -92,10 +121,10 @@ export default function ReportsPage() {
     activeCatalog.length === 0
       ? 0
       : Math.round((activeInventory.length / activeCatalog.length) * 100)
-  const salesTrendData = useMemo(() => buildSalesTrendData(orders, 7), [orders])
-  const paymentBreakdown = useMemo(() => buildPaymentBreakdownData(orders), [orders])
-  const orderStatusData = useMemo(() => buildOrderStatusData(orders), [orders])
-  const topProductData = useMemo(() => buildTopProductData(orders), [orders])
+  const salesTrendData = useMemo(() => buildSalesTrendData(filteredOrders, 7), [filteredOrders])
+  const paymentBreakdown = useMemo(() => buildPaymentBreakdownData(filteredOrders), [filteredOrders])
+  const orderStatusData = useMemo(() => buildOrderStatusData(filteredOrders), [filteredOrders])
+  const topProductData = useMemo(() => buildTopProductData(filteredOrders), [filteredOrders])
   const stockMovementData = useMemo(
     () => buildStockMovementData(stockMovements),
     [stockMovements],
@@ -121,14 +150,54 @@ export default function ReportsPage() {
                 </Button>
               </div>
 
-              <h1 className="font-serif text-3xl text-foreground">Reports</h1>
-              <p className="mt-2 text-sm text-foreground/60">
-                Business reporting for inventory movement, sales performance, tax analytics, and stock accuracy.
-              </p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h1 className="font-serif text-3xl text-foreground">Reports</h1>
+                  <p className="mt-2 text-sm text-foreground/60">
+                    Business reporting for inventory movement, sales performance, tax analytics, and stock accuracy.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label htmlFor="periodSelect" className="text-xs font-semibold uppercase tracking-wider text-foreground/60">
+                    Period:
+                  </label>
+                  <select
+                    id="periodSelect"
+                    value={selectedMonth}
+                    onChange={(event) => setSelectedMonth(event.target.value)}
+                    className="rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="all">All Time</option>
+                    {availableMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {formatMonthLabel(m)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="mb-8 flex items-center justify-between flex-wrap gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-900 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="text-lg">🔒</span>
+                <div>
+                  <p className="font-bold text-emerald-950">Immutable Historical Pricing Guarantee</p>
+                  <p className="mt-0.5 text-emerald-800 leading-relaxed">
+                    All report metrics, orders, and item sales calculate strictly from frozen unit prices recorded at the time of purchase. Future price changes (e.g. updating a product price in July) will <strong>never</strong> alter June or previous months&apos; recorded revenue or tax data.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 font-medium">
+                <span className="rounded-full bg-emerald-200/80 px-2.5 py-1 text-emerald-900 text-[11px] font-semibold">
+                  {selectedMonth === 'all' ? 'All Time Data' : formatMonthLabel(selectedMonth)}
+                </span>
+                <span className="text-emerald-700">({filteredOrders.length} orders analyzed)</span>
+              </div>
+            </div>
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4 mb-10">
               <div className="rounded-2xl border border-border bg-card p-6">
                 <BarChart3 className="h-5 w-5 text-accent mb-4" />
@@ -311,13 +380,13 @@ export default function ReportsPage() {
                 </ChartContainer>
 
                 <div className="mt-6 space-y-3">
-                  {topProductData.map((item) => (
+                  {topProductData.map((item, index) => (
                     <div
-                      key={item.name}
+                      key={item.key || `${item.name}-${index}`}
                       className="flex items-center justify-between rounded-xl border border-border bg-background/70 p-4"
                     >
                       <div>
-                        <p className="font-medium text-foreground">{item.name}</p>
+                        <p className="font-medium text-foreground">{item.displayName || item.name}</p>
                         <p className="text-sm text-foreground/60">
                           {item.quantity} unit(s) sold
                         </p>
