@@ -307,3 +307,48 @@ Spray & Sniff`,
     `,
   })
 }
+
+export async function sendPasswordResetEmail(options: { email: string; name: string; resetUrl: string }) {
+  const smtp = getSmtpConfig()
+  const transporter = createTransporter()
+  const displayName = options.name.trim() || 'Customer'
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to: options.email,
+    subject: `Reset your ${SITE_NAME} password`,
+    text: `Hi ${displayName},
+
+We received a request to reset the password for your ${SITE_NAME} account.
+
+Please open this link to set a new password:
+${options.resetUrl}
+
+This link will expire in 1 hour.
+
+If you did not request a password reset, you can safely ignore this email. Your account remains secure.
+
+${SITE_NAME}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #332d29; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #eae5de; border-radius: 16px;">
+        <div style="margin-bottom: 24px;">
+          <h2 style="margin: 0; color: #18483f; font-size: 22px;">${escapeHtml(SITE_NAME)}</h2>
+          <p style="margin: 4px 0 0; color: #8c827a; font-size: 13px;">Password Reset Request</p>
+        </div>
+        <p>Hi ${escapeHtml(displayName)},</p>
+        <p>We received a request to reset the password for your <strong>${escapeHtml(SITE_NAME)}</strong> customer account.</p>
+        <p style="margin: 28px 0;">
+          <a
+            href="${escapeHtml(options.resetUrl)}"
+            style="display: inline-block; padding: 14px 28px; background: #ff7e67; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 14px;"
+          >
+            Reset Password
+          </a>
+        </p>
+        <p style="font-size: 13px; color: #666;">If the button above does not work, copy and paste this link into your browser:</p>
+        <p style="font-size: 12px; word-break: break-all;"><a href="${escapeHtml(options.resetUrl)}" style="color: #ff7e67;">${escapeHtml(options.resetUrl)}</a></p>
+        <p style="font-size: 12px; color: #999; margin-top: 24px;">This link will expire in 1 hour. If you did not request a password reset, please ignore this email.</p>
+      </div>
+    `,
+  })
+}

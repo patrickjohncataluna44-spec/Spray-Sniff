@@ -11,6 +11,15 @@ import { getSafeRedirectPath } from '@/lib/auth'
 import { SITE_NAME } from '@/lib/site'
 
 import { calculateAge, validateCustomerInformation } from '@/lib/customer-validation'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { ShieldCheck, BookOpen, Check } from 'lucide-react'
 
 function SignUpPageContent() {
   const router = useRouter()
@@ -30,6 +39,9 @@ function SignUpPageContent() {
     password: '',
     confirmPassword: '',
   })
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [hasReadPrivacy, setHasReadPrivacy] = useState(false)
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
@@ -121,6 +133,11 @@ function SignUpPageContent() {
 
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters')
+      return
+    }
+
+    if (!hasReadPrivacy || !agreedToTerms) {
+      setError('Please read and accept the Data Privacy Notice (RA 10173) and terms before creating your account.')
       return
     }
 
@@ -442,14 +459,67 @@ function SignUpPageContent() {
                   />
                 </div>
 
-                <label className="flex items-center gap-3 pt-1 text-sm text-foreground/68">
-                  <input type="checkbox" required suppressHydrationWarning className="h-4 w-4 rounded border-border" />
-                  I agree to the account terms and the fragrance store privacy policy.
-                </label>
+                {/* Data Privacy Act & Agreement */}
+                <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 text-foreground font-medium text-sm">
+                      <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+                      <span>Data Privacy Act of 2012 (RA 10173)</span>
+                    </div>
+                    {hasReadPrivacy ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full shrink-0">
+                        <Check className="h-3 w-3" /> Read & Verified
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0">
+                        Reading Required
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs leading-relaxed text-foreground/65">
+                    To safeguard your personal information (name, address, email, contact number, birthdate), we comply with the Philippine Data Privacy Act. You must open and read our privacy policy before checking the agreement.
+                  </p>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsPrivacyOpen(true)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      {hasReadPrivacy ? 'Review Privacy Policy Again' : 'Read Data Privacy Policy Now'}
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/50">
+                    <label
+                      className={`flex items-start gap-3 text-xs leading-relaxed transition-opacity ${
+                        hasReadPrivacy ? 'cursor-pointer text-foreground/80' : 'cursor-not-allowed opacity-50 text-foreground/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={!hasReadPrivacy}
+                        checked={agreedToTerms}
+                        onChange={(e) => setAgreedToTerms(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary disabled:cursor-not-allowed"
+                      />
+                      <span>
+                        I confirm that I have read, understood, and agree to the <strong>Data Privacy Policy (RA 10173)</strong> and account terms.
+                      </span>
+                    </label>
+                    {!hasReadPrivacy && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 pl-7">
+                        * Please click &ldquo;Read Data Privacy Policy Now&rdquo; above to enable this checkbox.
+                      </p>
+                    )}
+                  </div>
+                </div>
 
                 <Button
                   type="submit"
-                  disabled={loading || authLoading}
+                  disabled={loading || authLoading || !agreedToTerms || !hasReadPrivacy}
                   className="h-12 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
                 >
                   {loading ? (
@@ -461,6 +531,86 @@ function SignUpPageContent() {
                     'Create Account'
                   )}
                 </Button>
+
+                {/* Privacy Policy Dialog Modal */}
+                <Dialog open={isPrivacyOpen} onOpenChange={setIsPrivacyOpen}>
+                  <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+                    <DialogHeader>
+                      <div className="flex items-center gap-2 text-primary">
+                        <ShieldCheck className="h-5 w-5" />
+                        <DialogTitle className="text-xl">Data Privacy Statement</DialogTitle>
+                      </div>
+                      <DialogDescription className="text-xs text-foreground/60">
+                        In Compliance with Republic Act No. 10173 (Philippine Data Privacy Act of 2012)
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="overflow-y-auto pr-2 space-y-4 text-xs leading-relaxed text-foreground/75 border-y border-border/60 py-4 my-2">
+                      <div>
+                        <h4 className="font-semibold text-foreground text-sm mb-1">1. Collection of Personal Information</h4>
+                        <p>
+                          We collect your personal details including your <strong>Full Name</strong>, <strong>Email Address / Gmail</strong>, <strong>Contact Number</strong>, <strong>Birthdate / Age</strong>, and <strong>Delivery Address</strong> when you register an account or place an order.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-semibold text-foreground text-sm mb-1">2. Purpose of Processing</h4>
+                        <p>
+                          Your information is processed strictly for:
+                        </p>
+                        <ul className="list-disc pl-5 mt-1 space-y-1">
+                          <li>Fulfilling and delivering your fragrance orders through authorized couriers.</li>
+                          <li>Sending order confirmations, tracking numbers, and delivery status SMS/email notices.</li>
+                          <li>Age verification to ensure eligibility for purchase and fragrance promotions.</li>
+                          <li>Preventing fraud and securing your customer account.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <h4 className="font-semibold text-foreground text-sm mb-1">3. Data Protection & Confidentiality</h4>
+                        <p>
+                          We implement strict organizational, technical, and physical security measures to protect your personal data against unauthorized access, loss, or disclosure. We do not sell or trade your personal information to any third parties.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-semibold text-foreground text-sm mb-1">4. Your Rights as a Data Subject</h4>
+                        <p>
+                          Under the Data Privacy Act of 2012, you have the right to be informed, to access, to rectify inaccuracies in your data, and to request erasure or blocking of your personal details at any time through your Account page or customer support.
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-primary/10 border border-primary/20 p-3 text-foreground/90">
+                        <p className="font-medium text-xs">
+                          By clicking &ldquo;I have read and agree&rdquo;, you grant consent for {SITE_NAME} to process your information according to this policy.
+                        </p>
+                      </div>
+                    </div>
+
+                    <DialogFooter className="flex-row items-center justify-between sm:justify-between gap-3 pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setIsPrivacyOpen(false)}
+                        className="rounded-xl text-xs"
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setHasReadPrivacy(true)
+                          setAgreedToTerms(true)
+                          setIsPrivacyOpen(false)
+                        }}
+                        className="rounded-xl bg-primary text-primary-foreground hover:bg-[#ff8a73] text-xs font-semibold gap-1.5"
+                      >
+                        <Check className="h-4 w-4" />
+                        I Have Read & Agree to Privacy Policy
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </form>
             )}
 

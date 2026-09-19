@@ -78,3 +78,58 @@ export function buildVerificationUrl(options: { token: string; requestOrigin?: s
   url.searchParams.set('token', options.token)
   return url.toString()
 }
+
+const RESET_PASSWORD_TTL_MS = 1000 * 60 * 60 // 1 hour
+
+export function createPasswordResetToken(userId: string, email: string) {
+  const payload: VerificationPayload = {
+    userId,
+    email: email.trim().toLowerCase(),
+    exp: Date.now() + RESET_PASSWORD_TTL_MS,
+  }
+
+  const encodedPayload = toBase64Url(JSON.stringify(payload))
+  const signature = sign(encodedPayload)
+  return `${encodedPayload}.${signature}`
+}
+
+export function readPasswordResetToken(token: string): VerificationPayload {
+  const [encodedPayload, signature] = token.split('.')
+
+  if (!encodedPayload || !signature) {
+    throw new Error('Invalid password reset token.')
+  }
+
+  const expectedSignature = sign(encodedPayload)
+
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    throw new Error('Invalid password reset token.')
+  }
+
+  const payload = JSON.parse(fromBase64Url(encodedPayload)) as VerificationPayload
+
+  if (!payload.userId || !payload.email || !payload.exp) {
+    throw new Error('Invalid password reset token.')
+  }
+
+  if (payload.exp < Date.now()) {
+    throw new Error('This password reset link has expired. Please request a new one.')
+  }
+
+  return payload
+}
+
+export function buildPasswordResetUrl(options: { token: string; requestOrigin?: string }) {
+  const configuredSiteUrl = getOptionalServerEnv('NEXT_PUBLIC_SITE_URL')
+  const requestOrigin = options.requestOrigin?.trim()
+  const baseUrl = requestOrigin || configuredSiteUrl
+
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_SITE_URL is missing.')
+  }
+
+  const url = new URL('/auth/reset-password', baseUrl)
+  url.searchParams.set('token', options.token)
+  return url.toString()
+}
+

@@ -9,6 +9,15 @@ import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
 import { getSafeRedirectPath } from '@/lib/auth'
 import { SITE_NAME } from '@/lib/site'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { KeyRound, Mail, CheckCircle2 } from 'lucide-react'
 
 function SignInPageContent() {
   const router = useRouter()
@@ -22,6 +31,13 @@ function SignInPageContent() {
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [needsVerification, setNeedsVerification] = useState(false)
+
+  // Forgot password modal state
+  const [isForgotOpen, setIsForgotOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotSuccess, setForgotSuccess] = useState('')
+  const [forgotError, setForgotError] = useState('')
   const redirectTo = getSafeRedirectPath(searchParams.get('redirectTo'))
   const reason = searchParams.get('reason')
   const verified = searchParams.get('verified')
@@ -106,6 +122,35 @@ function SignInPageContent() {
     }
   }
 
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotError('')
+    setForgotSuccess('')
+    setForgotLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to request password reset.')
+      }
+
+      setForgotSuccess(
+        'A secure password reset link has been sent via email. Please check your inbox or spam folder.',
+      )
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : 'Failed to send reset email.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
   return (
     <AuthPageShell>
       <section className="w-full">
@@ -166,9 +211,23 @@ function SignInPageContent() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium text-foreground">
-                  Password
-                </label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email)
+                      setForgotError('')
+                      setForgotSuccess('')
+                      setIsForgotOpen(true)
+                    }}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <input
                   id="password"
                   type="password"
@@ -182,12 +241,11 @@ function SignInPageContent() {
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-4 text-sm text-foreground/60">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" suppressHydrationWarning className="h-4 w-4 rounded border-border" />
+              <div className="flex items-center gap-4 text-sm text-foreground/60">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" suppressHydrationWarning className="h-4 w-4 rounded border-border text-primary focus:ring-primary" />
                   Remember me
                 </label>
-                <span>Need help? Email support from the contact section below.</span>
               </div>
 
               <Button
@@ -217,6 +275,88 @@ function SignInPageContent() {
                 </Button>
               ) : null}
             </form>
+
+            {/* Forgot Password Modal Dialog */}
+            <Dialog open={isForgotOpen} onOpenChange={setIsForgotOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <div className="flex items-center gap-2 text-primary">
+                    <KeyRound className="h-5 w-5" />
+                    <DialogTitle className="text-xl">Reset Your Password</DialogTitle>
+                  </div>
+                  <DialogDescription className="text-xs text-foreground/60">
+                    Enter the email connected to your account. We will send you a secure password reset link via SMTP.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {forgotSuccess ? (
+                  <div className="space-y-4 py-3">
+                    <div className="rounded-[1.5rem] bg-emerald-500/10 border border-emerald-500/20 p-4 text-sm text-emerald-800 dark:text-emerald-300 flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                      <p className="leading-relaxed">{forgotSuccess}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => setIsForgotOpen(false)}
+                      className="w-full h-11 rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
+                    >
+                      Done
+                    </Button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRequestPasswordReset} className="space-y-4 py-2">
+                    {forgotError ? (
+                      <div className="rounded-[1.25rem] border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+                        {forgotError}
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-2">
+                      <label htmlFor="forgot-email" className="text-xs font-medium text-foreground">
+                        Account Email Address
+                      </label>
+                      <input
+                        id="forgot-email"
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        required
+                        placeholder="you@example.com"
+                        className="storefront-input h-11 w-full"
+                      />
+                    </div>
+
+                    <DialogFooter className="flex-row items-center justify-end gap-2 pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setIsForgotOpen(false)}
+                        className="rounded-xl"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={forgotLoading}
+                        className="rounded-xl bg-primary text-primary-foreground hover:bg-[#ff8a73] gap-1.5"
+                      >
+                        {forgotLoading ? (
+                          <>
+                            <Spinner className="h-4 w-4" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="h-4 w-4" />
+                            Send Reset Link
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                )}
+              </DialogContent>
+            </Dialog>
 
             <div className="mt-8 border-t border-border/70 pt-6 text-center">
               <p className="text-sm text-foreground/60">
