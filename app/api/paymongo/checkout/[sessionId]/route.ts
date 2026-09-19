@@ -6,6 +6,7 @@ import {
   getPaymongoPaidPayment,
   isPaymongoCheckoutPaid,
   retrievePaymongoCheckoutSession,
+  retrievePaymongoPayment,
 } from '@/lib/paymongo'
 
 export async function GET(
@@ -21,6 +22,28 @@ export async function GET(
       return NextResponse.json({ error: 'Checkout session id is required.' }, { status: 400 })
     }
 
+    if (sessionId.startsWith('pay_')) {
+      const paymentRes = await retrievePaymongoPayment(sessionId)
+      const p = paymentRes.data
+      const isPaid = p.attributes.status === 'paid'
+      return NextResponse.json({
+        checkoutSessionId: p.id,
+        paid: isPaid,
+        isPaid,
+        status: p.attributes.status ?? null,
+        billingEmail: p.attributes.billing?.email ?? null,
+        billingName: p.attributes.billing?.name ?? null,
+        metadata: p.attributes.metadata ?? {},
+        paymentMethodTypes: [p.attributes.source?.type ?? 'qrph'],
+        paymentIntentStatus: null,
+        paidAmount: p.attributes.amount,
+        paidCurrency: p.attributes.currency,
+        paidPaymentId: p.id,
+        paidSourceType: p.attributes.source?.type ?? null,
+        paymentStatuses: [{ id: p.id, status: p.attributes.status, sourceType: p.attributes.source?.type ?? null }],
+      })
+    }
+
     const session = await retrievePaymongoCheckoutSession(sessionId)
     const paid = isPaymongoCheckoutPaid(session)
     const paidPayment = getPaymongoPaidPayment(session)
@@ -28,6 +51,7 @@ export async function GET(
     return NextResponse.json({
       checkoutSessionId: session.data.id,
       paid,
+      isPaid: paid,
       status: session.data.attributes.status ?? null,
       billingEmail: session.data.attributes.billing?.email ?? null,
       billingName: session.data.attributes.billing?.name ?? null,

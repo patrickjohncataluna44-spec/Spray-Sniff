@@ -268,6 +268,30 @@ export async function retrievePaymongoCheckoutSession(sessionId: string) {
   }>(`/checkout_sessions/${sessionId}`)
 }
 
+export async function retrievePaymongoPayment(paymentId: string) {
+  return paymongoRequest<{
+    data: {
+      id: string
+      attributes: {
+        amount: number
+        currency: string
+        status: string
+        billing?: {
+          name?: string
+          email?: string
+        }
+        description?: string
+        metadata?: Record<string, string>
+        source?: {
+          id?: string
+          type?: string
+        }
+        paid_at?: number
+      }
+    }
+  }>(`/payments/${paymentId}`)
+}
+
 export type RetrievedPaymongoCheckoutSession = Awaited<ReturnType<typeof retrievePaymongoCheckoutSession>>
 
 export function getPaymongoPaidPayment(session: RetrievedPaymongoCheckoutSession) {

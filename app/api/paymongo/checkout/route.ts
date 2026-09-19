@@ -4,6 +4,8 @@ import {
   PAYMONGO_ORDER_CHECKOUT_DESCRIPTION,
   createPaymongoCheckoutSession,
 } from '@/lib/paymongo'
+import { savePendingPaymongoCheckout } from '@/lib/paymongo-pending'
+import crypto from 'crypto'
 
 function getBaseUrl(request: Request) {
   const forwardedProto = request.headers.get('x-forwarded-proto')
@@ -28,6 +30,9 @@ export async function POST(request: Request) {
       expectedAmount,
       reference,
       shippingAddress,
+      notes,
+      cartItems,
+      clientToken,
     } = body ?? {}
 
     if (!customerEmail || !customerName || !Array.isArray(lineItems) || lineItems.length === 0) {
@@ -37,23 +42,43 @@ export async function POST(request: Request) {
       )
     }
 
+    const checkoutToken = clientToken || crypto.randomUUID()
+    const baseUrl = getBaseUrl(request)
+    const successUrl = `${baseUrl}/checkout?paymongo=success&session_token=${checkoutToken}`
+
     const payload = await createPaymongoCheckoutSession({
       customerEmail,
       customerName,
       description: PAYMONGO_ORDER_CHECKOUT_DESCRIPTION,
       lineItems,
-      successUrl: `${getBaseUrl(request)}/checkout?paymongo=success`,
+      successUrl,
       metadata: {
         customer_email: customerEmail,
         customer_name: customerName,
         expected_amount: typeof expectedAmount === 'number' ? String(expectedAmount) : '',
         reference: reference || '',
         shipping_address: shippingAddress || '',
+        checkout_token: checkoutToken,
       },
+    })
+
+    savePendingPaymongoCheckout({
+      token: checkoutToken,
+      checkoutSessionId: payload.data.id,
+      customerEmail,
+      customerName,
+      shippingAddress: shippingAddress || '',
+      expectedAmount: typeof expectedAmount === 'number' ? expectedAmount : undefined,
+      reference: reference || '',
+      notes: notes || '',
+      paymentMethodLabel: payload.paymentMethodLabel,
+      cartItems: Array.isArray(cartItems) ? cartItems : undefined,
+      createdAt: Date.now(),
     })
 
     return NextResponse.json({
       checkoutSessionId: payload.data.id,
+      checkoutToken,
       checkoutUrl: payload.data.attributes.checkout_url,
       status: payload.data.attributes.status,
       paymentMethodType: payload.paymentMethodType,

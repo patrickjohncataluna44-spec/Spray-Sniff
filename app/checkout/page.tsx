@@ -30,7 +30,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { formatPHP } from '@/lib/currency'
 import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
-import { isPaymentTestCart, type OrderRecord } from '@/lib/store-engine'
+import { isPaymentTestCart, PAYMENT_TEST_PRODUCT_ID, type CartItem, type OrderRecord } from '@/lib/store-engine'
 import { useAuth } from '@/lib/auth-context'
 import { toast } from '@/hooks/use-toast'
 import type { SelectedLocationData } from '@/components/address-map-picker'
@@ -66,6 +66,7 @@ interface SavedDeliveryInfo {
 }
 
 interface PendingPaymongoCheckout {
+  token?: string
   checkoutSessionId: string
   shippingAddress: string
   customerName: string
@@ -74,6 +75,7 @@ interface PendingPaymongoCheckout {
   reference: string
   notes: string
   paymentMethodLabel?: string
+  items?: CartItem[]
 }
 
 function isPaymongoCheckoutMethod(method: string) {
@@ -377,22 +379,107 @@ function CheckoutContent() {
     setIsSubmittingPayment(false)
   }
 
-  const readPendingPaymongoCheckout = (): PendingPaymongoCheckout | null => {
-    const raw = window.sessionStorage.getItem(PAYMONGO_PENDING_CHECKOUT_KEY)
-    if (!raw) return null
-    try {
-      return JSON.parse(raw) as PendingPaymongoCheckout
-    } catch {
-      return null
+  const readPendingPaymongoCheckout = useCallback(async (): Promise<PendingPaymongoCheckout | null> => {
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+    const urlToken = urlParams?.get('session_token') || urlParams?.get('token')
+    const urlSessionId = urlParams?.get('sessionId') || urlParams?.get('session_id')
+
+    // 1. Try local storage / session storage by specific token or session ID
+    if (typeof window !== 'undefined') {
+      if (urlToken) {
+        const rawToken = window.localStorage.getItem(`paymongo-pending-${urlToken}`)
+        if (rawToken) {
+          try { return JSON.parse(rawToken) as PendingPaymongoCheckout } catch {}
+        }
+      }
+      if (urlSessionId) {
+        const rawSess = window.localStorage.getItem(`paymongo-pending-${urlSessionId}`)
+        if (rawSess) {
+          try { return JSON.parse(rawSess) as PendingPaymongoCheckout } catch {}
+        }
+      }
+
+      // 2. Try default localStorage
+      const rawLocal = window.localStorage.getItem(PAYMONGO_PENDING_CHECKOUT_KEY)
+      if (rawLocal) {
+        try { return JSON.parse(rawLocal) as PendingPaymongoCheckout } catch {}
+      }
+
+      // 3. Try sessionStorage
+      const rawSession = window.sessionStorage.getItem(PAYMONGO_PENDING_CHECKOUT_KEY)
+      if (rawSession) {
+        try { return JSON.parse(rawSession) as PendingPaymongoCheckout } catch {}
+      }
+
+      // 4. Try cookie
+      const cookieMatch = document.cookie.match(/(?:^|;\s*)pm_sess_id=([^;]+)/)
+      const cookieSessionId = cookieMatch ? decodeURIComponent(cookieMatch[1]) : null
+      if (cookieSessionId) {
+        const rawSess = window.localStorage.getItem(`paymongo-pending-${cookieSessionId}`)
+        if (rawSess) {
+          try { return JSON.parse(rawSess) as PendingPaymongoCheckout } catch {}
+        }
+      }
     }
-  }
+
+    // 5. Try server pending recovery endpoint
+    const queryParts: string[] = []
+    if (urlToken) queryParts.push(`token=${encodeURIComponent(urlToken)}`)
+    if (urlSessionId) queryParts.push(`sessionId=${encodeURIComponent(urlSessionId)}`)
+    if (user?.email) queryParts.push(`email=${encodeURIComponent(user.email)}`)
+
+    if (queryParts.length > 0) {
+      try {
+        const res = await fetch(`/api/paymongo/pending?${queryParts.join('&')}`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.ok && data.pendingCheckout) {
+            return data.pendingCheckout as PendingPaymongoCheckout
+          }
+        }
+      } catch (err) {
+        console.warn('Pending recovery check failed:', err)
+      }
+    }
+
+    return null
+  }, [user?.email])
 
   const storePendingPaymongoCheckout = (payload: PendingPaymongoCheckout) => {
-    window.sessionStorage.setItem(PAYMONGO_PENDING_CHECKOUT_KEY, JSON.stringify(payload))
+    const json = JSON.stringify(payload)
+    try {
+      window.sessionStorage.setItem(PAYMONGO_PENDING_CHECKOUT_KEY, json)
+    } catch {}
+    try {
+      window.localStorage.setItem(PAYMONGO_PENDING_CHECKOUT_KEY, json)
+      if (payload.token) {
+        window.localStorage.setItem(`paymongo-pending-${payload.token}`, json)
+      }
+      if (payload.checkoutSessionId) {
+        window.localStorage.setItem(`paymongo-pending-${payload.checkoutSessionId}`, json)
+      }
+    } catch {}
+    try {
+      document.cookie = `pm_sess_id=${encodeURIComponent(payload.checkoutSessionId)}; path=/; max-age=7200; SameSite=Lax`
+      if (payload.token) {
+        document.cookie = `pm_tok=${encodeURIComponent(payload.token)}; path=/; max-age=7200; SameSite=Lax`
+      }
+    } catch {}
   }
 
-  const clearPendingPaymongoCheckout = () => {
-    window.sessionStorage.removeItem(PAYMONGO_PENDING_CHECKOUT_KEY)
+  const clearPendingPaymongoCheckout = (token?: string, sessionId?: string) => {
+    try {
+      window.sessionStorage.removeItem(PAYMONGO_PENDING_CHECKOUT_KEY)
+    } catch {}
+    try {
+      window.localStorage.removeItem(PAYMONGO_PENDING_CHECKOUT_KEY)
+      if (token) window.localStorage.removeItem(`paymongo-pending-${token}`)
+      if (sessionId) window.localStorage.removeItem(`paymongo-pending-${sessionId}`)
+    } catch {}
+    try {
+      document.cookie = 'pm_sess_id=; path=/; max-age=0'
+      document.cookie = 'pm_tok=; path=/; max-age=0'
+    } catch {}
   }
 
   const verifyPaymongoCheckout = async (pendingCheckout: PendingPaymongoCheckout) => {
@@ -409,7 +496,7 @@ function CheckoutContent() {
         throw new Error(payload.error ?? 'Unable to verify the PayMongo checkout session.')
       }
 
-      if (payload.isPaid) {
+      if (payload.isPaid || payload.paid) {
         if (typeof pendingCheckout.expectedAmount === 'number' && typeof payload.paidAmount === 'number') {
           if (payload.paidAmount < pendingCheckout.expectedAmount) {
             throw new Error('The recorded payment does not cover the complete total for your perfume order.')
@@ -442,9 +529,24 @@ function CheckoutContent() {
   }
 
   const finalizeOrder = useCallback(async (pendingCheckout: PendingPaymongoCheckout) => {
+    const fallbackItems: CartItem[] = [
+      {
+        productId: PAYMENT_TEST_PRODUCT_ID,
+        size: 50,
+        quantity: 1,
+        unitPrice: typeof pendingCheckout.expectedAmount === 'number' ? pendingCheckout.expectedAmount / 100 : 1,
+      },
+    ]
+
     const result = await placeOnlineOrder({
       customerEmail: pendingCheckout.customerEmail,
       customerName: pendingCheckout.customerName,
+      items:
+        pendingCheckout.items && pendingCheckout.items.length > 0
+          ? pendingCheckout.items
+          : cart && cart.length > 0
+            ? cart
+            : fallbackItems,
       notes: [
         pendingCheckout.reference,
         pendingCheckout.notes,
@@ -464,13 +566,13 @@ function CheckoutContent() {
     setOrderNumber(result.data.id)
     setConfirmedOrder(result.data)
     setOrderPlaced(true)
-    clearPendingPaymongoCheckout()
+    clearPendingPaymongoCheckout(pendingCheckout.token, pendingCheckout.checkoutSessionId)
     router.replace('/checkout')
     toast({
       title: 'Payment confirmed',
       description: `${result.data.id} has been recorded as a paid order.`,
     })
-  }, [placeOnlineOrder, router])
+  }, [cart, placeOnlineOrder, router])
 
   useEffect(() => {
     if (
@@ -484,23 +586,22 @@ function CheckoutContent() {
       return
     }
 
-    const pendingCheckout = readPendingPaymongoCheckout()
-
-    if (!pendingCheckout?.checkoutSessionId) {
-      toast({
-        title: 'Missing payment session',
-        description: 'We could not find your pending PayMongo checkout session. Please try checking out again.',
-        variant: 'destructive',
-      })
-      router.replace('/checkout')
-      return
-    }
-
     paymentVerificationStarted.current = true
     setIsVerifyingPayment(true)
 
-    verifyPaymongoCheckout(pendingCheckout)
-      .then(async () => {
+    readPendingPaymongoCheckout()
+      .then(async (pendingCheckout) => {
+        if (!pendingCheckout?.checkoutSessionId) {
+          toast({
+            title: 'Missing payment session',
+            description: 'We could not find your pending PayMongo checkout session. Please try checking out again.',
+            variant: 'destructive',
+          })
+          router.replace('/checkout')
+          return
+        }
+
+        await verifyPaymongoCheckout(pendingCheckout)
         await finalizeOrder(pendingCheckout)
       })
       .catch((error) => {
@@ -517,7 +618,7 @@ function CheckoutContent() {
       .finally(() => {
         setIsVerifyingPayment(false)
       })
-  }, [authLoading, finalizeOrder, isAuthenticated, paymentFlow, router, user])
+  }, [authLoading, finalizeOrder, isAuthenticated, paymentFlow, readPendingPaymongoCheckout, router, user])
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -629,6 +730,7 @@ function CheckoutContent() {
 
     try {
       if (isPaymongoCheckoutMethod(formData.paymentMethod)) {
+        const clientToken = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `pm_${Date.now()}`
         const response = await fetch('/api/paymongo/checkout', {
           method: 'POST',
           headers: {
@@ -641,6 +743,9 @@ function CheckoutContent() {
             reference: formData.reference,
             shippingAddress,
             lineItems: checkoutLineItems,
+            notes: formData.notes,
+            cartItems: cart,
+            clientToken,
           }),
         })
 
@@ -674,6 +779,7 @@ function CheckoutContent() {
         }
 
         storePendingPaymongoCheckout({
+          token: payload.checkoutToken || clientToken,
           checkoutSessionId: payload.checkoutSessionId,
           customerEmail: user.email,
           customerName: fullName,
@@ -682,6 +788,7 @@ function CheckoutContent() {
           paymentMethodLabel,
           reference: formData.reference,
           shippingAddress,
+          items: cart,
         })
 
         window.location.href = payload.checkoutUrl

@@ -225,6 +225,7 @@ export interface PlaceOnlineOrderInput {
   shippingAddress: string
   paymentMethod: OnlinePaymentMethod
   notes?: string
+  items?: CartItem[]
 }
 
 export interface CreatePosSaleInput {
@@ -1502,12 +1503,19 @@ export function performStoreAction(
         return { nextState: currentState, result: { ok: false, message: 'Sign in before placing an order.' } }
       }
 
-      if (currentState.cart.length === 0) {
+      const activeCart =
+        currentState.cart.length > 0
+          ? currentState.cart
+          : Array.isArray(action.input.items) && action.input.items.length > 0
+            ? action.input.items
+            : []
+
+      if (activeCart.length === 0) {
         return { nextState: currentState, result: { ok: false, message: 'Add items to the cart before placing an order.' } }
       }
 
       const inventoryMap = new Map(currentState.inventory.map((record) => [record.productId, record]))
-      const quantityByProduct = currentState.cart.reduce<Record<string, number>>((totals, item) => {
+      const quantityByProduct = activeCart.reduce<Record<string, number>>((totals, item) => {
         totals[item.productId] = (totals[item.productId] ?? 0) + item.quantity
         return totals
       }, {})
@@ -1533,14 +1541,14 @@ export function performStoreAction(
       }
 
       const timestamp = new Date().toISOString()
-      const orderItems: OrderLineItem[] = currentState.cart.map((item) => ({
+      const orderItems: OrderLineItem[] = activeCart.map((item) => ({
         productId: item.productId,
         productName: getProductById(item.productId)?.name ?? 'Unknown Product',
         size: item.size,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
       }))
-      const totals = calculateTotals(currentState.cart, 'ONLINE')
+      const totals = calculateTotals(activeCart, 'ONLINE')
       const nextInventory = currentState.inventory.map((record) => {
         const soldQuantity = quantityByProduct[record.productId]
         if (!soldQuantity) {
