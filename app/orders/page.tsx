@@ -81,7 +81,7 @@ function getLastTimelineEntry(order: OrderRecord) {
 
 export default function OrdersPage() {
   const { user } = useAuth()
-  const { cancelOwnOrder, getAvailableStock, orders } = useStore()
+  const { cancelOwnOrder, getAvailableStock, orders, isStoreLoading } = useStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] =
     useState<(typeof ORDER_STATUS_FILTERS)[number]>('All Orders')
@@ -137,7 +137,12 @@ export default function OrdersPage() {
 
         <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            {userOrders.length === 0 ? (
+            {isStoreLoading ? (
+              <div className="storefront-panel rounded-[2rem] p-12 text-center flex flex-col items-center justify-center gap-4">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-base text-foreground/70">Loading your orders...</p>
+              </div>
+            ) : userOrders.length === 0 ? (
               <div className="storefront-panel rounded-[2rem] p-12 text-center">
                 <p className="text-2xl text-foreground">No online orders are linked to {user?.email} yet.</p>
                 <Button className="mt-6 h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>

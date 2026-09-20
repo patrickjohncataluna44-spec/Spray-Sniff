@@ -9,6 +9,7 @@ import {
   subscribeToPublicStoreSnapshot,
   subscribeToUserCart,
   subscribeToUserWishlist,
+  subscribeToCustomerOrders,
 } from '@/lib/supabase-realtime'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import {
@@ -244,7 +245,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     void refreshStore()
-  }, [authLoading, refreshStore])
+  }, [authLoading, user?.id, refreshStore])
 
   useEffect(() => {
     if (authLoading) {
@@ -263,6 +264,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) {
       cleanups.push(subscribeToUserCart(user.id, handleRealtimeSync))
       cleanups.push(subscribeToUserWishlist(user.id, handleRealtimeSync))
+      cleanups.push(subscribeToCustomerOrders(user.id, handleRealtimeSync))
     }
 
     return () => {

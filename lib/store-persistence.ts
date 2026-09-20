@@ -1039,27 +1039,45 @@ async function syncNormalizedStoreTables(state: StoreState) {
   // Persist parent catalog rows first so inventory foreign keys always resolve.
   await syncRowsByKey('catalog_products', 'id', state.catalog.map(mapCatalogProductRow))
 
-  await Promise.all([
-    syncRowsByKey('inventory_items', 'product_id', state.inventory.map(mapInventoryRow)),
-    syncRowsByKey(
+  await syncRowsByKey('inventory_items', 'product_id', state.inventory.map(mapInventoryRow))
+
+  // Transactional records (stock movements, orders, items, timeline, payments, pos)
+  // must ONLY be upserted and NEVER deleted during table synchronizations.
+  if (state.stockMovements.length > 0) {
+    await upsertRows(
       'stock_movements',
-      'id',
       state.stockMovements.map(mapStockMovementRow),
-    ),
-  ])
-
-  await syncRowsByKey('store_orders', 'id', state.orders.map(mapStoreOrderRow))
-
-  await Promise.all([
-    syncRowsByKey('store_order_items', 'id', mapStoreOrderItemRows(state.orders)),
-    syncRowsByKey('order_timeline_entries', 'id', mapOrderTimelineRows(state.orders)),
-    syncRowsByKey('payment_records', 'id', mapPaymentRecordRows(state.orders)),
-    syncRowsByKey(
-      'pos_transactions',
       'id',
+    )
+  }
+
+  if (state.orders.length > 0) {
+    await upsertRows('store_orders', state.orders.map(mapStoreOrderRow), 'id')
+
+    const orderItemRows = mapStoreOrderItemRows(state.orders)
+    const timelineRows = mapOrderTimelineRows(state.orders)
+    const paymentRows = mapPaymentRecordRows(state.orders)
+
+    await Promise.all([
+      orderItemRows.length > 0
+        ? upsertRows('store_order_items', orderItemRows, 'id')
+        : Promise.resolve(),
+      timelineRows.length > 0
+        ? upsertRows('order_timeline_entries', timelineRows, 'id')
+        : Promise.resolve(),
+      paymentRows.length > 0
+        ? upsertRows('payment_records', paymentRows, 'id')
+        : Promise.resolve(),
+    ])
+  }
+
+  if (state.posTransactions.length > 0) {
+    await upsertRows(
+      'pos_transactions',
       state.posTransactions.map(mapPosTransactionRow),
-    ),
-  ])
+      'id',
+    )
+  }
 }
 
 type SnapshotSyncMode = 'inline' | 'deferred' | 'skip'
@@ -1486,13 +1504,24 @@ export async function loadBootstrapStoreStateForActor(actor?: StoreActor | null)
 
 async function loadOrdersForCustomer(actor: StoreActor) {
   const supabase = createSupabaseAdminClient()
-  const { data: orderRows, error: ordersError } = await supabase
+  const normalizedEmail = actor.email ? actor.email.trim().toLowerCase() : ''
+
+  let query = supabase
     .from('store_orders')
     .select(
       'id, source, customer_id, customer_name, customer_email, status, payment_method, payment_status, created_at, subtotal, tax, shipping, total, shipping_address, notes, courier, tracking_number, delivery_notes',
     )
     .eq('source', 'ONLINE')
-    .eq('customer_id', actor.id)
+
+  if (actor.id && normalizedEmail) {
+    query = query.or(`customer_id.eq.${actor.id},customer_email.ilike.${normalizedEmail}`)
+  } else if (actor.id) {
+    query = query.eq('customer_id', actor.id)
+  } else if (normalizedEmail) {
+    query = query.ilike('customer_email', normalizedEmail)
+  }
+
+  const { data: orderRows, error: ordersError } = await query.order('created_at', { ascending: false })
 
   if (ordersError) throw ordersError
 

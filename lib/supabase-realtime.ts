@@ -68,6 +68,10 @@ export function subscribeToStoreOrders(onChange: () => void) {
   return subscribeToTableChanges('store-orders-sync', 'store_orders', onChange)
 }
 
+export function subscribeToCustomerOrders(userId: string, onChange: () => void) {
+  return subscribeToTableChanges('customer-orders-sync', 'store_orders', onChange, `customer_id=eq.${userId}`)
+}
+
 export function subscribeToCatalogProducts(onChange: () => void) {
   return subscribeToTableChanges('catalog-products-sync', 'catalog_products', onChange)
 }

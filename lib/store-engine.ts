@@ -415,11 +415,15 @@ export function orderBelongsToActor(
     return false
   }
 
-  if (order.customerId) {
-    return order.customerId === actor.id
+  if (order.customerId && actor.id && order.customerId === actor.id) {
+    return true
   }
 
-  return normalizeEmail(order.customerEmail) === normalizeEmail(actor.email)
+  if (actor.email && order.customerEmail) {
+    return normalizeEmail(order.customerEmail) === normalizeEmail(actor.email)
+  }
+
+  return false
 }
 
 export function getOrderNeedsRefundFollowUp(
