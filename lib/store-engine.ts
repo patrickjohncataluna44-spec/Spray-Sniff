@@ -1374,7 +1374,7 @@ export function performStoreAction(
     }
 
     case 'addToCart': {
-      if (!hasRole(actor, 'USER')) {
+      if (!actor || (actor.role !== 'USER' && actor.role !== 'ADMIN' && actor.role !== 'STAFF')) {
         return { nextState: currentState, result: { ok: false, message: 'Sign in or create an account before adding items to your cart.' } }
       }
 

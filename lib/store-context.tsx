@@ -150,15 +150,43 @@ function getPayloadSyncedAt(payload: unknown) {
   return new Date().toISOString()
 }
 
-async function getAuthHeaders() {
-  const supabase = getSupabaseBrowserClient()
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-
+async function getAuthHeaders(user?: { id?: string | null; email?: string | null } | null) {
   const headers: Record<string, string> = {}
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
+  try {
+    const supabase = getSupabaseBrowserClient()
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+  } catch {
+    // Ignore session retrieval error
+  }
+
+  if (user?.id) {
+    headers['x-customer-id'] = user.id
+  }
+  if (user?.email) {
+    headers['x-customer-email'] = user.email
+  }
+
+  if (!headers['x-customer-id'] && typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('auth-user')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed?.id) {
+          headers['x-customer-id'] = parsed.id
+          if (parsed.email) {
+            headers['x-customer-email'] = parsed.email
+          }
+        }
+      }
+    } catch {
+      // Ignore cache parse error
+    }
   }
 
   return headers
@@ -195,7 +223,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await fetch('/api/store/bootstrap', {
         method: 'GET',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeaders(user),
         cache: 'no-store',
       })
 
@@ -284,14 +312,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const callStoreAction = async <T,>(action: StoreAction) => {
     lastLocalActionAtRef.current = Date.now()
+    const authHeaders = await getAuthHeaders(user)
 
     const response = await fetch('/api/store/action', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await getAuthHeaders()),
+        ...authHeaders,
       },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({
+        action,
+        customerId: user?.id || authHeaders['x-customer-id'],
+        customerEmail: user?.email || authHeaders['x-customer-email'],
+      }),
     })
 
     const payload = await response.json().catch(() => ({}))
@@ -318,13 +351,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   const toggleWishlist = async (productId: string) => {
+    const authHeaders = await getAuthHeaders(user)
     const response = await fetch('/api/wishlist', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await getAuthHeaders()),
+        ...authHeaders,
       },
-      body: JSON.stringify({ productId }),
+      body: JSON.stringify({
+        productId,
+        customerId: user?.id || authHeaders['x-customer-id'],
+        customerEmail: user?.email || authHeaders['x-customer-email'],
+      }),
     })
 
     const payload = await response.json().catch(() => ({}))

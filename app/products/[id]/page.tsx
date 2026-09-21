@@ -219,7 +219,9 @@ export default function ProductPage({
         : availability === 'Low Stock'
           ? 'bg-[#fff0be] text-[#8f6b26]'
           : 'bg-rose-100 text-rose-700'
-  const canShop = isAuthenticated && user?.role === 'USER'
+  const canShop =
+    isAuthenticated &&
+    (user?.role === 'USER' || user?.role === 'ADMIN' || user?.role === 'STAFF')
   const authRedirectHref = `/auth/signin?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
   const registerRedirectHref = `/auth/signup?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
   const wishlisted = isWishlisted(product.id)

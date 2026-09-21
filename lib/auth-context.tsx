@@ -85,26 +85,12 @@ function normalizeAuthErrorMessage(error: unknown, fallback: string) {
 
 async function ensureProfile(userId: string, email: string, name: string) {
   try {
-    const supabase = getSupabaseBrowserClient()
-    const { error } = await supabase.from('profiles').upsert(
-      {
-        id: userId,
-        email,
-        name,
-      },
-      {
-        onConflict: 'id',
-      },
-    )
-
-    if (error) {
-      // Sync via server route if client-side RLS has restrictions
-      await fetch('/api/auth/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, email, name }),
-      }).catch(() => {})
-    }
+    // Sync via server route with service role to avoid client-side RLS 401 errors
+    await fetch('/api/auth/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, email, name }),
+    }).catch(() => {})
   } catch (err) {
     console.warn('ensureProfile non-blocking error:', err)
   }
@@ -299,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       void (async () => {
         try {
           const sessionUser = session?.user
@@ -307,6 +293,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!sessionUser) {
             setUser(null)
             cacheUser(null)
+            return
+          }
+
+          // Skip redundant profile reads on token refresh to avoid 429 rate limits
+          if (event === 'TOKEN_REFRESHED' && user?.id === sessionUser.id) {
             return
           }
 

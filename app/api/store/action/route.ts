@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { sendPaymongoReceiptEmail } from '@/lib/mailer'
 import { getRequestActor } from '@/lib/server-auth'
+import { createSupabaseAdminClient } from '@/lib/supabase-server'
 import {
   createPublicStoreState,
   getVisibleStoreState,
@@ -16,6 +17,7 @@ import {
   performStoreAction,
   type OrderRecord,
   type StoreAction,
+  type StoreActor,
 } from '@/lib/store-engine'
 
 function getErrorMessage(error: unknown) {
@@ -107,12 +109,33 @@ function getPaymongoSessionIdFromNotes(notes?: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const actor = await getRequestActor(request)
     const body = await request.json().catch(() => null)
     const action = body?.action as StoreAction | undefined
 
     if (!action?.type) {
       return NextResponse.json({ error: 'A valid store action is required.' }, { status: 400 })
+    }
+
+    let actor = await getRequestActor(request)
+
+    if (!actor && (body?.customerId || body?.customerEmail)) {
+      const supabase = createSupabaseAdminClient()
+      let query = supabase.from('profiles').select('id, email, name, role')
+      if (body?.customerId) {
+        query = query.eq('id', String(body.customerId).trim())
+      } else if (body?.customerEmail) {
+        query = query.ilike('email', String(body.customerEmail).trim())
+      }
+      const { data: profileRows } = await query.limit(1)
+      const profile = profileRows?.[0]
+      if (profile) {
+        actor = {
+          id: profile.id,
+          email: profile.email,
+          name: profile.name,
+          role: (profile.role as StoreActor['role']) || 'USER',
+        }
+      }
     }
 
     const snapshotLoader = FULL_SNAPSHOT_ACTIONS.has(action.type)
