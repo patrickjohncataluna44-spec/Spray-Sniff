@@ -385,82 +385,88 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, handleRealtimeSync, user?.id, user?.role])
 
-  const callStoreAction = async <T,>(action: StoreAction) => {
-    lastLocalActionAtRef.current = Date.now()
-    const authHeaders = await getAuthHeaders(user)
+  const callStoreAction = useCallback(
+    async <T,>(action: StoreAction) => {
+      lastLocalActionAtRef.current = Date.now()
+      const authHeaders = await getAuthHeaders(user)
 
-    const response = await fetch('/api/store/action', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      body: JSON.stringify({
-        action,
-        customerId: user?.id || authHeaders['x-customer-id'],
-        customerEmail: user?.email || authHeaders['x-customer-email'],
-      }),
-    })
+      const response = await fetch('/api/store/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          action,
+          customerId: user?.id || authHeaders['x-customer-id'],
+          customerEmail: user?.email || authHeaders['x-customer-email'],
+        }),
+      })
 
-    const payload = await response.json().catch(() => ({}))
+      const payload = await response.json().catch(() => ({}))
 
-    if (!response.ok) {
-      return {
-        ok: false,
-        message: payload.message ?? payload.error ?? 'Unable to complete this action.',
-      } as StoreActionResult<T>
-    }
-
-    lastLocalActionAtRef.current = Date.now()
-
-    if (payload.state) {
-      if (Array.isArray(payload.state.cart)) {
-        storeCart(payload.state.cart, user?.id)
+      if (!response.ok) {
+        return {
+          ok: false,
+          message: payload.message ?? payload.error ?? 'Unable to complete this action.',
+        } as StoreActionResult<T>
       }
-      setState(payload.state as StoreState)
-      setLastSyncedAt(getPayloadSyncedAt(payload))
-    }
 
-    return {
-      ok: true,
-      message: payload.message ?? 'Action completed successfully.',
-      data: payload.data as T | undefined,
-    } as StoreActionResult<T>
-  }
+      lastLocalActionAtRef.current = Date.now()
 
-  const toggleWishlist = async (productId: string) => {
-    const authHeaders = await getAuthHeaders(user)
-    const response = await fetch('/api/wishlist', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      body: JSON.stringify({
-        productId,
-        customerId: user?.id || authHeaders['x-customer-id'],
-        customerEmail: user?.email || authHeaders['x-customer-email'],
-      }),
-    })
+      if (payload.state) {
+        if (Array.isArray(payload.state.cart)) {
+          storeCart(payload.state.cart, user?.id)
+        }
+        setState(payload.state as StoreState)
+        setLastSyncedAt(getPayloadSyncedAt(payload))
+      }
 
-    const payload = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
       return {
-        ok: false,
-        message: payload.error ?? 'Unable to update your wishlist.',
+        ok: true,
+        message: payload.message ?? 'Action completed successfully.',
+        data: payload.data as T | undefined,
+      } as StoreActionResult<T>
+    },
+    [user],
+  )
+
+  const toggleWishlist = useCallback(
+    async (productId: string) => {
+      const authHeaders = await getAuthHeaders(user)
+      const response = await fetch('/api/wishlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          productId,
+          customerId: user?.id || authHeaders['x-customer-id'],
+          customerEmail: user?.email || authHeaders['x-customer-email'],
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        return {
+          ok: false,
+          message: payload.error ?? 'Unable to update your wishlist.',
+        } satisfies StoreActionResult<{ isWishlisted: boolean }>
+      }
+
+      const nextWishlistIds = Array.isArray(payload.wishlistIds) ? payload.wishlistIds : []
+      setWishlistIds(nextWishlistIds)
+
+      return {
+        ok: true,
+        message: payload.isWishlisted ? 'Added to wishlist.' : 'Removed from wishlist.',
+        data: { isWishlisted: Boolean(payload.isWishlisted) },
       } satisfies StoreActionResult<{ isWishlisted: boolean }>
-    }
-
-    const nextWishlistIds = Array.isArray(payload.wishlistIds) ? payload.wishlistIds : []
-    setWishlistIds(nextWishlistIds)
-
-    return {
-      ok: true,
-      message: payload.isWishlisted ? 'Added to wishlist.' : 'Removed from wishlist.',
-      data: { isWishlisted: Boolean(payload.isWishlisted) },
-    } satisfies StoreActionResult<{ isWishlisted: boolean }>
-  }
+    },
+    [user],
+  )
 
   const getProductById = useCallback((productId: string) => getProductByIdFromState(state, productId), [state])
   const getInventoryRecord = useCallback(
@@ -532,6 +538,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       isRealtimeRefreshing,
       lastSyncedAt,
       refreshStore,
+      callStoreAction,
+      toggleWishlist,
       getProductById,
       getInventoryRecord,
       getAvailableStock,

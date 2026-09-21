@@ -49,6 +49,7 @@ export default function ProductPage({
   const [quantity, setQuantity] = useState(1)
   const [mainImage, setMainImage] = useState('')
   const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const addingToCartRef = useRef(false)
 
   // Reviews state
   const [reviews, setReviews] = useState<ReviewData[]>([])
@@ -225,8 +226,6 @@ export default function ProductPage({
   const authRedirectHref = `/auth/signin?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
   const registerRedirectHref = `/auth/signup?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
   const wishlisted = isWishlisted(product.id)
-
-  const addingToCartRef = useRef(false)
 
   const handleAddToCart = async () => {
     if (addingToCartRef.current) {
