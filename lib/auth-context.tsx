@@ -83,16 +83,16 @@ function normalizeAuthErrorMessage(error: unknown, fallback: string) {
   return message || fallback
 }
 
-async function ensureProfile(userId: string, email: string, name: string) {
+function getInitialCachedUser(): User | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
   try {
-    // Sync via server route with service role to avoid client-side RLS 401 errors
-    await fetch('/api/auth/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, email, name }),
-    }).catch(() => {})
-  } catch (err) {
-    console.warn('ensureProfile non-blocking error:', err)
+    const cached = localStorage.getItem(AUTH_STORAGE_KEY)
+    return cached ? JSON.parse(cached) : null
+  } catch {
+    return null
   }
 }
 
@@ -100,73 +100,12 @@ async function readProfile(
   userId: string,
   fallbackUser?: { email?: string | null; name?: string | null },
 ): Promise<User> {
-  const supabase = getSupabaseBrowserClient()
-
-  // 1. Try with extended fields using limit(1) (never single or maybeSingle to guarantee zero 406 errors)
+  // 1. Fetch from server API route which runs with service role (bypasses RLS, zero 406/401/429/42501 errors)
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, name, role, phone, birthdate, age, address, city, postal_code')
-      .eq('id', userId)
-      .limit(1)
-
-    const row = data?.[0] as
-      | {
-          id: string
-          email: string
-          name: string
-          role: UserRole
-          phone?: string | null
-          birthdate?: string | null
-          age?: number | null
-          address?: string | null
-          city?: string | null
-          postal_code?: string | null
-        }
-      | undefined
-
-    if (!error && row) {
-      return {
-        id: row.id,
-        email: row.email,
-        name: row.name,
-        role: row.role,
-        phone: row.phone ?? null,
-        birthdate: row.birthdate ?? null,
-        age: row.age ?? null,
-        address: row.address ?? null,
-        city: row.city ?? null,
-        postalCode: row.postal_code ?? null,
-      }
-    }
-  } catch (err) {
-    console.warn('Extended profile read warning:', err)
-  }
-
-  // 2. Try basic columns with limit(1) (never single or maybeSingle)
-  try {
-    const { data: basicData, error: basicError } = await supabase
-      .from('profiles')
-      .select('id, email, name, role')
-      .eq('id', userId)
-      .limit(1)
-
-    const basicRow = basicData?.[0] as User | undefined
-    if (!basicError && basicRow) {
-      return basicRow
-    }
-  } catch (err) {
-    console.warn('Basic profile read warning:', err)
-  }
-
-  // 3. Try fetching from server API route which runs with service role (bypasses RLS)
-  try {
-    const session = (await supabase.auth.getSession()).data.session
     const response = await fetch('/api/auth/profile', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
       body: JSON.stringify({
         userId,
@@ -182,10 +121,27 @@ async function readProfile(
       }
     }
   } catch (err) {
-    console.warn('Server profile fetch fallback warning:', err)
+    console.warn('Server profile fetch error:', err)
   }
 
-  // 4. Safe fallback user object so valid sessions are never wiped to null
+  // 2. Direct browser fallback query with limit(1)
+  try {
+    const supabase = getSupabaseBrowserClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, email, name, role, phone, birthdate, age, address, city, postal_code')
+      .eq('id', userId)
+      .limit(1)
+
+    const row = data?.[0] as User | undefined
+    if (row) {
+      return row
+    }
+  } catch (err) {
+    console.warn('Browser profile read fallback error:', err)
+  }
+
+  // 3. Safe fallback user object
   const fallbackEmail = fallbackUser?.email ?? ''
   const fallbackName = fallbackUser?.name ?? fallbackEmail.split('@')[0] ?? 'Customer'
 
@@ -221,8 +177,10 @@ function cacheUser(user: User | null) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User | null>(getInitialCachedUser)
   const [isLoading, setIsLoading] = useState(true)
+  const userRef = React.useRef<User | null>(user)
+  userRef.current = user
 
   const handleProfileRefresh = useEffectEvent(async (userId: string) => {
     try {
@@ -231,7 +189,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cacheUser(profile)
     } catch (err) {
       console.warn('Profile refresh warning:', err)
-      // Do not clear user to null on transient refresh errors
     }
   })
 
@@ -250,10 +207,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const sessionUser = data.session?.user
 
         if (!sessionUser) {
-          if (mounted) {
-            setUser(null)
+          // If session is null, verify if there is an active Supabase token in localStorage.
+          // If a token exists, the session may just be refreshing or rate-limited (429).
+          // Do NOT wipe the cached user to null in that case!
+          const hasStoredToken =
+            typeof window !== 'undefined' &&
+            Object.keys(localStorage).some((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+
+          if (!hasStoredToken) {
+            if (mounted) {
+              setUser(null)
+            }
+            cacheUser(null)
           }
-          cacheUser(null)
           return
         }
 
@@ -262,7 +228,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ? sessionUser.user_metadata.name
             : sessionUser.email?.split('@')[0] ?? 'Customer'
 
-        await ensureProfile(sessionUser.id, sessionUser.email ?? '', name)
         const profile = await readProfile(sessionUser.id, {
           email: sessionUser.email,
           name,
@@ -286,27 +251,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      // User explicitly signed out
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        cacheUser(null)
+        return
+      }
+
+      // Completely ignore TOKEN_REFRESHED to eliminate 429 refresh token loops!
+      if (event === 'TOKEN_REFRESHED') {
+        return
+      }
+
+      const sessionUser = session?.user
+      if (!sessionUser) {
+        return
+      }
+
+      // Skip redundant profile fetches if user is already populated with the same ID
+      if (userRef.current?.id === sessionUser.id) {
+        return
+      }
+
       void (async () => {
         try {
-          const sessionUser = session?.user
-
-          if (!sessionUser) {
-            setUser(null)
-            cacheUser(null)
-            return
-          }
-
-          // Skip redundant profile reads on token refresh to avoid 429 rate limits
-          if (event === 'TOKEN_REFRESHED' && user?.id === sessionUser.id) {
-            return
-          }
-
           const name =
             typeof sessionUser.user_metadata?.name === 'string'
               ? sessionUser.user_metadata.name
               : sessionUser.email?.split('@')[0] ?? 'Customer'
 
-          await ensureProfile(sessionUser.id, sessionUser.email ?? '', name)
           const profile = await readProfile(sessionUser.id, {
             email: sessionUser.email,
             name,
@@ -356,7 +329,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ? sessionUser.user_metadata.name
             : sessionUser.email?.split('@')[0] ?? 'Customer'
 
-        await ensureProfile(sessionUser.id, sessionUser.email ?? '', name)
         const profile = await readProfile(sessionUser.id, {
           email: sessionUser.email,
           name,
@@ -432,27 +404,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('You must be signed in to update your profile.')
     }
 
-    const supabase = getSupabaseBrowserClient()
-    const updatePayload: Record<string, unknown> = {}
+    const response = await fetch('/api/auth/profile', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        ...data,
+      }),
+    })
 
-    if (data.name !== undefined) updatePayload.name = data.name.trim()
-    if (data.phone !== undefined) updatePayload.phone = data.phone.trim() || null
-    if (data.birthdate !== undefined) updatePayload.birthdate = data.birthdate || null
-    if (data.age !== undefined) updatePayload.age = data.age ?? null
-    if (data.address !== undefined) updatePayload.address = data.address.trim() || null
-    if (data.city !== undefined) updatePayload.city = data.city.trim() || null
-    if (data.postalCode !== undefined) updatePayload.postal_code = data.postalCode.trim() || null
-
-    const { error } = await supabase
-      .from('profiles')
-      .update(updatePayload)
-      .eq('id', user.id)
-
-    if (error) {
-      throw error
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(payload.error || 'Failed to update profile.')
     }
 
-    const updated = await readProfile(user.id)
+    const payload = (await response.json().catch(() => ({}))) as { profile?: User }
+    const updated = payload.profile || (await readProfile(user.id))
     setUser(updated)
     cacheUser(updated)
   }

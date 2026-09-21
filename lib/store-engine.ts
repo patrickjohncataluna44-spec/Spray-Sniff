@@ -372,6 +372,10 @@ function hasRole(actor: StoreActor | null | undefined, role: StoreUserRole) {
   return actor?.role === role
 }
 
+function canShop(actor: StoreActor | null | undefined) {
+  return actor?.role === 'USER' || actor?.role === 'ADMIN' || actor?.role === 'STAFF'
+}
+
 function canAccessBackoffice(actor: StoreActor | null | undefined) {
   return actor?.role === 'ADMIN' || actor?.role === 'STAFF'
 }
@@ -1427,7 +1431,7 @@ export function performStoreAction(
     }
 
     case 'updateCartQuantity': {
-      if (!hasRole(actor, 'USER')) {
+      if (!canShop(actor)) {
         return { nextState: currentState, result: { ok: false, message: 'Sign in or create an account before updating your cart.' } }
       }
 
@@ -1479,7 +1483,7 @@ export function performStoreAction(
     }
 
     case 'removeFromCart': {
-      if (!hasRole(actor, 'USER')) {
+      if (!canShop(actor)) {
         return { nextState: currentState, result: { ok: false, message: 'Sign in or create an account before updating your cart.' } }
       }
 
@@ -1495,7 +1499,7 @@ export function performStoreAction(
     }
 
     case 'clearCart': {
-      if (!hasRole(actor, 'USER')) {
+      if (!canShop(actor)) {
         return { nextState: currentState, result: { ok: false, message: 'Sign in or create an account before updating your cart.' } }
       }
 
@@ -1503,7 +1507,7 @@ export function performStoreAction(
     }
 
     case 'placeOnlineOrder': {
-      if (!hasRole(actor, 'USER')) {
+      if (!canShop(actor)) {
         return { nextState: currentState, result: { ok: false, message: 'Sign in before placing an order.' } }
       }
 

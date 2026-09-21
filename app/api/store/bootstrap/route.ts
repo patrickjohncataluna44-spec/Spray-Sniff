@@ -32,12 +32,12 @@ function getErrorMessage(error: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const actor = await getRequestActor(request)
-    const isCustomer = actor?.role === 'USER'
-    const [snapshot, cart, wishlistIds] = isCustomer
+    const hasUser = Boolean(actor?.id)
+    const [snapshot, cart, wishlistIds] = hasUser
       ? await Promise.all([
           loadBootstrapStoreStateForActor(actor),
-          loadUserCart(actor.id),
-          loadUserWishlist(actor.id),
+          loadUserCart(actor!.id),
+          loadUserWishlist(actor!.id),
         ])
       : await Promise.all([
           loadBootstrapStoreStateForActor(actor),

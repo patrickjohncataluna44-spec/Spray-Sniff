@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { use, useEffect, useState, useCallback } from 'react'
+import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { CheckCircle2, Heart, MessageSquarePlus, ShoppingBag, Star, ShieldCheck, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -226,7 +226,13 @@ export default function ProductPage({
   const registerRedirectHref = `/auth/signup?redirectTo=${encodeURIComponent(`/products/${product.id}`)}`
   const wishlisted = isWishlisted(product.id)
 
+  const addingToCartRef = useRef(false)
+
   const handleAddToCart = async () => {
+    if (addingToCartRef.current) {
+      return
+    }
+    addingToCartRef.current = true
     setIsAddingToCart(true)
 
     try {
@@ -243,6 +249,7 @@ export default function ProductPage({
         variant: result.ok ? 'default' : 'destructive',
       })
     } finally {
+      addingToCartRef.current = false
       setIsAddingToCart(false)
     }
   }

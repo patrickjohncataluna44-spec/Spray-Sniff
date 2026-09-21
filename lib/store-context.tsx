@@ -12,6 +12,7 @@ import {
   subscribeToCustomerOrders,
 } from '@/lib/supabase-realtime'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { getStoredSupabaseToken } from '@/lib/client-auth-headers'
 import {
   createEmptyStoreState,
   getAvailabilityStatusFromState,
@@ -150,6 +151,38 @@ function getPayloadSyncedAt(payload: unknown) {
   return new Date().toISOString()
 }
 
+const CART_STORAGE_PREFIX = 'spray_cart_'
+
+function getStoredCart(userId?: string | null): CartItem[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const key = userId ? `${CART_STORAGE_PREFIX}${userId}` : 'spray_cart_active'
+    const cached = localStorage.getItem(key) || localStorage.getItem('spray_cart_active')
+    return cached ? JSON.parse(cached) : []
+  } catch {
+    return []
+  }
+}
+
+function storeCart(cart: CartItem[], userId?: string | null) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    const serialized = JSON.stringify(cart)
+    if (userId) {
+      localStorage.setItem(`${CART_STORAGE_PREFIX}${userId}`, serialized)
+    }
+    localStorage.setItem('spray_cart_active', serialized)
+  } catch {
+    // Ignore storage write error
+  }
+}
+
 async function getAuthHeaders(user?: { id?: string | null; email?: string | null } | null) {
   const headers: Record<string, string> = {}
 
@@ -163,6 +196,13 @@ async function getAuthHeaders(user?: { id?: string | null; email?: string | null
     }
   } catch {
     // Ignore session retrieval error
+  }
+
+  if (!headers.Authorization) {
+    const storedToken = getStoredSupabaseToken()
+    if (storedToken) {
+      headers.Authorization = `Bearer ${storedToken}`
+    }
   }
 
   if (user?.id) {
@@ -194,7 +234,25 @@ async function getAuthHeaders(user?: { id?: string | null; email?: string | null
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth()
-  const [state, setState] = useState<StoreState>(() => createEmptyStoreState())
+  const [state, setState] = useState<StoreState>(() => {
+    const empty = createEmptyStoreState()
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedUserRaw = localStorage.getItem('auth-user')
+        const cachedUser = cachedUserRaw ? JSON.parse(cachedUserRaw) : null
+        const initialCart = getStoredCart(cachedUser?.id)
+        if (initialCart.length > 0) {
+          return {
+            ...empty,
+            cart: initialCart,
+          }
+        }
+      } catch {
+        return empty
+      }
+    }
+    return empty
+  })
   const [wishlistIds, setWishlistIds] = useState<string[]>([])
   const [isStoreLoading, setIsStoreLoading] = useState(true)
   const [isRealtimeRefreshing, setIsRealtimeRefreshing] = useState(false)
@@ -233,7 +291,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         throw new Error(payload.error ?? 'Unable to load the store from Supabase.')
       }
 
-      setState(payload.state as StoreState)
+      const serverCart = Array.isArray(payload.state.cart) ? (payload.state.cart as CartItem[]) : []
+      if (serverCart.length > 0) {
+        storeCart(serverCart, user?.id)
+        setState(payload.state as StoreState)
+      } else {
+        const localCart = getStoredCart(user?.id)
+        // If server returned empty cart but user has local items and auth is still initializing, preserve local cart
+        if (!user?.id && localCart.length > 0) {
+          setState({
+            ...(payload.state as StoreState),
+            cart: localCart,
+          })
+        } else {
+          storeCart(serverCart, user?.id)
+          setState(payload.state as StoreState)
+        }
+      }
+
       setWishlistIds(Array.isArray(payload.wishlistIds) ? payload.wishlistIds : [])
       setLastSyncedAt(getPayloadSyncedAt(payload))
     } catch {
@@ -339,6 +414,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     lastLocalActionAtRef.current = Date.now()
 
     if (payload.state) {
+      if (Array.isArray(payload.state.cart)) {
+        storeCart(payload.state.cart, user?.id)
+      }
       setState(payload.state as StoreState)
       setLastSyncedAt(getPayloadSyncedAt(payload))
     }

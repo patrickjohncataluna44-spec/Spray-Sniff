@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
       const visibleCartState =
         actor?.role === 'USER'
           ? { ...snapshot, cart: nextCart }
-          : { ...createPublicStoreState(snapshot), cart: nextCart }
+          : await getVisibleStoreState(snapshot, actor, nextCart)
 
       return NextResponse.json({
         ok: true,
