@@ -84,70 +84,134 @@ function normalizeAuthErrorMessage(error: unknown, fallback: string) {
 }
 
 async function ensureProfile(userId: string, email: string, name: string) {
-  const supabase = getSupabaseBrowserClient()
+  try {
+    const supabase = getSupabaseBrowserClient()
+    const { error } = await supabase.from('profiles').upsert(
+      {
+        id: userId,
+        email,
+        name,
+      },
+      {
+        onConflict: 'id',
+      },
+    )
 
-  await supabase.from('profiles').upsert(
-    {
-      id: userId,
-      email,
-      name,
-    },
-    {
-      onConflict: 'id',
-    },
-  )
+    if (error) {
+      // Sync via server route if client-side RLS has restrictions
+      await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, email, name }),
+      }).catch(() => {})
+    }
+  } catch (err) {
+    console.warn('ensureProfile non-blocking error:', err)
+  }
 }
 
-async function readProfile(userId: string) {
+async function readProfile(
+  userId: string,
+  fallbackUser?: { email?: string | null; name?: string | null },
+): Promise<User> {
   const supabase = getSupabaseBrowserClient()
 
-  // First try with extended fields
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, email, name, role, phone, birthdate, age, address, city, postal_code')
-    .eq('id', userId)
-    .maybeSingle()
+  // 1. Try with extended fields using maybeSingle (never single to avoid 406)
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, name, role, phone, birthdate, age, address, city, postal_code')
+      .eq('id', userId)
+      .maybeSingle()
 
-  if (!error && data) {
-    const row = data as {
-      id: string
-      email: string
-      name: string
-      role: UserRole
-      phone?: string | null
-      birthdate?: string | null
-      age?: number | null
-      address?: string | null
-      city?: string | null
-      postal_code?: string | null
+    if (!error && data) {
+      const row = data as {
+        id: string
+        email: string
+        name: string
+        role: UserRole
+        phone?: string | null
+        birthdate?: string | null
+        age?: number | null
+        address?: string | null
+        city?: string | null
+        postal_code?: string | null
+      }
+
+      return {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        role: row.role,
+        phone: row.phone ?? null,
+        birthdate: row.birthdate ?? null,
+        age: row.age ?? null,
+        address: row.address ?? null,
+        city: row.city ?? null,
+        postalCode: row.postal_code ?? null,
+      }
     }
-
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      role: row.role,
-      phone: row.phone ?? null,
-      birthdate: row.birthdate ?? null,
-      age: row.age ?? null,
-      address: row.address ?? null,
-      city: row.city ?? null,
-      postalCode: row.postal_code ?? null,
-    } as User
+  } catch (err) {
+    console.warn('Extended profile read warning:', err)
   }
 
-  // Fallback to basic columns if new columns haven't been applied to Supabase yet
-  const { data: basicData, error: basicError } = await supabase
-    .from('profiles')
-    .select('id, email, name, role')
-    .eq('id', userId)
-    .single()
+  // 2. Try basic columns with maybeSingle (NOT single)
+  try {
+    const { data: basicData, error: basicError } = await supabase
+      .from('profiles')
+      .select('id, email, name, role')
+      .eq('id', userId)
+      .maybeSingle()
 
-  if (basicError) {
-    throw basicError
+    if (!basicError && basicData) {
+      return basicData as User
+    }
+  } catch (err) {
+    console.warn('Basic profile read warning:', err)
   }
 
-  return basicData as User
+  // 3. Try fetching from server API route which runs with service role (bypasses RLS)
+  try {
+    const session = (await supabase.auth.getSession()).data.session
+    const response = await fetch('/api/auth/profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        userId,
+        email: fallbackUser?.email ?? undefined,
+        name: fallbackUser?.name ?? undefined,
+      }),
+    })
+
+    if (response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { profile?: User }
+      if (payload.profile) {
+        return payload.profile
+      }
+    }
+  } catch (err) {
+    console.warn('Server profile fetch fallback warning:', err)
+  }
+
+  // 4. Safe fallback user object so valid sessions are never wiped to null
+  const fallbackEmail = fallbackUser?.email ?? ''
+  const fallbackName = fallbackUser?.name ?? fallbackEmail.split('@')[0] ?? 'Customer'
+
+  return {
+    id: userId,
+    email: fallbackEmail,
+    name: fallbackName,
+    role: 'USER',
+    phone: null,
+    birthdate: null,
+    age: null,
+    address: null,
+    city: null,
+    postalCode: null,
+  }
 }
 
 function cacheUser(user: User | null) {
@@ -155,12 +219,16 @@ function cacheUser(user: User | null) {
     return
   }
 
-  if (!user) {
-    localStorage.removeItem(AUTH_STORAGE_KEY)
-    return
-  }
+  try {
+    if (!user) {
+      localStorage.removeItem(AUTH_STORAGE_KEY)
+      return
+    }
 
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
+  } catch (err) {
+    console.warn('Unable to access localStorage for user caching:', err)
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -169,12 +237,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleProfileRefresh = useEffectEvent(async (userId: string) => {
     try {
-      const profile = await readProfile(userId)
+      const profile = await readProfile(userId, { email: user?.email, name: user?.name })
       setUser(profile)
       cacheUser(profile)
-    } catch {
-      setUser(null)
-      cacheUser(null)
+    } catch (err) {
+      console.warn('Profile refresh warning:', err)
+      // Do not clear user to null on transient refresh errors
     }
   })
 
@@ -206,12 +274,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             : sessionUser.email?.split('@')[0] ?? 'Customer'
 
         await ensureProfile(sessionUser.id, sessionUser.email ?? '', name)
-        const profile = await readProfile(sessionUser.id)
+        const profile = await readProfile(sessionUser.id, {
+          email: sessionUser.email,
+          name,
+        })
 
         if (mounted) {
           setUser(profile)
         }
         cacheUser(profile)
+      } catch (err) {
+        console.warn('syncFromSession warning:', err)
       } finally {
         if (mounted) {
           setIsLoading(false)
@@ -240,12 +313,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               : sessionUser.email?.split('@')[0] ?? 'Customer'
 
           await ensureProfile(sessionUser.id, sessionUser.email ?? '', name)
-          const profile = await readProfile(sessionUser.id)
+          const profile = await readProfile(sessionUser.id, {
+            email: sessionUser.email,
+            name,
+          })
           setUser(profile)
           cacheUser(profile)
-        } catch {
-          setUser(null)
-          cacheUser(null)
+        } catch (err) {
+          console.warn('onAuthStateChange profile error:', err)
         }
       })()
     })
@@ -270,13 +345,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true)
     try {
       const supabase = getSupabaseBrowserClient()
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      const normalizedEmail = email.trim().toLowerCase()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
         password,
       })
 
       if (error) {
         throw new Error(normalizeAuthErrorMessage(error, 'Unable to sign in.'))
+      }
+
+      const sessionUser = data.session?.user ?? data.user
+      if (sessionUser) {
+        const name =
+          typeof sessionUser.user_metadata?.name === 'string'
+            ? sessionUser.user_metadata.name
+            : sessionUser.email?.split('@')[0] ?? 'Customer'
+
+        await ensureProfile(sessionUser.id, sessionUser.email ?? '', name)
+        const profile = await readProfile(sessionUser.id, {
+          email: sessionUser.email,
+          name,
+        })
+
+        setUser(profile)
+        cacheUser(profile)
       }
     } finally {
       setIsLoading(false)

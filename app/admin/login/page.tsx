@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { Spinner } from '@/components/ui/spinner'
 import { SITE_NAME } from '@/lib/site'
+import { useToast } from '@/hooks/use-toast'
 
 export default function AdminLoginPage() {
   const router = useRouter()
-  const { login, isAuthenticated, canAccessBackoffice, isLoading: authLoading } = useAuth()
+  const { toast } = useToast()
+  const { login, user, isAuthenticated, canAccessBackoffice, isLoading: authLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,8 +35,19 @@ export default function AdminLoginPage() {
     setLoading(true)
     try {
       await login(email, password)
+      toast({
+        title: 'Signed in successfully!',
+        description: 'Welcome to ' + SITE_NAME + ' operations.',
+      })
+      router.push('/admin/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const message = err instanceof Error ? err.message : 'Login failed'
+      setError(message)
+      toast({
+        variant: 'destructive',
+        title: 'Sign In Failed',
+        description: message,
+      })
     } finally {
       setLoading(false)
     }

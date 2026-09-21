@@ -18,10 +18,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { KeyRound, Mail, CheckCircle2 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 function SignInPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const { login, resendVerificationEmail, isAuthenticated, canAccessBackoffice, isLoading: authLoading } =
     useAuth()
   const [email, setEmail] = useState('')
@@ -98,9 +100,19 @@ function SignInPageContent() {
 
     try {
       await login(email, password)
+      toast({
+        title: 'Welcome back!',
+        description: 'Signed in successfully. Redirecting...',
+      })
+      router.push(redirectTo || '/shop')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed'
       setError(message)
+      toast({
+        variant: 'destructive',
+        title: 'Sign In Failed',
+        description: message,
+      })
       setNeedsVerification(message.toLowerCase().includes('verify your email'))
     } finally {
       setLoading(false)
