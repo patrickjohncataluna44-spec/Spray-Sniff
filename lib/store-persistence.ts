@@ -855,7 +855,10 @@ function mapPaymentRecordRows(orders: OrderRecord[]) {
         tax: order.tax,
         shipping: order.shipping,
         payment_method: order.paymentMethod,
-        payment_gateway: order.paymentMethod === 'PayMongo' ? 'PayMongo' : null,
+        payment_gateway:
+          order.paymentMethod === 'PayMongo' || order.paymentMethod === 'QR Pay'
+            ? 'PayMongo'
+            : null,
         payment_channel: metadata.paymentChannel,
         checkout_session_id: metadata.checkoutSessionId,
         reference: metadata.reference,

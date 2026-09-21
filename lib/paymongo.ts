@@ -346,3 +346,148 @@ export async function createPaymongoRefund(input: PaymongoRefundRequest) {
     },
   })
 }
+
+export interface PaymongoQrPhPaymentIntentRequest {
+  amount: number
+  customerName?: string
+  customerEmail?: string
+  description?: string
+  metadata?: Record<string, string>
+}
+
+export async function createPaymongoQrPhPaymentIntent(input: PaymongoQrPhPaymentIntentRequest) {
+  assertPaymongoConfigured()
+
+  const amountCentavos = Math.round(input.amount * 100)
+
+  // 1. Create Payment Intent
+  const intentResponse = await paymongoRequest<{
+    data: {
+      id: string
+      attributes: {
+        amount: number
+        client_key: string
+        status: string
+      }
+    }
+  }>('/payment_intents', {
+    method: 'POST',
+    body: {
+      data: {
+        attributes: {
+          amount: amountCentavos,
+          currency: 'PHP',
+          payment_method_allowed: ['qrph'],
+          capture_type: 'automatic',
+          description: input.description ?? 'POS In-Store QR Ph Payment',
+          metadata: input.metadata ?? {},
+        },
+      },
+    },
+  })
+
+  const paymentIntentId = intentResponse.data.id
+  const clientKey = intentResponse.data.attributes.client_key
+
+  // 2. Create QR Ph Payment Method
+  const methodResponse = await paymongoRequest<{
+    data: {
+      id: string
+    }
+  }>('/payment_methods', {
+    method: 'POST',
+    body: {
+      data: {
+        attributes: {
+          type: 'qrph',
+          billing: {
+            name: input.customerName || 'Walk-in Customer',
+            email: input.customerEmail || 'walk-in@sprayandsniff.local',
+          },
+        },
+      },
+    },
+  })
+
+  const paymentMethodId = methodResponse.data.id
+
+  // 3. Attach Payment Method to Payment Intent
+  const attachResponse = await paymongoRequest<{
+    data: {
+      id: string
+      attributes: {
+        status: string
+        next_action?: {
+          type: string
+          code?: {
+            id?: string
+            amount?: number
+            image_url?: string
+            expires_at?: string
+          }
+        }
+      }
+    }
+  }>(`/payment_intents/${paymentIntentId}/attach`, {
+    method: 'POST',
+    body: {
+      data: {
+        attributes: {
+          payment_method: paymentMethodId,
+          client_key: clientKey,
+        },
+      },
+    },
+  })
+
+  const qrImageUrl = attachResponse.data.attributes.next_action?.code?.image_url || ''
+  const expiresAt = attachResponse.data.attributes.next_action?.code?.expires_at
+
+  return {
+    paymentIntentId,
+    clientKey,
+    qrImageUrl,
+    expiresAt,
+    amount: input.amount,
+    status: attachResponse.data.attributes.status,
+  }
+}
+
+export async function retrievePaymongoPaymentIntent(paymentIntentId: string) {
+  return paymongoRequest<{
+    data: {
+      id: string
+      attributes: {
+        amount: number
+        currency: string
+        status: string
+        payments?: Array<{
+          id: string
+          attributes?: {
+            amount: number
+            status: string
+            paid_at?: number
+            source?: {
+              type?: string
+            }
+          }
+        }>
+        next_action?: {
+          code?: {
+            image_url?: string
+            expires_at?: string
+          }
+        }
+      }
+    }
+  }>(`/payment_intents/${paymentIntentId}`)
+}
+
+export type RetrievedPaymongoPaymentIntent = Awaited<ReturnType<typeof retrievePaymongoPaymentIntent>>
+
+export function isPaymongoPaymentIntentPaid(intent: RetrievedPaymongoPaymentIntent) {
+  const status = intent.data.attributes.status
+  if (status === 'succeeded') return true
+  const paidPayment = intent.data.attributes.payments?.find((p) => p.attributes?.status === 'paid')
+  return Boolean(paidPayment)
+}

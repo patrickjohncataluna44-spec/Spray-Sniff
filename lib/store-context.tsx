@@ -151,7 +151,7 @@ function getPayloadSyncedAt(payload: unknown) {
   return new Date().toISOString()
 }
 
-async function getAuthHeaders(user?: { id?: string | null; email?: string | null } | null) {
+export async function getAuthHeaders(user?: { id?: string | null; email?: string | null } | null) {
   const headers: Record<string, string> = {}
 
   try {

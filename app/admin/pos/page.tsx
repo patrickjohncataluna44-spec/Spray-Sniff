@@ -2,18 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import QRCode from 'qrcode'
 import {
   ArrowLeft,
   Banknote,
-  CreditCard,
+  Check,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
   Loader2,
   Minus,
   Plus,
+  QrCode,
   ReceiptText,
+  RefreshCw,
   RotateCcw,
   ShoppingBag,
-  Smartphone,
   Trash2,
+  X,
 } from 'lucide-react'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { ProtectedRoute } from '@/components/protected-route'
@@ -21,11 +27,21 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
 import { isPaymentTestCart } from '@/lib/store-engine'
-import { POS_PAYMENT_METHODS, type CartItem, useStore } from '@/lib/store-context'
+import { type CartItem, getAuthHeaders, useStore } from '@/lib/store-context'
 import { toast } from '@/hooks/use-toast'
 
 function generateClientSaleId() {
   return `pos_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+}
+
+interface QrModalState {
+  paymentIntentId?: string
+  sessionId?: string
+  checkoutUrl?: string
+  qrImage: string
+  environment?: string
+  total: number
+  customerName: string
 }
 
 export default function PosPage() {
@@ -50,7 +66,7 @@ export default function PosPage() {
   const [saleItems, setSaleItems] = useState<CartItem[]>([])
 
   // Checkout info
-  const [paymentMethod, setPaymentMethod] = useState<(typeof POS_PAYMENT_METHODS)[number]>('Cash')
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'QR Pay'>('Cash')
   const [customerName, setCustomerName] = useState('')
   const [notes, setNotes] = useState('')
   const [cashTendered, setCashTendered] = useState('')
@@ -59,6 +75,15 @@ export default function PosPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const isProcessingRef = useRef(false)
   const clientSaleIdRef = useRef(generateClientSaleId())
+
+  // QR Pay state
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false)
+  const [qrModalData, setQrModalData] = useState<QrModalState | null>(null)
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false)
+  const [qrPaymentStatus, setQrPaymentStatus] = useState<'awaiting' | 'checking' | 'paid' | 'failed'>('awaiting')
+  const [isCheckingQrStatus, setIsCheckingQrStatus] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const selectedProduct = useMemo(
     () => activeCatalog.find((product) => product.id === selectedProductId),
@@ -94,11 +119,11 @@ export default function PosPage() {
 
   // Adjust quantity when remainingStock changes or when product switches
   useEffect(() => {
-    if (remainingStock <= 0) {
-      setQuantity(0)
-    } else if (quantity < 1 || quantity > remainingStock) {
-      setQuantity(1)
-    }
+    setQuantity((current) => {
+      if (remainingStock <= 0) return 0
+      if (current < 1 || current > remainingStock) return 1
+      return current
+    })
   }, [remainingStock, selectedProductId])
 
   const subtotal = saleItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
@@ -209,11 +234,9 @@ export default function PosPage() {
     setCashTendered('')
   }
 
-  const handleSubmit = async () => {
-    // Prevent multiple submissions
-    if (isProcessingRef.current || isProcessing) {
-      return
-    }
+  // Handle Cash Payment Submission
+  const handleCashSubmit = async () => {
+    if (isProcessingRef.current || isProcessing) return
 
     if (saleItems.length === 0) {
       toast({
@@ -234,7 +257,7 @@ export default function PosPage() {
         customerName: customerName.trim() || 'Walk-in Customer',
         items: saleItems,
         notes,
-        paymentMethod,
+        paymentMethod: 'Cash',
         clientSaleId,
       })
 
@@ -249,9 +272,7 @@ export default function PosPage() {
         setCustomerName('')
         setNotes('')
         setQuantity(1)
-        setPaymentMethod('Cash')
         setCashTendered('')
-        // Generate new clientSaleId for next transaction
         clientSaleIdRef.current = generateClientSaleId()
       }
     } catch (error) {
@@ -263,6 +284,248 @@ export default function PosPage() {
     } finally {
       isProcessingRef.current = false
       setIsProcessing(false)
+    }
+  }
+
+  // Handle Generating PayMongo QR Payment
+  const handleGenerateQr = async () => {
+    if (isGeneratingQr || isProcessing) return
+
+    if (saleItems.length === 0) {
+      toast({
+        title: 'Cart is empty',
+        description: 'Please add at least one product before generating a QR payment.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsGeneratingQr(true)
+
+    try {
+      const clientSaleId = clientSaleIdRef.current
+      const authHeaders = await getAuthHeaders(user)
+      const response = await fetch('/api/admin/pos/paymongo-qr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          amount: total,
+          saleItems,
+          customerName: customerName.trim() || 'Walk-in Customer',
+          cashierName: user?.name || 'Store Staff',
+          cashierId: user?.id,
+          cashierEmail: user?.email,
+          clientSaleId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to generate PayMongo QR payment session.')
+      }
+
+      // Use native QR Ph base64 image from PayMongo if available, otherwise generate QR code
+      let qrDataUrl = data.qrImageUrl || ''
+      if (!qrDataUrl && data.checkoutUrl) {
+        qrDataUrl = await QRCode.toDataURL(data.checkoutUrl, {
+          width: 320,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff',
+          },
+          errorCorrectionLevel: 'M',
+        })
+      }
+
+      setQrModalData({
+        paymentIntentId: data.paymentIntentId,
+        sessionId: data.sessionId,
+        checkoutUrl: data.checkoutUrl,
+        qrImage: qrDataUrl,
+        environment: data.environment,
+        total,
+        customerName: customerName.trim() || 'Walk-in Customer',
+      })
+
+      setQrPaymentStatus('awaiting')
+      setIsQrModalOpen(true)
+    } catch (error) {
+      toast({
+        title: 'QR Generation Failed',
+        description: error instanceof Error ? error.message : 'Unable to connect to PayMongo API.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsGeneratingQr(false)
+    }
+  }
+
+  // Finalize POS sale when QR payment is confirmed
+  const finalizeQrSale = async (referenceId: string, paymentChannel?: string, paymentId?: string) => {
+    if (isProcessingRef.current) return
+    isProcessingRef.current = true
+    setIsProcessing(true)
+
+    try {
+      const combinedNotes = [
+        notes.trim(),
+        `PayMongo QR Ph ref: ${referenceId}`,
+        paymentChannel ? `PayMongo channel: ${paymentChannel}` : 'PayMongo channel: QR Ph',
+        paymentId ? `Payment ref: ${paymentId}` : '',
+      ]
+        .filter(Boolean)
+        .join(' | ')
+
+      const result = await createPosSale({
+        cashierName: user?.name || 'Store Staff',
+        customerName: customerName.trim() || 'Walk-in Customer',
+        items: saleItems,
+        notes: combinedNotes,
+        paymentMethod: 'QR Pay',
+        clientSaleId: clientSaleIdRef.current,
+      })
+
+      if (result.ok) {
+        setQrPaymentStatus('paid')
+        toast({
+          title: 'QR Payment Confirmed!',
+          description: `Sale ${result.data?.id ?? ''} processed successfully via PayMongo.`,
+          variant: 'default',
+        })
+
+        // Auto-close modal after brief delay so cashier sees confirmation
+        setTimeout(() => {
+          setIsQrModalOpen(false)
+          setQrModalData(null)
+          setSaleItems([])
+          setCustomerName('')
+          setNotes('')
+          setCashTendered('')
+          clientSaleIdRef.current = generateClientSaleId()
+        }, 1800)
+      } else {
+        toast({
+          title: 'Error recording sale',
+          description: result.message,
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      toast({
+        title: 'Error recording sale',
+        description: error instanceof Error ? error.message : 'Failed to save completed sale.',
+        variant: 'destructive',
+      })
+    } finally {
+      isProcessingRef.current = false
+      setIsProcessing(false)
+    }
+  }
+
+  // Check QR Payment Status
+  const checkQrStatus = async (isManualCheck = false) => {
+    const referenceId = qrModalData?.paymentIntentId || qrModalData?.sessionId
+    if (!referenceId || qrPaymentStatus === 'paid') return
+
+    if (isManualCheck) setIsCheckingQrStatus(true)
+
+    try {
+      const authHeaders = await getAuthHeaders(user)
+      const queryParams = new URLSearchParams({
+        ...(qrModalData?.paymentIntentId ? { paymentIntentId: qrModalData.paymentIntentId } : {}),
+        ...(qrModalData?.sessionId ? { sessionId: qrModalData.sessionId } : {}),
+        ...(user?.id ? { cashierId: user.id } : {}),
+        ...(user?.email ? { cashierEmail: user.email } : {}),
+      })
+      const res = await fetch(
+        `/api/admin/pos/paymongo-qr/status?${queryParams.toString()}`,
+        {
+          headers: {
+            ...authHeaders,
+          },
+          cache: 'no-store',
+        },
+      )
+      const data = await res.json()
+
+      if (data.ok && data.isPaid) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+        await finalizeQrSale(
+          data.paymentIntentId || data.sessionId || referenceId,
+          data.paymentChannel,
+          data.paymentId,
+        )
+      } else if (isManualCheck) {
+        toast({
+          title: 'Payment Pending',
+          description: 'Payment has not been completed by the customer yet.',
+          variant: 'default',
+        })
+      }
+    } catch {
+      // Background poll errors silent, manual check shows message
+      if (isManualCheck) {
+        toast({
+          title: 'Status Check Failed',
+          description: 'Could not connect to verify payment status.',
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      if (isManualCheck) setIsCheckingQrStatus(false)
+    }
+  }
+
+  const checkQrStatusRef = useRef(checkQrStatus)
+  checkQrStatusRef.current = checkQrStatus
+
+  // Real-time polling when QR Modal is active
+  useEffect(() => {
+    const referenceId = qrModalData?.paymentIntentId || qrModalData?.sessionId
+    if (!isQrModalOpen || !referenceId || qrPaymentStatus === 'paid') {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+      return
+    }
+
+    // Poll every 2.5 seconds
+    pollIntervalRef.current = setInterval(() => {
+      checkQrStatusRef.current(false)
+    }, 2500)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [isQrModalOpen, qrModalData?.paymentIntentId, qrModalData?.sessionId, qrPaymentStatus])
+
+  const copyPaymentLink = async () => {
+    if (!qrModalData?.checkoutUrl) return
+    try {
+      await navigator.clipboard.writeText(qrModalData.checkoutUrl)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+      toast({
+        title: 'Link Copied',
+        description: 'Payment link copied to clipboard.',
+      })
+    } catch {
+      toast({
+        title: 'Copy Failed',
+        description: qrModalData.checkoutUrl,
+      })
     }
   }
 
@@ -287,7 +550,7 @@ export default function PosPage() {
                 <div>
                   <h1 className="font-serif text-3xl text-foreground">Point of Sale</h1>
                   <p className="mt-2 text-sm text-foreground/60">
-                    Process in-store transactions with real-time stock deductions, automatic VAT, and instant receipts.
+                    Process in-store transactions with dynamic PayMongo QR Pay (GCash, Maya, QR Ph) and Cash.
                   </p>
                 </div>
 
@@ -486,7 +749,7 @@ export default function PosPage() {
                   </div>
 
                   {/* Cart Items List */}
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+                  <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
                     {saleItems.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-border p-10 text-center text-foreground/60">
                         <ShoppingBag className="mx-auto h-8 w-8 text-foreground/30 mb-2" />
@@ -627,54 +890,60 @@ export default function PosPage() {
                     </div>
                     <div className="flex justify-between text-lg font-semibold text-foreground pt-1 border-t border-border/60">
                       <span>Total (VAT-Inclusive)</span>
-                      <span className="text-accent">{formatPHP(total)}</span>
+                      <span className="text-accent font-bold">{formatPHP(total)}</span>
                     </div>
                   </div>
 
-                  {/* PAYMENT METHOD: Positioned after cart items and right before Process Payment */}
+                  {/* PAYMENT METHOD SELECTION */}
                   <div className="mt-6 border-t border-border pt-5">
                     <label className="text-xs font-semibold uppercase tracking-wider text-foreground/70 block mb-2.5">
                       Payment Method
                     </label>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Cash Option */}
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('Cash')}
-                        className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all ${
                           paymentMethod === 'Cash'
-                            ? 'border-accent bg-accent/15 text-accent shadow-sm ring-1 ring-accent'
+                            ? 'border-accent bg-accent/15 text-accent ring-1 ring-accent shadow-sm'
                             : 'border-border bg-background text-foreground/80 hover:bg-muted'
                         }`}
                       >
-                        <Banknote className="h-4 w-4" />
-                        Cash
+                        <div className={`p-2 rounded-lg ${paymentMethod === 'Cash' ? 'bg-accent text-accent-foreground' : 'bg-muted text-foreground/70'}`}>
+                          <Banknote className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-sm">Cash</div>
+                          <div className="text-[11px] opacity-75">Tendered & Change</div>
+                        </div>
                       </button>
 
+                      {/* QR Pay (PayMongo) Option */}
                       <button
                         type="button"
-                        onClick={() => setPaymentMethod('Card')}
-                        className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
-                          paymentMethod === 'Card'
-                            ? 'border-accent bg-accent/15 text-accent shadow-sm ring-1 ring-accent'
+                        onClick={() => setPaymentMethod('QR Pay')}
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                          paymentMethod === 'QR Pay'
+                            ? 'border-accent bg-accent/15 text-accent ring-1 ring-accent shadow-sm'
                             : 'border-border bg-background text-foreground/80 hover:bg-muted'
                         }`}
                       >
-                        <CreditCard className="h-4 w-4" />
-                        Card
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPaymentMethod('GCash')}
-                        className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
-                          paymentMethod === 'GCash'
-                            ? 'border-accent bg-accent/15 text-accent shadow-sm ring-1 ring-accent'
-                            : 'border-border bg-background text-foreground/80 hover:bg-muted'
-                        }`}
-                      >
-                        <Smartphone className="h-4 w-4" />
-                        GCash
+                        <div className={`p-2 rounded-lg ${paymentMethod === 'QR Pay' ? 'bg-accent text-accent-foreground' : 'bg-muted text-foreground/70'}`}>
+                          <QrCode className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-sm flex items-center gap-1.5">
+                            QR Pay
+                            <span className="rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.2 font-bold uppercase">
+                              PayMongo
+                            </span>
+                          </div>
+                          <div className="text-[11px] opacity-75 truncate">
+                            GCash &bull; Maya &bull; QR Ph &bull; Card
+                          </div>
+                        </div>
                       </button>
                     </div>
 
@@ -740,27 +1009,65 @@ export default function PosPage() {
                         )}
                       </div>
                     )}
+
+                    {/* QR Pay Helper text */}
+                    {paymentMethod === 'QR Pay' && saleItems.length > 0 && (
+                      <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-foreground/80 flex items-start gap-2.5">
+                        <QrCode className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-foreground">
+                            Scan with GCash, Maya, or any QR Ph app
+                          </p>
+                          <p className="text-foreground/60 text-[11px] mt-0.5">
+                            Clicking below will generate a dynamic QR code for{' '}
+                            <span className="font-semibold text-foreground">{formatPHP(total)}</span>.
+                            The customer scans it on their phone to pay the exact amount.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Process Payment Button */}
+                {/* PROCESS BUTTON */}
                 <div className="mt-6 pt-4 border-t border-border">
-                  <Button
-                    className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold shadow-md transition-all disabled:opacity-50"
-                    onClick={handleSubmit}
-                    disabled={saleItems.length === 0 || isProcessing}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Processing Payment...
-                      </>
-                    ) : (
-                      <>
-                        Process Payment &bull; {formatPHP(total)}
-                      </>
-                    )}
-                  </Button>
+                  {paymentMethod === 'Cash' ? (
+                    <Button
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold shadow-md transition-all disabled:opacity-50"
+                      onClick={handleCashSubmit}
+                      disabled={saleItems.length === 0 || isProcessing}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Processing Payment...
+                        </>
+                      ) : (
+                        <>
+                          <Banknote className="mr-2 h-5 w-5" />
+                          Process Cash Payment &bull; {formatPHP(total)}
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-6 text-base font-semibold shadow-md transition-all disabled:opacity-50"
+                      onClick={handleGenerateQr}
+                      disabled={saleItems.length === 0 || isGeneratingQr || isProcessing}
+                    >
+                      {isGeneratingQr ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Generating PayMongo QR...
+                        </>
+                      ) : (
+                        <>
+                          <QrCode className="mr-2 h-5 w-5" />
+                          Generate QR Code &bull; {formatPHP(total)}
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Recent POS Activity */}
@@ -778,9 +1085,20 @@ export default function PosPage() {
                           className="rounded-xl border border-border/80 bg-background/50 p-3 flex items-center justify-between text-xs"
                         >
                           <div>
-                            <p className="font-medium text-foreground">{transaction.id}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-foreground">{transaction.id}</p>
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  transaction.paymentMethod === 'QR Pay'
+                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-muted text-foreground/70'
+                                }`}
+                              >
+                                {transaction.paymentMethod}
+                              </span>
+                            </div>
                             <p className="text-foreground/50 mt-0.5">
-                              {transaction.itemsCount} item(s) &bull; {transaction.paymentMethod}
+                              {transaction.itemsCount} item(s) &bull; Cashier: {transaction.cashierName}
                             </p>
                           </div>
                           <div className="text-right">
@@ -804,6 +1122,164 @@ export default function PosPage() {
           </div>
         </div>
       </div>
+
+      {/* PAYMONGO DYNAMIC QR PAY MODAL */}
+      {isQrModalOpen && qrModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (pollIntervalRef.current) {
+                  clearInterval(pollIntervalRef.current)
+                  pollIntervalRef.current = null
+                }
+                setIsQrModalOpen(false)
+              }}
+              className="absolute right-4 top-4 rounded-full p-2 text-foreground/60 hover:bg-muted hover:text-foreground transition-colors"
+              aria-label="Close modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="text-center pt-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-2">
+                <QrCode className="h-3.5 w-3.5" />
+                PayMongo QR Pay
+              </div>
+              <h3 className="font-serif text-2xl text-foreground font-medium">Scan to Pay</h3>
+              <p className="text-xs text-foreground/60 mt-1">
+                Scan using GCash, Maya, or any QR Ph compatible banking app
+              </p>
+            </div>
+
+            {/* Amount Banner */}
+            <div className="rounded-2xl border border-border bg-background/80 p-4 text-center">
+              <p className="text-xs uppercase tracking-wider text-foreground/50 font-medium">
+                Total Amount Due
+              </p>
+              <p className="text-3xl font-serif font-bold text-accent mt-1">
+                {formatPHP(qrModalData.total)}
+              </p>
+              <p className="text-xs text-foreground/60 mt-1">
+                Customer: <span className="font-medium text-foreground">{qrModalData.customerName}</span>
+              </p>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="flex flex-col items-center justify-center">
+              <div className="relative rounded-2xl border-2 border-border bg-white p-4 shadow-inner">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qrModalData.qrImage}
+                  alt="PayMongo Payment QR Code"
+                  className="w-56 h-56 object-contain"
+                />
+
+                {/* Paid Overlay */}
+                {qrPaymentStatus === 'paid' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 rounded-2xl animate-in zoom-in-90 duration-300">
+                    <div className="rounded-full bg-emerald-100 p-3 text-emerald-600 mb-2">
+                      <CheckCircle2 className="h-12 w-12" />
+                    </div>
+                    <p className="font-serif text-lg font-bold text-emerald-700">Payment Received!</p>
+                    <p className="text-xs text-emerald-600">Recording POS sale...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Live Status Indicator */}
+              <div className="mt-4 flex items-center gap-2 text-xs font-medium">
+                {qrPaymentStatus === 'paid' ? (
+                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <Check className="h-4 w-4" />
+                    Payment Confirmed
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-foreground/70">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    Waiting for customer payment...
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Cashier Actions */}
+            <div className="space-y-2 pt-2 border-t border-border/80">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => checkQrStatus(true)}
+                  disabled={isCheckingQrStatus || qrPaymentStatus === 'paid'}
+                  className="text-xs"
+                >
+                  {isCheckingQrStatus ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Check Status
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={copyPaymentLink}
+                  className="text-xs"
+                >
+                  {copiedLink ? (
+                    <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {copiedLink ? 'Copied!' : 'Copy Link'}
+                </Button>
+              </div>
+
+              {/* Open in New Tab option */}
+              <div className="flex items-center justify-between text-xs px-1">
+                {qrModalData.checkoutUrl ? (
+                  <a
+                    href={qrModalData.checkoutUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline flex items-center gap-1"
+                  >
+                    Open checkout page <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <span className="text-foreground/50 text-[11px] flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                    Official BSP QR Ph Code
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pollIntervalRef.current) {
+                      clearInterval(pollIntervalRef.current)
+                      pollIntervalRef.current = null
+                    }
+                    setIsQrModalOpen(false)
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Cancel & Return to POS
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   )
 }

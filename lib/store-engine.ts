@@ -31,7 +31,7 @@ const SEEDED_STOCK_LEVELS: Record<string, number> = {
 }
 
 export const ONLINE_PAYMENT_METHODS = ['PayMongo', 'Cash on Delivery'] as const
-export const POS_PAYMENT_METHODS = ['Cash', 'Card', 'GCash'] as const
+export const POS_PAYMENT_METHODS = ['Cash', 'QR Pay', 'Card', 'GCash'] as const
 export const ONLINE_ORDER_STATUSES = [
   'Pending',
   'Processing',
