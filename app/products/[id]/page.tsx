@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { CheckCircle2, Heart, MessageSquarePlus, ShoppingBag, Star, ShieldCheck, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -267,16 +268,18 @@ export default function ProductPage({
       <section className="px-4 pb-8 pt-8 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.96fr_1.04fr]">
           <div className="space-y-4">
-            {/* Main image — plain img for data: URL support (base64 from Supabase) */}
+            {/* Main image */}
             <div
               className="storefront-panel relative overflow-hidden rounded-[2.25rem]"
               style={{ height: '320px', minHeight: '320px' }}
             >
-              <img
+              <Image
                 src={mainImage || product.images[0] || '/placeholder.jpg'}
                 alt={product.name}
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={(e) => { e.currentTarget.src = '/placeholder.jpg' }}
+                fill
+                unoptimized
+                priority
+                className="object-cover"
               />
             </div>
 
@@ -292,11 +295,13 @@ export default function ProductPage({
                   style={{ height: '72px' }}
                   aria-label={`View product image ${index + 1}`}
                 >
-                  <img
-                    src={image}
+                  <Image
+                    src={image || '/placeholder.jpg'}
                     alt={`${product.name} view ${index + 1}`}
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => { e.currentTarget.src = '/placeholder.jpg' }}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                    sizes="72px"
                   />
                 </button>
               ))}
