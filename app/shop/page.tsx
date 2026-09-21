@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react'
 import { ProductCard } from '@/components/product-card'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
-import { formatPHP } from '@/lib/currency'
+import { Spinner } from '@/components/ui/spinner'
 import { useStore } from '@/lib/store-context'
 import { subscribeToProductCategories } from '@/lib/supabase-realtime'
 
@@ -18,8 +19,12 @@ const PRICE_RANGES = [
   { min: 200, max: Infinity },
 ]
 
-export default function ShopPage() {
+function ShopContent() {
   const { catalog, getInventoryRecord } = useStore()
+  const searchParams = useSearchParams()
+  const initialQuery = searchParams.get('q') || searchParams.get('search') || ''
+
+  const [searchQuery, setSearchQuery] = useState(initialQuery)
   const [selectedScents, setSelectedScents] = useState<string[]>([])
   const [selectedGenders, setSelectedGenders] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
@@ -27,6 +32,12 @@ export default function ShopPage() {
   const [priceRange, setPriceRange] = useState<{ min: number; max: number } | null>(null)
   const [sortBy, setSortBy] = useState('featured')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+
+  // Sync URL query when navigation happens
+  useEffect(() => {
+    const q = searchParams.get('q') || searchParams.get('search') || ''
+    setSearchQuery(q)
+  }, [searchParams])
 
   // Fetch categories from Supabase & subscribe in Realtime
   useEffect(() => {
@@ -59,6 +70,30 @@ export default function ShopPage() {
   let filtered = catalog.filter((product) => {
     if (getInventoryRecord(product.id)?.isArchived) {
       return false
+    }
+
+    // Live search query matching
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const matchesName = product.name.toLowerCase().includes(q)
+      const matchesBrand = product.brand.toLowerCase().includes(q)
+      const matchesCategory = product.category?.toLowerCase().includes(q)
+      const matchesDescription = product.description?.toLowerCase().includes(q)
+      const matchesScent = product.scentFamily?.some((family) => family.toLowerCase().includes(q))
+      const matchesGender = product.gender?.toLowerCase().includes(q)
+      const matchesPrice = q === '1 peso' || q === '1' ? product.price === 1 : false
+
+      if (
+        !matchesName &&
+        !matchesBrand &&
+        !matchesCategory &&
+        !matchesDescription &&
+        !matchesScent &&
+        !matchesGender &&
+        !matchesPrice
+      ) {
+        return false
+      }
     }
 
     if (selectedCategory !== 'All' && product.category !== selectedCategory) {
@@ -113,13 +148,15 @@ export default function ShopPage() {
     setSelectedGenders([])
     setSelectedCategory('All')
     setPriceRange(null)
+    setSearchQuery('')
   }
 
   const hasFilters =
     selectedCategory !== 'All' ||
     selectedScents.length > 0 ||
     selectedGenders.length > 0 ||
-    Boolean(priceRange)
+    Boolean(priceRange) ||
+    Boolean(searchQuery.trim())
 
   const FilterPanel = () => (
     <div className="space-y-8">
@@ -198,21 +235,28 @@ export default function ShopPage() {
 
         <section>
           <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
-            Wear Style
+            Gender
           </h3>
-          <div className="mt-4 space-y-3">
-            {GENDERS.map((gender) => (
-              <label key={gender} className="flex items-center gap-3 text-sm text-foreground/72">
-                <input
-                  type="checkbox"
+          <div className="mt-4 flex flex-wrap gap-2">
+            {GENDERS.map((gender) => {
+              const active = selectedGenders.includes(gender)
+
+              return (
+                <button
+                  key={gender}
+                  type="button"
                   suppressHydrationWarning
-                  checked={selectedGenders.includes(gender)}
-                  onChange={() => toggleGender(gender)}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary/40"
-                />
-                {gender}
-              </label>
-            ))}
+                  onClick={() => toggleGender(gender)}
+                  className={`rounded-full px-3 py-2 text-sm transition ${
+                    active
+                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
+                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                  }`}
+                >
+                  {gender}
+                </button>
+              )
+            })}
           </div>
         </section>
 
@@ -220,24 +264,32 @@ export default function ShopPage() {
           <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
             Price Range
           </h3>
-          <div className="mt-4 space-y-3">
-            {PRICE_RANGES.map((range) => (
-              <label key={`${range.min}-${range.max}`} className="flex items-center gap-3 text-sm text-foreground/72">
-                <input
-                  type="radio"
+          <div className="mt-4 flex flex-wrap gap-2">
+            {PRICE_RANGES.map((range, index) => {
+              const active = priceRange?.min === range.min && priceRange?.max === range.max
+              const label =
+                range.max === Infinity
+                  ? 'Over ₱200'
+                  : range.min === 0
+                    ? 'Under ₱100'
+                    : '₱100 - ₱200'
+
+              return (
+                <button
+                  key={index}
+                  type="button"
                   suppressHydrationWarning
-                  name="price"
-                  checked={priceRange?.min === range.min && priceRange?.max === range.max}
-                  onChange={() => setPriceRange({ min: range.min, max: range.max })}
-                  className="h-4 w-4 border-border text-primary focus:ring-primary/40"
-                />
-                {range.min === 0
-                  ? `Under ${formatPHP(range.max)}`
-                  : range.max === Infinity
-                    ? `${formatPHP(range.min)}+`
-                    : `${formatPHP(range.min)} - ${formatPHP(range.max)}`}
-              </label>
-            ))}
+                  onClick={() => setPriceRange(active ? null : range)}
+                  className={`rounded-full px-3 py-2 text-sm transition ${
+                    active
+                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
+                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
         </section>
       </div>
@@ -267,7 +319,7 @@ export default function ShopPage() {
               {mobileFiltersOpen ? 'Close Filters' : 'Filters'}
               {hasFilters && (
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                  {selectedScents.length + selectedGenders.length + (priceRange ? 1 : 0)}
+                  {selectedScents.length + selectedGenders.length + (priceRange ? 1 : 0) + (searchQuery ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -305,28 +357,67 @@ export default function ShopPage() {
             </aside>
 
             <div>
-              <div className="storefront-panel mb-6 flex flex-col gap-4 rounded-[2rem] p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="storefront-eyebrow">Current View</p>
-                  <p className="mt-2 text-lg text-foreground">
-                    Showing <span className="font-semibold">{filtered.length}</span> fragrance{filtered.length === 1 ? '' : 's'}
-                  </p>
+              {/* Search Bar & View Controls */}
+              <div className="storefront-panel mb-6 flex flex-col gap-4 rounded-[2rem] p-5 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {/* Interactive Search Bar Input */}
+                  <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/45" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search fragrances by name, brand, scent notes..."
+                      className="h-11 w-full rounded-2xl border border-border/70 bg-white/80 pl-11 pr-10 text-sm text-foreground shadow-xs transition placeholder:text-foreground/40 focus:border-primary/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      aria-label="Search fragrances"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-foreground/40 transition hover:bg-muted hover:text-foreground"
+                        aria-label="Clear search query"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sort Dropdown */}
+                  <div className="relative shrink-0">
+                    <select
+                      value={sortBy}
+                      suppressHydrationWarning
+                      onChange={(event) => setSortBy(event.target.value)}
+                      className="storefront-input h-11 w-full appearance-none pr-10 text-sm sm:min-w-56 sm:w-auto"
+                    >
+                      <option value="featured">Featured</option>
+                      <option value="new">New Arrivals</option>
+                      <option value="rating">Highest Rated</option>
+                      <option value="price-low">Price: Low to High</option>
+                      <option value="price-high">Price: High to Low</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/55" />
+                  </div>
                 </div>
 
-                <div className="relative">
-                  <select
-                    value={sortBy}
-                    suppressHydrationWarning
-                    onChange={(event) => setSortBy(event.target.value)}
-                    className="storefront-input h-11 w-full appearance-none pr-10 text-sm sm:min-w-56 sm:w-auto"
-                  >
-                    <option value="featured">Featured</option>
-                    <option value="new">New Arrivals</option>
-                    <option value="rating">Highest Rated</option>
-                    <option value="price-low">Price: Low to High</option>
-                    <option value="price-high">Price: High to Low</option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/55" />
+                {/* Search query status indicator & count */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-xs text-foreground/60">
+                  <p>
+                    Showing <span className="font-semibold text-foreground">{filtered.length}</span> fragrance{filtered.length === 1 ? '' : 's'}
+                    {searchQuery.trim() && (
+                      <> for &ldquo;<span className="font-semibold text-primary">{searchQuery}</span>&rdquo;</>
+                    )}
+                  </p>
+                  {searchQuery.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Clear search
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -338,16 +429,18 @@ export default function ShopPage() {
                 </div>
               ) : (
                 <div className="storefront-panel rounded-[2rem] p-12 text-center">
-                  <p className="text-2xl text-foreground">No fragrances matched your filters.</p>
-                  <p className="mt-3 text-sm leading-7 text-foreground/62">
-                    Reset your selected mood, style, or budget and explore the catalog again.
+                  <p className="text-2xl font-serif text-foreground">No fragrances matched your search</p>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-foreground/62">
+                    {searchQuery.trim()
+                      ? `We couldn't find any fragrances matching "${searchQuery}". Try searching for another scent note or reset your filters.`
+                      : 'No perfumes available in this filter combination. Try resetting your filters to see more fragrances.'}
                   </p>
                   <Button
                     variant="outline"
                     className="mt-6 h-11 rounded-2xl border-border/70 bg-white/70 px-6"
                     onClick={clearFilters}
                   >
-                    Clear Filters
+                    Reset All Filters
                   </Button>
                 </div>
               )}
@@ -356,5 +449,21 @@ export default function ShopPage() {
         </div>
       </section>
     </StorefrontShell>
+  )
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense
+      fallback={
+        <StorefrontShell>
+          <div className="flex min-h-[40vh] items-center justify-center">
+            <Spinner className="h-6 w-6 text-primary" />
+          </div>
+        </StorefrontShell>
+      }
+    >
+      <ShopContent />
+    </Suspense>
   )
 }

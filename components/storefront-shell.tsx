@@ -8,7 +8,7 @@ interface StorefrontShellProps {
 
 export function StorefrontShell({ children }: StorefrontShellProps) {
   return (
-    <div className="storefront-page min-h-screen">
+    <div className="storefront-page min-h-screen pb-16 md:pb-0">
       <Header />
       <main>{children}</main>
       <StorefrontFooter />

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, LoaderCircle, LifeBuoy, RefreshCw, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ProtectedRoute } from '@/components/protected-route'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { useAuth } from '@/lib/auth-context'
+import { useStore } from '@/lib/store-context'
 import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
 import { formatPHP } from '@/lib/currency'
 import type { SupportCase, SupportStatus } from '@/lib/support-types'
@@ -54,6 +56,7 @@ function isOpenCase(status: SupportCase['status']) {
 
 export default function AdminSupportPage() {
   const { user, isLoading: isAuthLoading } = useAuth()
+  const { getProductById } = useStore()
   const [cases, setCases] = useState<SupportCase[]>([])
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([])
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
@@ -718,18 +721,32 @@ export default function AdminSupportPage() {
                           </div>
 
                           <div className="mt-4 grid gap-3 md:grid-cols-2">
-                            {selectedCase.linkedOrder.items.map((item) => (
-                              <div
-                                key={`${selectedCase.linkedOrder?.id}-${item.productId}-${item.size}`}
-                                className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-foreground/65"
-                              >
-                                <p className="font-semibold text-foreground">{item.productName}</p>
-                                <p className="mt-1">
-                                  {item.quantity} x {item.size}ml
-                                </p>
-                                <p className="mt-1">{formatPHP(item.unitPrice)} each</p>
-                              </div>
-                            ))}
+                            {selectedCase.linkedOrder.items.map((item) => {
+                              const product = getProductById(item.productId)
+                              const imageUrl = item.image || product?.images?.[0]
+                              return (
+                                <div
+                                  key={`${selectedCase.linkedOrder?.id}-${item.productId}-${item.size}`}
+                                  className="flex items-center gap-3 rounded-2xl bg-white/80 p-3 text-sm text-foreground/65 shadow-xs"
+                                >
+                                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-border/70 bg-muted/40">
+                                    {imageUrl ? (
+                                      <Image src={imageUrl} alt={item.productName} fill className="object-cover" />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-[10px] text-foreground/40">
+                                        Perfume
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate font-semibold text-foreground">{item.productName}</p>
+                                    <p className="text-xs text-foreground/60">
+                                      {item.quantity} x {item.size}ml &bull; {formatPHP(item.unitPrice)} each
+                                    </p>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       ) : null}

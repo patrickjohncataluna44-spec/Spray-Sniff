@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { TrackingTimeline } from '@/components/tracking-timeline'
@@ -9,7 +10,18 @@ import { fetchTrackingInfo } from '@/lib/tracking-service'
 import type { TrackingResult } from '@/lib/tracking-types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Package, ShieldCheck, HelpCircle } from 'lucide-react'
+import {
+  Search,
+  Package,
+  ShieldCheck,
+  HelpCircle,
+  CreditCard,
+  Box,
+  Truck,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+} from 'lucide-react'
 
 function TrackContent() {
   const searchParams = useSearchParams()
@@ -51,6 +63,40 @@ function TrackContent() {
 
   return (
     <div className="container max-w-4xl mx-auto px-4 py-8 md:py-12">
+      {/* Shopee Category Quick Access Bar */}
+      <div className="mb-6 rounded-2xl border border-border/80 bg-white/85 p-4 shadow-xs backdrop-blur">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-foreground/50">
+            Track By Purchase Status
+          </p>
+          <Link href="/orders" className="text-xs font-semibold text-primary hover:underline">
+            View All Purchases &rarr;
+          </Link>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {[
+            { label: 'To Pay', tab: 'to-pay', icon: CreditCard },
+            { label: 'To Ship', tab: 'to-ship', icon: Box },
+            { label: 'To Receive', tab: 'to-receive', icon: Truck },
+            { label: 'Completed', tab: 'completed', icon: CheckCircle2 },
+            { label: 'Cancelled', tab: 'cancelled', icon: XCircle },
+            { label: 'Return', tab: 'return-refund', icon: RotateCcw },
+          ].map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.tab}
+                href={`/orders?tab=${item.tab}`}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-stone-50/60 p-2.5 text-center text-xs font-medium text-foreground transition hover:border-primary/50 hover:bg-white hover:text-primary active:scale-95"
+              >
+                <Icon className="h-4 w-4 text-primary" />
+                <span className="truncate text-[11px] font-semibold">{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Search Bar Box */}
       <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm mb-8">
         <form

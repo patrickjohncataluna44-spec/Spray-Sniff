@@ -234,6 +234,12 @@ export function CustomerSupportWidget() {
   const [draftMessage, setDraftMessage] = useState('')
   const [showPrompts, setShowPrompts] = useState(false)
 
+  useEffect(() => {
+    const handleOpen = () => setOpen(true)
+    window.addEventListener('open-support-widget', handleOpen)
+    return () => window.removeEventListener('open-support-widget', handleOpen)
+  }, [])
+
   const hidden = pathname.startsWith('/admin')
   const recentOrders = bootstrap?.recentOrders ?? []
   const recentCases = bootstrap?.recentCases ?? []
@@ -818,7 +824,8 @@ export function CustomerSupportWidget() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-xl transition hover:-translate-y-1 hover:shadow-2xl"
+          className="fixed bottom-[4.75rem] right-4 md:bottom-5 md:right-5 z-40 flex items-center justify-center h-13 w-13 md:h-14 md:w-14 rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-xl transition hover:-translate-y-1 hover:shadow-2xl"
+          aria-label="Open support chat"
         >
           <MessageCircle className="h-6 w-6" />
         </button>
@@ -833,7 +840,7 @@ export function CustomerSupportWidget() {
             onClick={() => setOpen(false)}
           />
 
-          <div className="absolute bottom-3 left-3 right-3 top-20 overflow-hidden rounded-[1.5rem] bg-[#fafafa] shadow-[0_10px_40px_rgba(0,0,0,0.15)] md:bottom-5 md:left-auto md:right-5 md:top-auto md:h-[42rem] md:w-[24rem] flex flex-col border border-slate-200">
+          <div className="absolute bottom-[4.75rem] left-3 right-3 top-20 overflow-hidden rounded-[1.5rem] bg-[#fafafa] shadow-[0_10px_40px_rgba(0,0,0,0.15)] md:bottom-5 md:left-auto md:right-5 md:top-auto md:h-[42rem] md:w-[24rem] flex flex-col border border-slate-200">
             <div className="bg-gradient-to-r from-[#FF758C] to-[#FF7EB3] px-5 py-4 text-white shrink-0 relative">
               <div className="absolute inset-0 bg-white/10 opacity-50 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.4),transparent)]" />
               <div className="relative flex items-center justify-between">

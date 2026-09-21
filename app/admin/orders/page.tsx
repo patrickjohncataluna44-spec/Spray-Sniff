@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -103,7 +104,7 @@ function needsRefundFollowUp(order: OrderRecord) {
 
 export default function AdminOrdersPage() {
   const { user } = useAuth()
-  const { markOrderPaymentPaid, orders, updateOrderStatus } = useStore()
+  const { markOrderPaymentPaid, orders, updateOrderStatus, getProductById } = useStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All Status')
   const [channelFilter, setChannelFilter] = useState('All Channels')
@@ -375,6 +376,33 @@ export default function AdminOrdersPage() {
                           <p className="text-xs text-foreground/60">
                             {new Date(order.createdAt).toLocaleString()}
                           </p>
+                          {/* Ordered item preview thumbnails */}
+                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                            {order.items.slice(0, 3).map((item, i) => {
+                              const product = getProductById(item.productId)
+                              const imageUrl = item.image || product?.images?.[0]
+                              return (
+                                <div
+                                  key={`${order.id}-thumb-${i}`}
+                                  className="relative h-8 w-8 rounded-lg overflow-hidden border border-border/70 bg-muted/40"
+                                  title={`${item.productName} (${item.size}ml x ${item.quantity})`}
+                                >
+                                  {imageUrl ? (
+                                    <Image src={imageUrl} alt={item.productName} fill className="object-cover" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-[8px] text-foreground/40">
+                                      {item.quantity}x
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            {order.items.length > 3 && (
+                              <span className="text-[10px] text-foreground/50 font-medium">
+                                +{order.items.length - 3} more
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-4 px-6">
                           <p className="text-foreground">{order.customerName}</p>
@@ -433,7 +461,7 @@ export default function AdminOrdersPage() {
                             Subtotal: {formatPHP(order.subtotal)}
                           </p>
                           <p className="text-[11px] text-foreground/55">
-                            VAT (12%): {formatPHP(order.tax)}
+                            12% VAT (Included): {formatPHP(order.tax)}
                           </p>
                           {order.shipping > 0 ? (
                             <p className="text-[11px] text-foreground/55">

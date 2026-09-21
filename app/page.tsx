@@ -52,25 +52,20 @@ export default function Home() {
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row">
-                <Button
-                  size="lg"
-                  className="h-12 rounded-2xl bg-primary px-5 text-primary-foreground hover:bg-[#ff8a73] sm:px-7"
-                  style={{ boxShadow: '0 16px 34px rgba(255,154,134,0.34)' }}
-                  asChild
+                <Link
+                  href="/shop"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.34)] transition-all duration-200 hover:bg-[#ff8a73] hover:shadow-[0_20px_40px_rgba(255,154,134,0.45)] active:scale-95 sm:px-7 cursor-pointer"
                 >
-                  <Link href="/shop">
-                    Shop Fragrances
-                    <MoveRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-12 rounded-2xl border-border/70 bg-white/60 px-5 sm:px-7"
-                  asChild
+                  <span>Shop Fragrances</span>
+                  <MoveRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/discovery"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-border/70 bg-white/75 px-5 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition-all duration-200 hover:bg-white hover:border-primary/50 hover:shadow-md active:scale-95 sm:px-7 cursor-pointer"
                 >
-                  <Link href="/discovery">Take The Discovery Quiz</Link>
-                </Button>
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span>Take The Discovery Quiz</span>
+                </Link>
               </div>
 
               {/* Stats row */}

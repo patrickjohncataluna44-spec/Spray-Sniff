@@ -7,7 +7,7 @@ import { AdminSidebar } from '@/components/admin-sidebar'
 import { ProtectedRoute } from '@/components/protected-route'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
-import { formatPHP } from '@/lib/currency'
+import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
 import { isPaymentTestCart } from '@/lib/store-engine'
 import { POS_PAYMENT_METHODS, type CartItem, useStore } from '@/lib/store-context'
 import { toast } from '@/hooks/use-toast'
@@ -54,8 +54,8 @@ export default function PosPage() {
 
   const subtotal = saleItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const isTestCart = isPaymentTestCart(saleItems)
-  const tax = isTestCart ? 0 : subtotal * 0.12
-  const total = subtotal + tax
+  const { vatAmount: tax } = isTestCart ? { vatAmount: 0 } : calculateVatBreakdown(subtotal)
+  const total = subtotal
 
   const addSaleItem = () => {
     if (!selectedProduct) {
@@ -380,11 +380,14 @@ export default function PosPage() {
                     <span>{formatPHP(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-foreground/70">
-                    <span>VAT (12%)</span>
+                    <span className="flex items-center gap-1.5">
+                      12% VAT
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">Included</span>
+                    </span>
                     <span>{formatPHP(tax)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-medium text-foreground">
-                    <span>Total</span>
+                    <span>Total (VAT-Inclusive)</span>
                     <span>{formatPHP(total)}</span>
                   </div>
                 </div>

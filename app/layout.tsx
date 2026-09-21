@@ -4,6 +4,7 @@ import { AuthProvider } from '@/lib/auth-context'
 import { CustomerSupportWidget } from '@/components/customer-support-widget'
 import { getPublicRuntimeEnv } from '@/lib/server-runtime-env'
 import { StoreProvider } from '@/lib/store-context'
+import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { Toaster } from '@/components/ui/toaster'
 import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site'
 // CSS is handled by Next.js at runtime.
@@ -57,6 +58,7 @@ export default function RootLayout({
           <StoreProvider>
             {children}
             <CustomerSupportWidget />
+            <MobileBottomNav />
             <Toaster />
           </StoreProvider>
         </AuthProvider>

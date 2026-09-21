@@ -139,6 +139,7 @@ export interface OrderLineItem {
   size: number
   quantity: number
   unitPrice: number
+  image?: string
 }
 
 export interface OrderTimelineEntry {
@@ -594,8 +595,11 @@ function calculateTotals(items: CartItem[], source: OrderSource) {
     !isTestCart && source === 'ONLINE' && subtotal < FREE_SHIPPING_THRESHOLD
       ? STANDARD_SHIPPING_FEE
       : 0
-  const tax = isTestCart ? 0 : roundCurrency(subtotal * TAX_RATE)
-  const total = roundCurrency(subtotal + shipping + tax)
+  // Standard Philippine BIR 12% VAT-inclusive breakdown:
+  // Retail perfume price is already VAT-inclusive.
+  const vatableSales = isTestCart ? 0 : roundCurrency(subtotal / 1.12)
+  const tax = isTestCart ? 0 : roundCurrency(subtotal - vatableSales)
+  const total = roundCurrency(subtotal + shipping)
 
   return { subtotal, shipping, tax, total }
 }
@@ -1512,15 +1516,23 @@ export function performStoreAction(
       }
 
       const activeCart =
-        currentState.cart.length > 0
-          ? currentState.cart
-          : Array.isArray(action.input.items) && action.input.items.length > 0
-            ? action.input.items
+        Array.isArray(action.input.items) && action.input.items.length > 0
+          ? action.input.items
+          : currentState.cart.length > 0
+            ? currentState.cart
             : []
 
       if (activeCart.length === 0) {
         return { nextState: currentState, result: { ok: false, message: 'Add items to the cart before placing an order.' } }
       }
+
+      const remainingCart = currentState.cart.filter(
+        (cartItem) =>
+          !activeCart.some(
+            (checkedItem) =>
+              checkedItem.productId === cartItem.productId && checkedItem.size === cartItem.size,
+          ),
+      )
 
       const inventoryMap = new Map(currentState.inventory.map((record) => [record.productId, record]))
       const quantityByProduct = activeCart.reduce<Record<string, number>>((totals, item) => {
@@ -1549,13 +1561,17 @@ export function performStoreAction(
       }
 
       const timestamp = new Date().toISOString()
-      const orderItems: OrderLineItem[] = activeCart.map((item) => ({
-        productId: item.productId,
-        productName: getProductById(item.productId)?.name ?? 'Unknown Product',
-        size: item.size,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      }))
+      const orderItems: OrderLineItem[] = activeCart.map((item) => {
+        const product = getProductById(item.productId)
+        return {
+          productId: item.productId,
+          productName: product?.name ?? 'Unknown Product',
+          size: item.size,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          image: product?.images?.[0] || '',
+        }
+      })
       const totals = calculateTotals(activeCart, 'ONLINE')
       const nextInventory = currentState.inventory.map((record) => {
         const soldQuantity = quantityByProduct[record.productId]
@@ -1609,7 +1625,7 @@ export function performStoreAction(
           ...currentState,
           catalog: syncCatalogStock(currentState.catalog, nextInventory),
           inventory: nextInventory,
-          cart: [],
+          cart: remainingCart,
           orders: [nextOrder, ...currentState.orders],
           stockMovements: nextMovements,
         },
@@ -1654,13 +1670,17 @@ export function performStoreAction(
 
       const timestamp = new Date().toISOString()
       const totals = calculateTotals(action.input.items, 'POS')
-      const orderItems: OrderLineItem[] = action.input.items.map((item) => ({
-        productId: item.productId,
-        productName: getProductById(item.productId)?.name ?? 'Unknown Product',
-        size: item.size,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      }))
+      const orderItems: OrderLineItem[] = action.input.items.map((item) => {
+        const product = getProductById(item.productId)
+        return {
+          productId: item.productId,
+          productName: product?.name ?? 'Unknown Product',
+          size: item.size,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          image: product?.images?.[0] || '',
+        }
+      })
       const nextInventory = currentState.inventory.map((record) => {
         const soldQuantity = quantityByProduct[record.productId]
         if (!soldQuantity) {

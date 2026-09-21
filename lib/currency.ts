@@ -9,3 +9,15 @@ export function formatPHP(amount: number) {
     maximumFractionDigits: 2,
   }).format(normalizedAmount)
 }
+
+/** Standard Philippine BIR 12% VAT calculations for VAT-inclusive retail prices */
+export function calculateVatBreakdown(grossAmount: number) {
+  const vatableSales = Math.round((grossAmount / 1.12) * 100) / 100
+  const vatAmount = Math.round((grossAmount - vatableSales) * 100) / 100
+  return {
+    vatableSales,
+    vatAmount,
+    grossAmount,
+  }
+}
+

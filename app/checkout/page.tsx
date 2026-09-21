@@ -27,7 +27,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Spinner } from '@/components/ui/spinner'
-import { formatPHP } from '@/lib/currency'
+import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
 import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
 import { isPaymentTestCart, PAYMENT_TEST_PRODUCT_ID, type CartItem, type OrderRecord } from '@/lib/store-engine'
@@ -51,6 +51,11 @@ const CHECKOUT_SIGN_IN_HREF = '/auth/signin?redirectTo=%2Fcheckout&reason=checko
 const PAYMONGO_PENDING_CHECKOUT_KEY = 'paymongo-pending-checkout'
 const PAYMONGO_PAYMENT_METHOD_VALUE = 'PayMongo'
 const CHECKOUT_SAVED_ADDRESS_KEY = 'perfume_saved_delivery_address'
+const CART_SELECTED_STORAGE_KEY = 'fragrance_selected_cart_items'
+
+function getCheckoutItemKey(productId: string, size: number) {
+  return `${productId}-${size}`
+}
 
 interface SavedDeliveryInfo {
   firstName: string
@@ -214,20 +219,93 @@ function CheckoutContent() {
     }
   }, [user])
 
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = localStorage.getItem(CART_SELECTED_STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return new Set(parsed)
+        }
+      }
+    } catch {}
+    return new Set()
+  })
+
+  // Synchronize with cart
+  useEffect(() => {
+    if (cart.length === 0) return
+
+    setSelectedKeys((prev) => {
+      const currentCartKeys = cart.map((i) => getCheckoutItemKey(i.productId, i.size))
+      const matchingKeys = Array.from(prev).filter((k) => currentCartKeys.includes(k))
+
+      if (matchingKeys.length > 0) {
+        return new Set(matchingKeys)
+      }
+
+      // Default: all in stock
+      const inStockKeys = cart
+        .filter((item) => {
+          const record = getInventoryRecord(item.productId)
+          const availableStock = getAvailableStock(item.productId)
+          return record && !record.isArchived && availableStock >= item.quantity
+        })
+        .map((i) => getCheckoutItemKey(i.productId, i.size))
+
+      const fallback = inStockKeys.length > 0 ? inStockKeys : currentCartKeys
+      const next = new Set(fallback)
+      try {
+        localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(Array.from(next)))
+      } catch {}
+      return next
+    })
+  }, [cart, getAvailableStock, getInventoryRecord])
+
+  const toggleCheckoutItem = (productId: string, size: number) => {
+    const key = getCheckoutItemKey(productId, size)
+    setSelectedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        if (next.size <= 1) {
+          toast({
+            title: 'At least 1 item required',
+            description: 'You must have at least 1 item selected to checkout.',
+          })
+          return prev
+        }
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      try {
+        localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(Array.from(next)))
+      } catch {}
+      return next
+    })
+  }
+
+  const activeCartItems = useMemo(() => {
+    if (cart.length === 0) return []
+    const selected = cart.filter((item) => selectedKeys.has(getCheckoutItemKey(item.productId, item.size)))
+    return selected.length > 0 ? selected : cart
+  }, [cart, selectedKeys])
+
   const orderItems = useMemo(
     () =>
       cart.map((item) => ({
         ...item,
         product: getProductById(item.productId),
+        isSelected: selectedKeys.has(getCheckoutItemKey(item.productId, item.size)),
       })),
-    [cart, getProductById],
+    [cart, getProductById, selectedKeys],
   )
 
-  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-  const isTestCart = isPaymentTestCart(cart)
+  const subtotal = activeCartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+  const isTestCart = isPaymentTestCart(activeCartItems)
   const rawShipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
   const shipping = appliedPromo?.type === 'Shipping' ? 0 : rawShipping
-  const tax = isTestCart ? 0 : Math.round(subtotal * 0.12 * 100) / 100
 
   const discountAmount = useMemo(() => {
     if (!appliedPromo) return 0
@@ -243,13 +321,17 @@ function CheckoutContent() {
     return 0
   }, [appliedPromo, subtotal, rawShipping])
 
-  const total = Math.max(0, subtotal - (appliedPromo?.type === 'Shipping' ? 0 : discountAmount) + shipping + tax)
-  const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const discountedProductSubtotal = Math.max(0, subtotal - (appliedPromo?.type === 'Shipping' ? 0 : discountAmount))
+  // Standard Philippine BIR 12% VAT-inclusive:
+  // Price shown is already VAT-inclusive, VAT amount is extracted rather than added
+  const { vatAmount: tax } = isTestCart ? { vatAmount: 0 } : calculateVatBreakdown(discountedProductSubtotal)
+  const total = Math.max(0, discountedProductSubtotal + shipping)
+  const totalQuantity = activeCartItems.reduce((sum, item) => sum + item.quantity, 0)
   const paymentFlow = searchParams.get('paymongo')
 
   const hasSavedAddress = Boolean(formData.address && formData.city && formData.phone)
 
-  const hasUnavailableItems = cart.some((item) => {
+  const hasUnavailableItems = activeCartItems.some((item) => {
     const record = getInventoryRecord(item.productId)
     const availableStock = getAvailableStock(item.productId)
 
@@ -544,8 +626,8 @@ function CheckoutContent() {
       items:
         pendingCheckout.items && pendingCheckout.items.length > 0
           ? pendingCheckout.items
-          : cart && cart.length > 0
-            ? cart
+          : activeCartItems && activeCartItems.length > 0
+            ? activeCartItems
             : fallbackItems,
       notes: [
         pendingCheckout.reference,
@@ -567,12 +649,24 @@ function CheckoutContent() {
     setConfirmedOrder(result.data)
     setOrderPlaced(true)
     clearPendingPaymongoCheckout(pendingCheckout.token, pendingCheckout.checkoutSessionId)
+
+    try {
+      const stored = localStorage.getItem(CART_SELECTED_STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[]
+        const orderedItems = pendingCheckout.items || activeCartItems
+        const purchasedKeys = new Set(orderedItems.map((i) => getCheckoutItemKey(i.productId, i.size)))
+        const remaining = parsed.filter((k) => !purchasedKeys.has(k))
+        localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(remaining))
+      }
+    } catch {}
+
     router.replace('/checkout')
     toast({
       title: 'Payment confirmed',
       description: `${result.data.id} has been recorded as a paid order.`,
     })
-  }, [cart, placeOnlineOrder, router])
+  }, [activeCartItems, placeOnlineOrder, router])
 
   useEffect(() => {
     if (
@@ -692,31 +786,34 @@ function CheckoutContent() {
     const shippingAddress = buildShippingAddress()
     const fullName = buildFullName()
 
-    // Separate Net Product Price, 12% VAT, and Shipping (No images sent to PayMongo)
-    const checkoutLineItems = orderItems.reduce<PaymongoCheckoutLineItem[]>((items, item) => {
-      if (!item.product) {
+    // VAT-inclusive product line items (VAT is already included in unit price, not added separately)
+    const discountRatio =
+      subtotal > 0
+        ? (subtotal - (appliedPromo?.type === 'Shipping' ? 0 : discountAmount)) / subtotal
+        : 1
+
+    const checkoutLineItems = activeCartItems.reduce<PaymongoCheckoutLineItem[]>((items, item) => {
+      const product = getProductById(item.productId)
+      if (!product) {
         return items
       }
 
+      // If a discount promo is applied to the subtotal, distribute it proportionally
+      const effectiveUnitPrice =
+        discountRatio < 1
+          ? Math.round(item.unitPrice * discountRatio * 100) / 100
+          : item.unitPrice
+
       items.push({
-        name: `${item.product.name} (${item.size}ml)`,
-        amount: Math.round(item.unitPrice * 100),
+        name: `${product.name} (${item.size}ml)`,
+        amount: Math.max(100, Math.round(effectiveUnitPrice * 100)),
         quantity: item.quantity,
         currency: 'PHP',
-        description: `Net Price: ${formatPHP(item.unitPrice)} each`,
+        description: `VAT-Inclusive · ${formatPHP(effectiveUnitPrice)} each`,
       })
 
       return items
     }, [])
-
-    if (tax > 0) {
-      checkoutLineItems.push({
-        name: 'VAT (12%)',
-        amount: Math.round(tax * 100),
-        quantity: 1,
-        currency: 'PHP',
-      })
-    }
 
     if (shipping > 0) {
       checkoutLineItems.push({
@@ -726,6 +823,14 @@ function CheckoutContent() {
         currency: 'PHP',
         description: 'Door-to-door express parcel delivery',
       })
+    }
+
+    // Ensure line items sum exactly equals expected amount in centavos
+    const targetCentavos = Math.round(total * 100)
+    const lineItemsSum = checkoutLineItems.reduce((sum, li) => sum + li.amount * li.quantity, 0)
+    if (checkoutLineItems.length > 0 && lineItemsSum !== targetCentavos) {
+      const diff = targetCentavos - lineItemsSum
+      checkoutLineItems[0].amount += diff
     }
 
     try {
@@ -744,7 +849,7 @@ function CheckoutContent() {
             shippingAddress,
             lineItems: checkoutLineItems,
             notes: formData.notes,
-            cartItems: cart,
+            cartItems: activeCartItems,
             clientToken,
           }),
         })
@@ -788,7 +893,7 @@ function CheckoutContent() {
           paymentMethodLabel,
           reference: formData.reference,
           shippingAddress,
-          items: cart,
+          items: activeCartItems,
         })
 
         window.location.href = payload.checkoutUrl
@@ -802,6 +907,7 @@ function CheckoutContent() {
         notes: [formData.reference, formData.notes].filter(Boolean).join(' | '),
         paymentMethod: 'Cash on Delivery',
         shippingAddress,
+        items: activeCartItems,
       })
 
       if (!result.ok || !result.data) {
@@ -812,6 +918,17 @@ function CheckoutContent() {
         })
         return
       }
+
+      // Clean up checked-out item keys from localStorage
+      try {
+        const stored = localStorage.getItem(CART_SELECTED_STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored) as string[]
+          const purchasedKeys = new Set(activeCartItems.map((i) => getCheckoutItemKey(i.productId, i.size)))
+          const remaining = parsed.filter((k) => !purchasedKeys.has(k))
+          localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(remaining))
+        }
+      } catch {}
 
       setOrderNumber(result.data.id)
       setConfirmedOrder(result.data)
@@ -916,23 +1033,44 @@ function CheckoutContent() {
                   <span>Items</span>
                   <span>Total</span>
                 </div>
-                {confirmedOrder.items.map((item) => (
-                  <div key={`${item.productId}-${item.size}`} className="flex justify-between items-center text-slate-600">
-                    <span>
-                      {item.productName} ({item.size}ml) &times; {item.quantity}
-                    </span>
-                    <span className="font-mono font-medium text-slate-900">
-                      {formatPHP(item.unitPrice * item.quantity)}
-                    </span>
-                  </div>
-                ))}
+                {confirmedOrder.items.map((item) => {
+                  const product = getProductById(item.productId)
+                  const imageUrl = item.image || product?.images?.[0]
+                  return (
+                    <div key={`${item.productId}-${item.size}`} className="flex items-center justify-between gap-3 py-1">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                          {imageUrl ? (
+                            <Image src={imageUrl} alt={item.productName} fill className="object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[9px] text-slate-400">
+                              Item
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-slate-800">{item.productName}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {item.size}ml &times; {item.quantity}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-mono font-medium text-slate-900 shrink-0">
+                        {formatPHP(item.unitPrice * item.quantity)}
+                      </span>
+                    </div>
+                  )
+                })}
                 <div className="border-t border-slate-200 pt-2 space-y-1.5 text-slate-600">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-mono text-slate-900">{formatPHP(confirmedOrder.subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>12% VAT:</span>
+                    <span className="flex items-center gap-1.5">
+                      12% VAT:
+                      <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">Included</span>
+                    </span>
                     <span className="font-mono text-slate-900">{formatPHP(confirmedOrder.tax)}</span>
                   </div>
                   <div className="flex justify-between">
@@ -1264,77 +1402,129 @@ function CheckoutContent() {
 
             {/* RIGHT COLUMN: Order Summary Container matching Screenshot 1 & 3 */}
             <div className="rounded-3xl bg-[#F8F9FB] p-6 sm:p-7 border border-slate-100 space-y-5">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Order Summary</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Make sure your item is correct</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Order Summary</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {activeCartItems.length} of {cart.length} {cart.length === 1 ? 'item' : 'items'} selected for checkout
+                  </p>
+                </div>
+                <Link href="/cart" className="text-xs font-semibold text-[#4F46E5] hover:underline">
+                  Edit in Bag
+                </Link>
               </div>
 
-              {/* Items list with interactive [ - ] 1 [ + ] stepper */}
+              {/* Items list with interactive selection checkbox & quantity stepper */}
               <div className="space-y-3">
-                {orderItems.map((item) => (
-                  <div
-                    key={`${item.productId}-${item.size}`}
-                    className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3.5 border border-slate-100 shadow-xs"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {/* Product Thumbnail */}
-                      <div className="relative h-14 w-14 sm:h-16 sm:w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-50 border border-slate-100">
-                        {item.product?.images?.[0] ? (
-                          <Image
-                            src={item.product.images[0]}
-                            alt={item.product.name}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
-                            Perfume
-                          </div>
+                {orderItems.map((item) => {
+                  const itemKey = getCheckoutItemKey(item.productId, item.size)
+                  const isChecked = item.isSelected
+
+                  return (
+                    <div
+                      key={itemKey}
+                      className={`flex items-center justify-between gap-3 rounded-2xl p-3.5 border transition shadow-xs ${
+                        isChecked
+                          ? 'bg-white border-slate-200 ring-1 ring-[#4F46E5]/20'
+                          : 'bg-slate-50/70 border-slate-100 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Selection Checkbox on checkout (when multiple items exist) */}
+                        {cart.length > 1 && (
+                          <label
+                            htmlFor={`chk-${itemKey}`}
+                            className="flex items-center justify-center cursor-pointer p-1 -m-1"
+                            title={isChecked ? 'Exclude from this checkout' : 'Include in this checkout'}
+                          >
+                            <input
+                              id={`chk-${itemKey}`}
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleCheckoutItem(item.productId, item.size)}
+                              className="sr-only"
+                            />
+                            <div
+                              className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all ${
+                                isChecked
+                                  ? 'border-[#4F46E5] bg-[#4F46E5] text-white shadow-xs'
+                                  : 'border-slate-300 bg-white hover:border-slate-400'
+                              }`}
+                            >
+                              {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                          </label>
                         )}
-                      </div>
 
-                      {/* Product Info + Quantity Stepper */}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">
-                          {item.product?.name || 'Perfume'}
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {item.size}ml
-                        </p>
+                        {/* Product Thumbnail */}
+                        <div className="relative h-14 w-14 sm:h-16 sm:w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-50 border border-slate-100">
+                          {item.product?.images?.[0] ? (
+                            <Image
+                              src={item.product.images[0]}
+                              alt={item.product.name}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+                              Perfume
+                            </div>
+                          )}
+                        </div>
 
-                        {/* Interactive Quantity Stepper [ - ]  quantity  [ + ] */}
-                        <div className="inline-flex items-center gap-2 mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuantity(item.productId, item.size, item.quantity - 1)}
-                            className="text-slate-500 hover:text-slate-900 p-0.5 transition"
-                            title="Decrease quantity"
+                        {/* Product Info + Quantity Stepper */}
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`text-xs sm:text-sm font-semibold truncate ${
+                              isChecked ? 'text-slate-900' : 'text-slate-500 line-through'
+                            }`}
                           >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <span className="text-xs font-semibold text-slate-800 min-w-[14px] text-center font-mono">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateQuantity(item.productId, item.size, item.quantity + 1)}
-                            className="text-slate-500 hover:text-slate-900 p-0.5 transition"
-                            title="Increase quantity"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
+                            {item.product?.name || 'Perfume'}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {item.size}ml {!isChecked && '· (Excluded from this checkout)'}
+                          </p>
+
+                          {/* Interactive Quantity Stepper [ - ] quantity [ + ] */}
+                          {isChecked && (
+                            <div className="inline-flex items-center gap-2 mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuantity(item.productId, item.size, item.quantity - 1)}
+                                className="text-slate-500 hover:text-slate-900 p-0.5 transition"
+                                title="Decrease quantity"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="text-xs font-semibold text-slate-800 min-w-[14px] text-center font-mono">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQuantity(item.productId, item.size, item.quantity + 1)}
+                                className="text-slate-500 hover:text-slate-900 p-0.5 transition"
+                                title="Increase quantity"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Item Price */}
-                    <div className="text-right flex-shrink-0">
-                      <span className="text-xs sm:text-sm font-bold text-slate-900 font-mono">
-                        {formatPHP(item.unitPrice * item.quantity)}
-                      </span>
+                      {/* Item Price */}
+                      <div className="text-right flex-shrink-0">
+                        <span
+                          className={`text-xs sm:text-sm font-bold font-mono ${
+                            isChecked ? 'text-slate-900' : 'text-slate-400 line-through'
+                          }`}
+                        >
+                          {formatPHP(item.unitPrice * item.quantity)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Promo Code Input matching Screenshot 1 & 3 */}
@@ -1394,8 +1584,11 @@ function CheckoutContent() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-slate-600">
-                  <span>Tax:</span>
-                  <span className="font-semibold text-slate-900 font-mono">{formatPHP(tax)}</span>
+                  <span className="flex items-center gap-1.5">
+                    12% VAT:
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">Included</span>
+                  </span>
+                  <span className="font-semibold text-slate-700 font-mono">{formatPHP(tax)}</span>
                 </div>
                 {discountAmount > 0 && appliedPromo?.type !== 'Shipping' && (
                   <div className="flex justify-between items-center text-emerald-600 font-medium">

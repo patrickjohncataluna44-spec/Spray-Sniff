@@ -1,20 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
-import { formatPHP } from '@/lib/currency'
+import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
 import { isPaymentTestCart } from '@/lib/store-engine'
 import { toast } from '@/hooks/use-toast'
 
 const CHECKOUT_SIGN_IN_HREF = '/auth/signin?redirectTo=%2Fcheckout&reason=checkout'
+const CART_SELECTED_STORAGE_KEY = 'fragrance_selected_cart_items'
+
+function getCartItemKey(productId: string, size: number) {
+  return `${productId}-${size}`
+}
 
 function CartQuantityInput({
   quantity,
@@ -104,13 +109,128 @@ export default function CartPage() {
   } = useStore()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
 
-  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-  const isTestCart = isPaymentTestCart(cart)
-  const tax = isTestCart ? 0 : subtotal * 0.12
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = localStorage.getItem(CART_SELECTED_STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          return new Set(parsed)
+        }
+      }
+    } catch {}
+    return new Set()
+  })
+
+  // Synchronize selection with cart items
+  useEffect(() => {
+    if (cart.length === 0) return
+
+    setSelectedKeys((prev) => {
+      const availableKeys = cart
+        .filter((item) => {
+          const record = getInventoryRecord(item.productId)
+          const stock = getAvailableStock(item.productId)
+          return record && !record.isArchived && stock >= item.quantity
+        })
+        .map((item) => getCartItemKey(item.productId, item.size))
+
+      // If user had no previous selection saved, default all available items to selected
+      if (prev.size === 0) {
+        const next = new Set(availableKeys)
+        try {
+          localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(Array.from(next)))
+        } catch {}
+        return next
+      }
+
+      // Retain existing selections that are still present in cart
+      const currentCartKeys = new Set(cart.map((item) => getCartItemKey(item.productId, item.size)))
+      const next = new Set<string>()
+      for (const key of prev) {
+        if (currentCartKeys.has(key)) {
+          next.add(key)
+        }
+      }
+
+      // If all previously selected items were removed or none matched, select available
+      if (next.size === 0 && availableKeys.length > 0) {
+        for (const k of availableKeys) next.add(k)
+      }
+
+      try {
+        localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(Array.from(next)))
+      } catch {}
+
+      return next
+    })
+  }, [cart, getAvailableStock, getInventoryRecord])
+
+  const updateSelectedKeys = (updater: (prev: Set<string>) => Set<string>) => {
+    setSelectedKeys((prev) => {
+      const next = updater(prev)
+      try {
+        localStorage.setItem(CART_SELECTED_STORAGE_KEY, JSON.stringify(Array.from(next)))
+      } catch {}
+      return next
+    })
+  }
+
+  const toggleItemSelection = (productId: string, size: number) => {
+    const key = getCartItemKey(productId, size)
+    updateSelectedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  const availableCartItems = useMemo(
+    () =>
+      cart.filter((item) => {
+        const record = getInventoryRecord(item.productId)
+        const stock = getAvailableStock(item.productId)
+        return record && !record.isArchived && stock >= item.quantity
+      }),
+    [cart, getAvailableStock, getInventoryRecord],
+  )
+
+  const isAllSelected =
+    availableCartItems.length > 0 &&
+    availableCartItems.every((item) => selectedKeys.has(getCartItemKey(item.productId, item.size)))
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      updateSelectedKeys(() => new Set())
+    } else {
+      updateSelectedKeys(
+        () => new Set(availableCartItems.map((item) => getCartItemKey(item.productId, item.size))),
+      )
+    }
+  }
+
+  // Calculate totals strictly based on SELECTED items
+  const selectedCart = useMemo(
+    () => cart.filter((item) => selectedKeys.has(getCartItemKey(item.productId, item.size))),
+    [cart, selectedKeys],
+  )
+
+  const selectedCount = selectedCart.reduce((sum, item) => sum + item.quantity, 0)
+  const subtotal = selectedCart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+  const isTestCart = isPaymentTestCart(selectedCart)
+  // Standard Philippine BIR 12% VAT-inclusive:
+  // Price shown is already VAT-inclusive, VAT amount is extracted rather than added
+  const { vatAmount: tax } = isTestCart ? { vatAmount: 0 } : calculateVatBreakdown(subtotal)
   const shipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
-  const total = subtotal + tax + shipping
+  const total = subtotal + shipping
   const checkoutHref = isAuthenticated ? '/checkout' : CHECKOUT_SIGN_IN_HREF
-  const hasUnavailableItems = cart.some((item) => {
+
+  const hasSelectedUnavailableItems = selectedCart.some((item) => {
     const record = getInventoryRecord(item.productId)
     const availableStock = getAvailableStock(item.productId)
 
@@ -176,26 +296,121 @@ export default function CartPage() {
 
       <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-5">
+          <div className="space-y-4">
+            {/* Shopee-style Select All Toolbar */}
+            <div className="storefront-panel flex items-center justify-between rounded-[1.75rem] px-5 py-3.5 sm:px-6 sm:py-4">
+              <label className="flex items-center gap-3 cursor-pointer select-none text-sm font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={toggleSelectAll}
+                  disabled={availableCartItems.length === 0}
+                  className="sr-only"
+                />
+                <div
+                  className={`flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded-lg border-2 transition-all ${
+                    isAllSelected
+                      ? 'border-primary bg-primary text-white shadow-xs'
+                      : 'border-border/80 bg-white/90 hover:border-primary/70'
+                  } ${availableCartItems.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                >
+                  {isAllSelected && <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[3]" />}
+                </div>
+                <span className="font-semibold text-foreground">
+                  Select All
+                  <span className="ml-2 text-xs font-normal text-foreground/50">
+                    ({selectedCart.length} of {cart.length} {cart.length === 1 ? 'item' : 'items'} selected)
+                  </span>
+                </span>
+              </label>
+
+              {selectedCart.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => updateSelectedKeys(() => new Set())}
+                  className="text-xs font-medium text-foreground/50 hover:text-primary transition underline underline-offset-2"
+                >
+                  Deselect all
+                </button>
+              )}
+            </div>
+
+            {/* Cart Items List */}
             {cart.map((item) => {
               const product = getProductById(item.productId)
               if (!product) {
                 return null
               }
 
+              const itemKey = getCartItemKey(item.productId, item.size)
+              const isSelected = selectedKeys.has(itemKey)
               const availability = getAvailabilityStatus(product.id)
               const availableStock = getAvailableStock(product.id)
               const isArchived = getInventoryRecord(product.id)?.isArchived ?? false
+              const isItemUnavailable = !product || isArchived || availableStock < item.quantity
 
               return (
                 <article
-                  key={`${item.productId}-${item.size}`}
-                  className="storefront-panel flex flex-col gap-5 rounded-[2rem] p-5 sm:flex-row sm:items-start sm:p-6"
+                  key={itemKey}
+                  className={`storefront-panel flex flex-col gap-4 sm:gap-5 rounded-[2rem] p-5 sm:flex-row sm:items-start sm:p-6 transition-all duration-200 ${
+                    isSelected
+                      ? 'ring-2 ring-primary/40 bg-white/95 shadow-xs'
+                      : isItemUnavailable
+                        ? 'opacity-60 bg-muted/20'
+                        : 'hover:border-primary/30'
+                  }`}
                 >
-                  <div className="relative w-full overflow-hidden rounded-[1.5rem] bg-muted/30 sm:w-32 sm:flex-shrink-0" style={{ height: '128px', minHeight: '128px' }}>
+                  {/* Shopee-style Checkbox on the side */}
+                  <div className="flex items-center sm:self-center sm:pt-0">
+                    <label
+                      htmlFor={`select-${itemKey}`}
+                      className={`relative flex items-center justify-center cursor-pointer p-1.5 -m-1.5 rounded-xl transition ${
+                        isItemUnavailable ? 'cursor-not-allowed opacity-40' : 'hover:bg-primary/10'
+                      }`}
+                      title={
+                        isItemUnavailable
+                          ? 'Unavailable for checkout'
+                          : isSelected
+                            ? 'Uncheck item'
+                            : 'Select item for checkout'
+                      }
+                    >
+                      <input
+                        id={`select-${itemKey}`}
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={isItemUnavailable}
+                        onChange={() => toggleItemSelection(item.productId, item.size)}
+                        className="sr-only"
+                        aria-label={`Select ${product.name} for checkout`}
+                      />
+                      <div
+                        className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 transition-all ${
+                          isSelected
+                            ? 'border-primary bg-primary text-white shadow-xs scale-105'
+                            : isItemUnavailable
+                              ? 'border-border/40 bg-muted/40 text-transparent'
+                              : 'border-border/80 bg-white/90 hover:border-primary/70 text-transparent'
+                        }`}
+                      >
+                        <Check
+                          className={`h-4 w-4 stroke-[3] transition-transform ${
+                            isSelected ? 'scale-100' : 'scale-50 opacity-0'
+                          }`}
+                        />
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Product Image */}
+                  <div
+                    className="relative w-full overflow-hidden rounded-[1.5rem] bg-muted/30 sm:w-32 sm:flex-shrink-0"
+                    style={{ height: '128px', minHeight: '128px' }}
+                  >
                     <Image src={product.images[0]} alt={product.name} fill className="object-cover" />
                   </div>
 
+                  {/* Product Details */}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -250,30 +465,38 @@ export default function CartPage() {
 
             <div className="mt-6 space-y-2.5 text-xs">
               <div className="flex justify-between items-center text-foreground/70">
-                <span className="text-foreground/60">Price (Subtotal)</span>
+                <span className="text-foreground/60">
+                  Price (Subtotal{selectedCart.length > 0 ? ` · ${selectedCount} ${selectedCount === 1 ? 'item' : 'items'}` : ''})
+                </span>
                 <span className="font-mono font-medium text-foreground">{formatPHP(subtotal)}</span>
               </div>
               <div className="flex justify-between items-center text-foreground/70">
                 <span className="inline-flex items-center gap-1.5 text-foreground/60">
-                  VAT (12%)
-                  <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary">BIR</span>
+                  12% VAT
+                  <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">Included</span>
                 </span>
-                <span className="font-mono font-medium text-foreground">{formatPHP(tax)}</span>
+                <span className="font-mono font-medium text-foreground/80">{formatPHP(tax)}</span>
               </div>
               <div className="flex justify-between items-center text-foreground/70">
                 <span className="text-foreground/60">Shipping</span>
                 <span className="font-mono font-medium text-foreground">
-                  {shipping === 0 ? <span className="text-emerald-600 font-semibold text-[11px] uppercase">Free</span> : formatPHP(shipping)}
+                  {selectedCart.length === 0 ? (
+                    '₱0'
+                  ) : shipping === 0 ? (
+                    <span className="text-emerald-600 font-semibold text-[11px] uppercase">Free</span>
+                  ) : (
+                    formatPHP(shipping)
+                  )}
                 </span>
               </div>
 
-              {isTestCart ? (
+              {selectedCart.length > 0 && isTestCart ? (
                 <p className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 text-[10px] leading-4 text-amber-900">
                   Payment test item: tax and shipping are waived for this cart.
                 </p>
               ) : null}
 
-              {!isTestCart && shipping === 0 && subtotal > 0 ? (
+              {selectedCart.length > 0 && !isTestCart && shipping === 0 && subtotal > 0 ? (
                 <p className="rounded-lg bg-primary/5 border border-primary/15 px-2.5 py-1.5 text-[10px] leading-4 text-foreground/70">
                   Shipping is free on perfume orders of {formatPHP(400)} or more.
                 </p>
@@ -284,7 +507,9 @@ export default function CartPage() {
               <div className="flex items-baseline justify-between gap-4">
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Total</span>
-                  <p className="text-[10px] text-foreground/45 mt-0.5">Incl. 12% VAT & delivery</p>
+                  <p className="text-[10px] text-foreground/45 mt-0.5">
+                    {selectedCart.length > 0 ? 'VAT-Inclusive · Free delivery ₱400+' : 'No items selected'}
+                  </p>
                 </div>
                 <span className="text-3xl font-serif font-bold text-foreground">{formatPHP(total)}</span>
               </div>
@@ -295,14 +520,18 @@ export default function CartPage() {
                 <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground" disabled>
                   Checking account...
                 </Button>
+              ) : selectedCart.length === 0 ? (
+                <Button className="h-12 w-full rounded-2xl bg-muted text-foreground/40 cursor-not-allowed" disabled>
+                  Select Items To Checkout
+                </Button>
               ) : (
                 <Button className="h-12 w-full rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]" asChild>
                   <Link
                     href={checkoutHref}
-                    aria-disabled={hasUnavailableItems}
-                    className={hasUnavailableItems ? 'pointer-events-none opacity-50' : undefined}
+                    aria-disabled={hasSelectedUnavailableItems}
+                    className={hasSelectedUnavailableItems ? 'pointer-events-none opacity-50' : undefined}
                   >
-                    {isAuthenticated ? 'Proceed To Checkout' : 'Sign In To Checkout'}
+                    {isAuthenticated ? `Proceed To Checkout (${selectedCount})` : 'Sign In To Checkout'}
                   </Link>
                 </Button>
               )}
@@ -312,13 +541,15 @@ export default function CartPage() {
               </Button>
             </div>
 
-            {hasUnavailableItems ? (
-              <p className="mt-4 text-sm leading-7 text-destructive">
-                Remove or adjust unavailable items before continuing to checkout.
+            {selectedCart.length === 0 ? (
+              <p className="mt-4 text-center text-xs leading-5 text-foreground/50">
+                Pilia ang mga fragrance nga gusto nimo i-checkout gamit ang checkbox sa kilid.
               </p>
-            ) : null}
-
-            {!authLoading && !isAuthenticated && !hasUnavailableItems ? (
+            ) : hasSelectedUnavailableItems ? (
+              <p className="mt-4 text-sm leading-7 text-destructive">
+                Remove or uncheck unavailable items before continuing to checkout.
+              </p>
+            ) : !authLoading && !isAuthenticated ? (
               <p className="mt-4 text-sm leading-7 text-foreground/58">Sign in to continue to checkout.</p>
             ) : null}
           </aside>

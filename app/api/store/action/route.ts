@@ -162,11 +162,18 @@ export async function POST(request: NextRequest) {
         )
 
         if (existingOrder) {
+          const remainingCart = cart.filter(
+            (cartItem) =>
+              !existingOrder.items.some(
+                (orderedItem) =>
+                  orderedItem.productId === cartItem.productId && orderedItem.size === cartItem.size,
+              ),
+          )
           if (actor) {
-            await saveUserCart(actor.id, [])
+            await saveUserCart(actor.id, remainingCart)
           }
 
-          const visibleState = await getVisibleStoreState(snapshot, actor, [])
+          const visibleState = await getVisibleStoreState(snapshot, actor, remainingCart)
           const visibleOrder =
             visibleState.orders.find((order) => order.id === existingOrder.id) ?? existingOrder
 
