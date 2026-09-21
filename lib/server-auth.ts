@@ -25,11 +25,24 @@ function normalizeRole(value: unknown): StoreActor['role'] | null {
   return null
 }
 
+interface CachedActor {
+  actor: StoreActor
+  expiresAt: number
+}
+
+const ACTOR_CACHE_TTL_MS = 60 * 1000
+const actorCache = new Map<string, CachedActor>()
+
 export async function getRequestActor(request: NextRequest): Promise<StoreActor | null> {
   const token = getBearerToken(request)
 
   if (!token) {
     return null
+  }
+
+  const cached = actorCache.get(token)
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.actor
   }
 
   const supabase = createSupabaseAdminClient()
@@ -50,16 +63,16 @@ export async function getRequestActor(request: NextRequest): Promise<StoreActor 
 
   const normalizedProfileRole = normalizeRole(profile?.role)
 
+  let actor: StoreActor | null = null
+
   if (profile && normalizedProfileRole) {
-    return {
+    actor = {
       id: profile.id,
       email: profile.email,
       name: profile.name,
       role: normalizedProfileRole,
     }
-  }
-
-  if (normalizedUserEmail && normalizedUserEmail === normalizedAdminEmail) {
+  } else if (normalizedUserEmail && normalizedUserEmail === normalizedAdminEmail) {
     const fallbackName =
       typeof data.user.user_metadata?.name === 'string' && data.user.user_metadata.name.trim()
         ? data.user.user_metadata.name.trim()
@@ -75,22 +88,27 @@ export async function getRequestActor(request: NextRequest): Promise<StoreActor 
       { onConflict: 'id' },
     )
 
-    return {
+    actor = {
       id: data.user.id,
       email: normalizedUserEmail,
       name: profile?.name?.trim() || fallbackName,
       role: 'ADMIN',
     }
+  } else if (profile) {
+    actor = {
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      role: 'USER',
+    }
   }
 
-  if (!profile) {
-    return null
+  if (actor) {
+    actorCache.set(token, {
+      actor,
+      expiresAt: Date.now() + ACTOR_CACHE_TTL_MS,
+    })
   }
 
-  return {
-    id: profile.id,
-    email: profile.email,
-    name: profile.name,
-    role: 'USER',
-  }
+  return actor
 }

@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useDeferredValue, useMemo, useState } from 'react'
-import { Star } from 'lucide-react'
+import { useEffect, useDeferredValue, useMemo, useState } from 'react'
+import { Star, RefreshCw, Search, Link2, Package, Sparkles } from 'lucide-react'
 import { ProtectedRoute } from '@/components/protected-route'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
 import { type OrderRecord, useStore } from '@/lib/store-context'
@@ -81,18 +82,41 @@ function getLastTimelineEntry(order: OrderRecord) {
 
 export default function OrdersPage() {
   const { user } = useAuth()
-  const { cancelOwnOrder, getAvailableStock, orders, isStoreLoading } = useStore()
+  const { cancelOwnOrder, getAvailableStock, orders, isStoreLoading, refreshStore } = useStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] =
     useState<(typeof ORDER_STATUS_FILTERS)[number]>('All Orders')
   const [pendingAction, setPendingAction] = useState<PendingOrderAction>(null)
   const [submittingOrderId, setSubmittingOrderId] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [claimOrderId, setClaimOrderId] = useState('')
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [showClaimForm, setShowClaimForm] = useState(false)
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase())
 
-  const userOrders = useMemo(
-    () => orders.filter((order) => order.source === 'ONLINE'),
-    [orders],
-  )
+  // Automatically check for any unlinked/paid PayMongo transactions in background
+  useEffect(() => {
+    fetch('/api/paymongo/sync-orders', { method: 'POST' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.recoveredOrders && data.recoveredOrders.length > 0) {
+          refreshStore()
+        }
+      })
+      .catch(() => {})
+  }, [refreshStore])
+
+  const userOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (order.source !== 'ONLINE') return false
+      if (user?.role === 'USER') return true
+      const userEmail = user?.email?.toLowerCase().trim()
+      return (
+        order.customerId === user?.id ||
+        (userEmail && order.customerEmail.toLowerCase().trim() === userEmail)
+      )
+    })
+  }, [orders, user])
 
   const filteredOrders = useMemo(() => {
     return userOrders.filter((order) => {
@@ -103,6 +127,63 @@ export default function OrdersPage() {
       return matchesSearch && matchesStatus
     })
   }, [deferredSearchQuery, statusFilter, userOrders])
+
+  const handleSyncOrders = async () => {
+    setIsSyncing(true)
+    try {
+      const res = await fetch('/api/paymongo/sync-orders', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      await refreshStore()
+      toast({
+        title: 'Orders Synchronized',
+        description: data.recoveredOrders?.length
+          ? `Synced ${data.recoveredOrders.length} order(s) from PayMongo!`
+          : 'Your orders list is up to date with PayMongo & database.',
+      })
+    } catch (err: any) {
+      await refreshStore()
+      toast({
+        title: 'Store Refreshed',
+        description: 'Loaded latest orders from the database.',
+      })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleClaimOrder = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const cleanId = claimOrderId.trim()
+    if (!cleanId) return
+
+    setIsClaiming(true)
+    try {
+      const res = await fetch('/api/orders/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: cleanId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Order could not be claimed.')
+      }
+      toast({
+        title: 'Order Successfully Linked!',
+        description: data.message,
+      })
+      setClaimOrderId('')
+      setShowClaimForm(false)
+      await refreshStore()
+    } catch (err: any) {
+      toast({
+        title: 'Unable to Link Order',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsClaiming(false)
+    }
+  }
 
   const handleConfirmedAction = async () => {
     if (!pendingAction) {
@@ -127,16 +208,86 @@ export default function OrdersPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole="USER">
+    <ProtectedRoute>
       <StorefrontShell>
         <StorefrontPageHero
           eyebrow="Order History"
           title="My Orders"
-          description="Search your online perfume orders by order ID, payment reference, or PayMongo session, then manage the steps you are allowed to handle yourself."
+          description="Search your online perfume orders by order ID, payment reference, or PayMongo session, track deliveries, and link any orders placed with alternate accounts."
         />
 
         <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-6xl">
+            {/* Quick Actions Bar */}
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card border border-border/70 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-sm text-foreground/70">
+                <Package className="h-4 w-4 text-primary" />
+                <span>
+                  Logged in as <span className="font-semibold text-foreground">{user?.email}</span>
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncOrders}
+                  disabled={isSyncing}
+                  className="rounded-xl border-border/80 h-9 gap-1.5"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-primary' : ''}`} />
+                  {isSyncing ? 'Syncing...' : 'Sync Recent Payments'}
+                </Button>
+                <Button
+                  variant={showClaimForm ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowClaimForm(!showClaimForm)}
+                  className="rounded-xl border-border/80 h-9 gap-1.5"
+                >
+                  <Link2 className="h-3.5 w-3.5 text-primary" />
+                  Find / Link Missing Order
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  asChild
+                  className="rounded-xl h-9"
+                >
+                  <Link href="/track">Track by Order ID</Link>
+                </Button>
+              </div>
+            </div>
+
+            {/* Claim Missing Order Card */}
+            {showClaimForm && (
+              <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/5 p-5 transition-all">
+                <div className="max-w-xl">
+                  <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Find & Link Missing Order
+                  </h3>
+                  <p className="mt-1 text-xs text-foreground/70">
+                    Did you pay using GCash, Maya, or another email during checkout? Enter your Order ID (e.g. <code className="rounded bg-background px-1 py-0.5 text-primary">WEB-XXXXXXXX-XXXX</code>) or PayMongo reference to immediately link it to this account.
+                  </p>
+                  <form onSubmit={handleClaimOrder} className="mt-4 flex flex-col sm:flex-row gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter Order ID or PayMongo reference..."
+                      value={claimOrderId}
+                      onChange={(e) => setClaimOrderId(e.target.value)}
+                      className="h-10 bg-background text-sm"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={isClaiming || !claimOrderId.trim()}
+                      className="h-10 px-5 text-sm bg-primary text-primary-foreground shrink-0"
+                    >
+                      {isClaiming ? 'Linking...' : 'Link to My Account'}
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            )}
+
             {isStoreLoading ? (
               <div className="storefront-panel rounded-[2rem] p-12 text-center flex flex-col items-center justify-center gap-4">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -145,9 +296,30 @@ export default function OrdersPage() {
             ) : userOrders.length === 0 ? (
               <div className="storefront-panel rounded-[2rem] p-12 text-center">
                 <p className="text-2xl text-foreground">No online orders are linked to {user?.email} yet.</p>
-                <Button className="mt-6 h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
-                  <Link href="/shop">Browse Perfumes</Link>
-                </Button>
+                <p className="mt-2 text-sm text-foreground/60 max-w-md mx-auto">
+                  If you already completed a payment via GCash, Maya, or QR Ph, click below to sync recent transactions or link your order ID.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <Button
+                    onClick={handleSyncOrders}
+                    disabled={isSyncing}
+                    className="h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]"
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Syncing...' : 'Sync Recent Payments'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowClaimForm(true)}
+                    className="h-11 rounded-2xl border-border px-6"
+                  >
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Find / Link Order
+                  </Button>
+                  <Button className="h-11 rounded-2xl px-6" variant="ghost" asChild>
+                    <Link href="/shop">Browse Perfumes</Link>
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
@@ -158,7 +330,7 @@ export default function OrdersPage() {
                       <h2 className="mt-3 text-3xl text-foreground">Find The Right Order Fast</h2>
                       <p className="mt-3 max-w-2xl text-sm leading-7 text-foreground/62">
                         Search by order ID, your payment reference, or PayMongo session ID. Cancel only pending or
-                        processing orders, and confirm receipt once a parcel is out for delivery.
+                        processing orders, and track delivery progress in real time.
                       </p>
                     </div>
 
@@ -245,9 +417,9 @@ export default function OrdersPage() {
                             <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/48">
                               Tracking Timeline
                             </h3>
-                            {order.timeline.map((entry) => (
+                            {order.timeline.map((entry, index) => (
                               <div
-                                key={`${order.id}-${entry.status}-${entry.createdAt}`}
+                                key={`${order.id}-timeline-${index}-${entry.status}-${entry.createdAt}`}
                                 className="rounded-[1.5rem] bg-muted/28 p-4"
                               >
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -408,9 +580,9 @@ export default function OrdersPage() {
                               <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/48">
                                 Ordered Items
                               </h3>
-                              {order.items.map((item) => (
+                              {order.items.map((item, index) => (
                                 <div
-                                  key={`${order.id}-${item.productId}-${item.size}`}
+                                  key={`${order.id}-item-${index}-${item.productId}-${item.size}`}
                                   className="rounded-[1.5rem] bg-muted/28 p-4"
                                 >
                                   <div className="flex items-center justify-between gap-4">

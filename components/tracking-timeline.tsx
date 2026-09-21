@@ -167,7 +167,7 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
           {tracking.events.map((event, idx) => {
             const isLatest = idx === 0
             return (
-              <div key={event.id} className="relative flex items-start gap-4">
+              <div key={`${event.id}-${idx}`} className="relative flex items-start gap-4">
                 {/* Bullet */}
                 <div
                   className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2 transition ${

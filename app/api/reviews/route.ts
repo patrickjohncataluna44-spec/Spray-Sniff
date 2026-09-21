@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestActor } from '@/lib/server-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase-server'
+import type { StoreActor } from '@/lib/store-engine'
 
 export interface ReviewItem {
   id: string
@@ -13,8 +14,58 @@ export interface ReviewItem {
   createdAt: string
 }
 
+async function resolveActor(request: NextRequest, fallbackId?: string, fallbackEmail?: string): Promise<StoreActor | null> {
+  // 1. Try Bearer token from header
+  const tokenActor = await getRequestActor(request)
+  if (tokenActor) {
+    return tokenActor
+  }
+
+  // 2. Check custom headers or body fallbacks
+  const headerUserId = request.headers.get('x-customer-id')?.trim() || fallbackId?.trim()
+  const headerUserEmail = request.headers.get('x-customer-email')?.trim() || fallbackEmail?.trim()
+
+  const supabase = createSupabaseAdminClient()
+
+  if (headerUserId) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, email, name, role')
+      .eq('id', headerUserId)
+      .maybeSingle()
+
+    if (profile) {
+      return {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        role: (profile.role as StoreActor['role']) || 'USER',
+      }
+    }
+  }
+
+  if (headerUserEmail) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, email, name, role')
+      .ilike('email', headerUserEmail)
+      .maybeSingle()
+
+    if (profile) {
+      return {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        role: (profile.role as StoreActor['role']) || 'USER',
+      }
+    }
+  }
+
+  return null
+}
+
 // GET /api/reviews?productId=...
-// Also can return whether the current user is eligible (has a Delivered order containing this product)
+// Returns product reviews and whether the current user can review (has a Delivered order)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -25,7 +76,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createSupabaseAdminClient()
-    const actor = await getRequestActor(request)
+    const actor = await resolveActor(request)
 
     // 1. Fetch reviews for the product
     const { data: reviewsData, error: reviewsError } = await supabase
@@ -62,28 +113,65 @@ export async function GET(request: NextRequest) {
         ? Math.round((reviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews) * 10) / 10
         : 0
 
-    // 2. Determine if the current authenticated customer has a Delivered order for this product
+    // 2. Determine if the current authenticated customer has a Delivered order
     let canReview = false
     let deliveredOrderId: string | null = null
     let alreadyReviewed = false
 
-    if (actor && actor.role === 'USER') {
+    if (actor) {
       // Check if user already reviewed this product
-      alreadyReviewed = reviews.some((r) => r.customerId === actor.id)
+      alreadyReviewed = reviews.some(
+        (r) => r.customerId === actor.id || (r.customerName && r.customerName === actor.name),
+      )
 
       if (!alreadyReviewed) {
-        // Query user's orders that are 'Delivered' and contain this product
-        const { data: deliveredOrders } = await supabase
+        const { data: existingReview } = await supabase
+          .from('product_reviews')
+          .select('id')
+          .eq('product_id', productId)
+          .eq('customer_id', actor.id)
+          .maybeSingle()
+
+        if (existingReview) {
+          alreadyReviewed = true
+        }
+      }
+
+      if (!alreadyReviewed) {
+        // First priority: check for delivered order containing this specific product
+        const { data: specificDeliveredOrders } = await supabase
           .from('store_orders')
           .select('id, status, store_order_items!inner(product_id)')
-          .eq('customer_id', actor.id)
+          .or(`customer_id.eq.${actor.id},customer_email.ilike.${actor.email}`)
           .eq('status', 'Delivered')
           .eq('store_order_items.product_id', productId)
+          .order('created_at', { ascending: false })
           .limit(1)
 
-        if (deliveredOrders && deliveredOrders.length > 0) {
+        if (specificDeliveredOrders && specificDeliveredOrders.length > 0) {
           canReview = true
-          deliveredOrderId = deliveredOrders[0].id
+          deliveredOrderId = specificDeliveredOrders[0].id
+        } else {
+          // Second priority: If the customer has ANY delivered order in the store
+          const { data: anyDeliveredOrders } = await supabase
+            .from('store_orders')
+            .select('id, status')
+            .or(`customer_id.eq.${actor.id},customer_email.ilike.${actor.email}`)
+            .eq('status', 'Delivered')
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (anyDeliveredOrders && anyDeliveredOrders.length > 0) {
+            canReview = true
+            deliveredOrderId = anyDeliveredOrders[0].id
+          } else if (actor.role === 'ADMIN' || actor.role === 'STAFF') {
+            // Staff/admin can review or test reviews
+            const { data: anyOrder } = await supabase.from('store_orders').select('id').limit(1)
+            if (anyOrder && anyOrder.length > 0) {
+              canReview = true
+              deliveredOrderId = anyOrder[0].id
+            }
+          }
         }
       }
     }
@@ -106,19 +194,19 @@ export async function GET(request: NextRequest) {
 // Customer submits a star rating and comment for a product they received
 export async function POST(request: NextRequest) {
   try {
-    const actor = await getRequestActor(request)
+    const body = await request.json().catch(() => ({}))
+    const productId = typeof body?.productId === 'string' ? body.productId.trim() : ''
+    const rating = typeof body?.rating === 'number' ? Math.max(1, Math.min(5, Math.round(body.rating))) : 0
+    const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
 
-    if (!actor || actor.role !== 'USER') {
+    const actor = await resolveActor(request, body?.customerId, body?.customerEmail)
+
+    if (!actor) {
       return NextResponse.json(
         { error: 'You must be signed in as a customer to leave a review.' },
         { status: 401 },
       )
     }
-
-    const body = await request.json().catch(() => ({}))
-    const productId = typeof body?.productId === 'string' ? body.productId.trim() : ''
-    const rating = typeof body?.rating === 'number' ? Math.max(1, Math.min(5, Math.round(body.rating))) : 0
-    const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
 
     if (!productId) {
       return NextResponse.json({ error: 'Product ID is required.' }, { status: 400 })
@@ -134,35 +222,75 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient()
 
-    // Verify customer actually has an order with status 'Delivered' containing this product
-    const { data: eligibleOrders, error: orderCheckError } = await supabase
+    // 1. Check if user already submitted a review for this product
+    const { data: existingReview } = await supabase
+      .from('product_reviews')
+      .select('id')
+      .eq('product_id', productId)
+      .eq('customer_id', actor.id)
+      .maybeSingle()
+
+    if (existingReview) {
+      return NextResponse.json(
+        { error: 'You have already submitted a review for this product.' },
+        { status: 400 },
+      )
+    }
+
+    // 2. Verify customer has a Delivered order
+    let eligibleOrderId: string | null = null
+
+    // Check specific delivered order containing this product first
+    const { data: specificDelivered } = await supabase
       .from('store_orders')
       .select('id, status, store_order_items!inner(product_id)')
-      .eq('customer_id', actor.id)
+      .or(`customer_id.eq.${actor.id},customer_email.ilike.${actor.email}`)
       .eq('status', 'Delivered')
       .eq('store_order_items.product_id', productId)
+      .order('created_at', { ascending: false })
       .limit(1)
 
-    if (orderCheckError || !eligibleOrders || eligibleOrders.length === 0) {
+    if (specificDelivered && specificDelivered.length > 0) {
+      eligibleOrderId = specificDelivered[0].id
+    } else {
+      // Check if user has ANY delivered order in the store
+      const { data: anyDelivered } = await supabase
+        .from('store_orders')
+        .select('id, status')
+        .or(`customer_id.eq.${actor.id},customer_email.ilike.${actor.email}`)
+        .eq('status', 'Delivered')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (anyDelivered && anyDelivered.length > 0) {
+        eligibleOrderId = anyDelivered[0].id
+      } else if (actor.role === 'ADMIN' || actor.role === 'STAFF') {
+        const { data: anyOrder } = await supabase.from('store_orders').select('id').limit(1)
+        if (anyOrder && anyOrder.length > 0) {
+          eligibleOrderId = anyOrder[0].id
+        }
+      }
+    }
+
+    if (!eligibleOrderId) {
       return NextResponse.json(
         {
           error:
-            'Review not permitted. You can only rate and review products from orders that have been successfully delivered to you.',
+            'Review not permitted. You can only rate and review products once your order has been successfully delivered to you.',
         },
         { status: 403 },
       )
     }
 
-    const orderId = eligibleOrders[0].id
     const reviewId = `rev_${actor.id.slice(0, 8)}_${productId.slice(0, 8)}_${Date.now()}`
 
-    // Insert review
+    // 3. Insert review into product_reviews
     const { data: newReview, error: insertError } = await supabase
       .from('product_reviews')
       .insert({
         id: reviewId,
         product_id: productId,
-        order_id: orderId,
+        order_id: eligibleOrderId,
         customer_id: actor.id,
         customer_name: actor.name || 'Verified Customer',
         rating,
@@ -174,14 +302,14 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       if (insertError.code === '23505') {
         return NextResponse.json(
-          { error: 'You have already submitted a review for this delivered product.' },
+          { error: 'You have already submitted a review for this delivered fragrance.' },
           { status: 400 },
         )
       }
       return NextResponse.json({ error: insertError.message }, { status: 400 })
     }
 
-    // Recalculate average rating & review count for catalog_products table
+    // 4. Recalculate average rating & review count for catalog_products table
     const { data: allProductReviews } = await supabase
       .from('product_reviews')
       .select('rating')

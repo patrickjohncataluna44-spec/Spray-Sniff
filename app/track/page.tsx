@@ -13,7 +13,11 @@ import { Search, Package, ShieldCheck, HelpCircle } from 'lucide-react'
 
 function TrackContent() {
   const searchParams = useSearchParams()
-  const initialNumber = searchParams.get('num') || ''
+  const initialNumber =
+    searchParams.get('num') ||
+    searchParams.get('number') ||
+    searchParams.get('orderId') ||
+    ''
 
   const [trackingNumber, setTrackingNumber] = useState(initialNumber)
   const [trackingData, setTrackingData] = useState<TrackingResult | null>(null)
@@ -60,7 +64,7 @@ function TrackContent() {
             <Package className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Enter your order ID (e.g. ORD-1234)"
+              placeholder="Enter your Order ID (e.g. WEB-12345678-ABCD) or Tracking #"
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
               className="pl-10 h-12 text-sm bg-background"
@@ -72,8 +76,7 @@ function TrackContent() {
           </Button>
         </form>
         <p className="mt-4 text-xs text-muted-foreground">
-          Delivery progress is updated by our store team. Sign in with the account you used
-          to place the order, then enter its order ID from your order history.
+          Track any package instantly using your Order ID from your receipt, confirmation, or courier waybill.
         </p>
       </div>
 

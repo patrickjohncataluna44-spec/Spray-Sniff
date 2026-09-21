@@ -262,6 +262,10 @@ create table if not exists public.product_reviews (
   constraint unique_customer_product_order_review unique (customer_id, product_id, order_id)
 );
 
+create index if not exists idx_product_reviews_product_id on public.product_reviews (product_id);
+create index if not exists idx_product_reviews_customer_id on public.product_reviews (customer_id);
+create index if not exists idx_product_reviews_created_at on public.product_reviews (created_at desc);
+
 create table if not exists public.support_cases (
   id text primary key,
   customer_id uuid null references public.profiles (id) on delete set null,

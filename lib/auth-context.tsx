@@ -116,28 +116,30 @@ async function readProfile(
 ): Promise<User> {
   const supabase = getSupabaseBrowserClient()
 
-  // 1. Try with extended fields using maybeSingle (never single to avoid 406)
+  // 1. Try with extended fields using limit(1) (never single or maybeSingle to guarantee zero 406 errors)
   try {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, email, name, role, phone, birthdate, age, address, city, postal_code')
       .eq('id', userId)
-      .maybeSingle()
+      .limit(1)
 
-    if (!error && data) {
-      const row = data as {
-        id: string
-        email: string
-        name: string
-        role: UserRole
-        phone?: string | null
-        birthdate?: string | null
-        age?: number | null
-        address?: string | null
-        city?: string | null
-        postal_code?: string | null
-      }
+    const row = data?.[0] as
+      | {
+          id: string
+          email: string
+          name: string
+          role: UserRole
+          phone?: string | null
+          birthdate?: string | null
+          age?: number | null
+          address?: string | null
+          city?: string | null
+          postal_code?: string | null
+        }
+      | undefined
 
+    if (!error && row) {
       return {
         id: row.id,
         email: row.email,
@@ -155,16 +157,17 @@ async function readProfile(
     console.warn('Extended profile read warning:', err)
   }
 
-  // 2. Try basic columns with maybeSingle (NOT single)
+  // 2. Try basic columns with limit(1) (never single or maybeSingle)
   try {
     const { data: basicData, error: basicError } = await supabase
       .from('profiles')
       .select('id, email, name, role')
       .eq('id', userId)
-      .maybeSingle()
+      .limit(1)
 
-    if (!basicError && basicData) {
-      return basicData as User
+    const basicRow = basicData?.[0] as User | undefined
+    if (!basicError && basicRow) {
+      return basicRow
     }
   } catch (err) {
     console.warn('Basic profile read warning:', err)

@@ -174,6 +174,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshInFlightRef = useRef(false)
   const pendingRealtimeRefreshRef = useRef(false)
+  const lastLocalActionAtRef = useRef(0)
 
   const performRefresh = useEffectEvent(async (background = false) => {
     if (refreshInFlightRef.current) {
@@ -230,13 +231,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [performRefresh])
 
   const handleRealtimeSync = useEffectEvent(() => {
+    // If a store action was executed locally within 2.5 seconds, we already have
+    // the authoritative state in memory; ignore the echo realtime broadcast.
+    if (Date.now() - lastLocalActionAtRef.current < 2500) {
+      return
+    }
+
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current)
     }
 
     refreshTimerRef.current = setTimeout(() => {
       void performRefresh(true)
-    }, 150)
+    }, 250)
   })
 
   useEffect(() => {
@@ -276,6 +283,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [authLoading, handleRealtimeSync, user?.id, user?.role])
 
   const callStoreAction = async <T,>(action: StoreAction) => {
+    lastLocalActionAtRef.current = Date.now()
+
     const response = await fetch('/api/store/action', {
       method: 'POST',
       headers: {
@@ -293,6 +302,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         message: payload.message ?? payload.error ?? 'Unable to complete this action.',
       } as StoreActionResult<T>
     }
+
+    lastLocalActionAtRef.current = Date.now()
 
     if (payload.state) {
       setState(payload.state as StoreState)

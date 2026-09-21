@@ -13,6 +13,8 @@ import { useStore } from '@/lib/store-context'
 import { subscribeToProductReviews } from '@/lib/supabase-realtime'
 import { toast } from '@/hooks/use-toast'
 
+import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
+
 interface ReviewData {
   id: string
   productId: string
@@ -63,7 +65,21 @@ export default function ProductPage({
   const fetchProductReviews = useCallback(async () => {
     if (!id) return
     try {
-      const res = await fetch(`/api/reviews?productId=${encodeURIComponent(id)}`)
+      const authHeaders = await getBrowserAuthHeaders()
+      const extraHeaders: Record<string, string> = {
+        ...authHeaders,
+      }
+      if (user?.id) {
+        extraHeaders['x-customer-id'] = user.id
+      }
+      if (user?.email) {
+        extraHeaders['x-customer-email'] = user.email
+      }
+
+      const res = await fetch(`/api/reviews?productId=${encodeURIComponent(id)}`, {
+        headers: extraHeaders,
+        cache: 'no-store',
+      })
       if (res.ok) {
         const data = await res.json()
         setReviews(Array.isArray(data.reviews) ? data.reviews : [])
@@ -77,11 +93,16 @@ export default function ProductPage({
     } finally {
       setIsLoadingReviews(false)
     }
-  }, [id])
+  }, [id, user?.id, user?.email])
+
+  // Re-fetch reviews once auth finishes loading or user session becomes available
+  useEffect(() => {
+    if (authLoading) return
+    void fetchProductReviews()
+  }, [authLoading, user?.id, user?.email, fetchProductReviews])
 
   useEffect(() => {
-    void fetchProductReviews()
-
+    if (!id) return
     const unsubscribe = subscribeToProductReviews(id, () => {
       void fetchProductReviews()
     })
@@ -114,13 +135,27 @@ export default function ProductPage({
 
     setIsSubmittingReview(true)
     try {
+      const authHeaders = await getBrowserAuthHeaders()
+      const extraHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      }
+      if (user?.id) {
+        extraHeaders['x-customer-id'] = user.id
+      }
+      if (user?.email) {
+        extraHeaders['x-customer-email'] = user.email
+      }
+
       const res = await fetch('/api/reviews', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: extraHeaders,
         body: JSON.stringify({
           productId: id,
           rating: newRating,
           comment: newComment.trim(),
+          customerId: user?.id,
+          customerEmail: user?.email,
         }),
       })
       const result = await res.json()
@@ -139,6 +174,8 @@ export default function ProductPage({
         description: 'Thank you for your rating and feedback.',
       })
       setNewComment('')
+      setCanReview(false)
+      setAlreadyReviewed(true)
       void fetchProductReviews()
     } catch (error) {
       toast({

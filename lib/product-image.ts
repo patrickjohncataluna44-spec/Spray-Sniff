@@ -1,7 +1,7 @@
-const MAX_IMAGE_DIMENSION = 800
-const MIN_IMAGE_DIMENSION = 360
-// Target size strictly in KB (120 KB) so database storage stays extremely small and lightning fast
-const TARGET_IMAGE_BYTES = 120 * 1024
+const MAX_IMAGE_DIMENSION = 640
+const MIN_IMAGE_DIMENSION = 320
+// Target size strictly in KB (40 KB) so database storage and network roundtrips stay lightning fast
+const TARGET_IMAGE_BYTES = 40 * 1024
 const JPEG_QUALITIES = [0.75, 0.65, 0.55, 0.45, 0.35]
 
 function resizeToFit(width: number, height: number, maxDimension: number) {
