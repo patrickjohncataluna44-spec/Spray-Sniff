@@ -189,6 +189,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (action.type === 'createPosSale' && action.input.clientSaleId) {
+      const existingOrder = snapshot.orders.find(
+        (order) =>
+          order.source === 'POS' &&
+          order.notes?.includes(`[POS-REF:${action.input.clientSaleId}]`),
+      )
+
+      if (existingOrder) {
+        const visibleState = await getVisibleStoreState(snapshot, actor, cart)
+        const visibleOrder =
+          visibleState.orders.find((order) => order.id === existingOrder.id) ?? existingOrder
+
+        return NextResponse.json({
+          ok: true,
+          message: 'POS sale already processed.',
+          data: visibleOrder,
+          source: 'supabase',
+          state: visibleState,
+          syncedAt: new Date().toISOString(),
+        })
+      }
+    }
+
     let actionState = workingState
     let { nextState, result } = performStoreAction(actionState, action, actor)
 

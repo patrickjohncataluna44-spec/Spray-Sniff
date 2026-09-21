@@ -235,6 +235,7 @@ export interface CreatePosSaleInput {
   paymentMethod: PosPaymentMethod
   items: CartItem[]
   notes?: string
+  clientSaleId?: string
 }
 
 export interface AddCatalogProductOptions {
@@ -1642,6 +1643,20 @@ export function performStoreAction(
         return { nextState: currentState, result: { ok: false, message: 'Add at least one item to process a POS sale.' } }
       }
 
+      if (action.input.clientSaleId) {
+        const existingOrder = currentState.orders.find(
+          (order) =>
+            order.source === 'POS' &&
+            order.notes?.includes(`[POS-REF:${action.input.clientSaleId}]`),
+        )
+        if (existingOrder) {
+          return {
+            nextState: currentState,
+            result: { ok: true, message: 'POS sale already processed.', data: existingOrder },
+          }
+        }
+      }
+
       const inventoryMap = new Map(currentState.inventory.map((record) => [record.productId, record]))
       const quantityByProduct = action.input.items.reduce<Record<string, number>>((totals, item) => {
         totals[item.productId] = (totals[item.productId] ?? 0) + item.quantity
@@ -1690,6 +1705,9 @@ export function performStoreAction(
         return { ...record, stock: clampToWholeNumber(record.stock - soldQuantity), lastUpdated: timestamp }
       })
 
+      const posRefTag = action.input.clientSaleId ? `[POS-REF:${action.input.clientSaleId}]` : ''
+      const combinedNotes = [action.input.notes?.trim(), posRefTag].filter(Boolean).join(' ')
+
       const nextOrder: OrderRecord = {
         id: createOrderId('POS'),
         source: 'POS',
@@ -1703,7 +1721,7 @@ export function performStoreAction(
         shipping: 0,
         tax: totals.tax,
         total: totals.total,
-        notes: action.input.notes,
+        notes: combinedNotes,
         items: orderItems,
         timeline: [{ status: 'Completed', createdAt: timestamp, note: 'POS transaction completed.' }],
       }
