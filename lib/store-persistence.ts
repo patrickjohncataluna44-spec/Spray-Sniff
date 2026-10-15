@@ -46,33 +46,8 @@ const DEFAULT_STORE_SYNC_META: StoreSyncMetaRow = {
   public_snapshot_version: 0,
 }
 
-function needsCanonicalPaymentTestProductSync(state: StoreState) {
-  const canonicalProduct = products.find((product) => product.id === PAYMENT_TEST_PRODUCT_ID)
-  if (!canonicalProduct) {
-    return false
-  }
-
-  const currentProduct = state.catalog.find((product) => product.id === PAYMENT_TEST_PRODUCT_ID)
-  if (!currentProduct) {
-    return true
-  }
-
-  const currentInventory = state.inventory.find(
-    (record) => record.productId === PAYMENT_TEST_PRODUCT_ID,
-  )
-
-  return (
-    currentProduct.name !== canonicalProduct.name ||
-    currentProduct.description !== canonicalProduct.description ||
-    currentProduct.category !== canonicalProduct.category ||
-    currentProduct.price !== canonicalProduct.price ||
-    JSON.stringify(currentProduct.scentFamily) !== JSON.stringify(canonicalProduct.scentFamily) ||
-    JSON.stringify(currentProduct.topNotes) !== JSON.stringify(canonicalProduct.topNotes) ||
-    JSON.stringify(currentProduct.middleNotes) !== JSON.stringify(canonicalProduct.middleNotes) ||
-    JSON.stringify(currentProduct.baseNotes) !== JSON.stringify(canonicalProduct.baseNotes) ||
-    JSON.stringify(currentProduct.sizes) !== JSON.stringify(canonicalProduct.sizes) ||
-    !currentInventory
-  )
+function needsCanonicalPaymentTestProductSync(_state: StoreState) {
+  return false
 }
 
 interface EnsureSupabaseStoreSeededOptions {
@@ -1531,7 +1506,7 @@ export async function ensureSupabaseStoreSeeded(
         throw catalogCountError
       }
 
-      shouldSyncNormalizedTables = !catalogCount
+      shouldSyncNormalizedTables = !catalogCount && !storeRow
     }
 
     if (shouldSyncPublicSnapshot) {
