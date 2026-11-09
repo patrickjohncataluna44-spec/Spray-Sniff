@@ -1,0 +1,28 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '14px', 'fontFamily': 'Arial, sans-serif'}}}%%
+flowchart TD
+    Start([Start]) --> LoginAdmin[Admin Logs in to Backoffice]
+    LoginAdmin --> OpenAccounts[Navigate to Accounts Management Module]
+    OpenAccounts --> EnterStaffData[/Input Staff Name, Email, and Temporary Password/]
+    EnterStaffData --> SubmitForm[Submit Staff Account Creation Request]
+    SubmitForm --> CheckAdminRole{Is Active User Admin?}
+    
+    CheckAdminRole -- No --> DenyCreation[Display 'Unauthorized: Admin Role Required' Error]
+    DenyCreation --> EndNode([End])
+    
+    CheckAdminRole -- Yes --> CreateAuthUser[Create Authentication User in Auth Service]
+    CreateAuthUser --> AuthSuccess{Auth User Created Successfully?}
+    
+    AuthSuccess -- No --> ShowAuthError[Display Account Creation Error]
+    ShowAuthError --> EnterStaffData
+    
+    AuthSuccess -- Yes --> SyncProfile[Create User Profile with Role = STAFF in Database]
+    SyncProfile --> ProfileSuccess{Profile Record Created Successfully?}
+    
+    ProfileSuccess -- No --> RollbackAuth[Rollback: Delete Auth Account]
+    RollbackAuth --> ShowSyncError[Display Database Sync Error]
+    ShowSyncError --> EnterStaffData
+    
+    ProfileSuccess -- Yes --> SendWelcome[Send Account Activation Details to Staff Email]
+    SendWelcome --> ShowSuccessMsg[Display 'Staff Account Created Successfully']
+    ShowSuccessMsg --> RefreshTable[Refresh Accounts List to Display New Staff]
+    RefreshTable --> EndNode

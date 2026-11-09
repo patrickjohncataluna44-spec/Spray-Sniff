@@ -51,6 +51,20 @@ export function saveStoredCustomCategory(category: string): string[] {
   return existing
 }
 
+export function removeStoredCustomCategory(category: string): string[] {
+  if (typeof window === 'undefined') return []
+  const trimmed = category.trim().toLowerCase()
+  if (!trimmed) return getStoredCustomCategories()
+
+  const existing = getStoredCustomCategories()
+  const next = existing.filter((c) => c.trim().toLowerCase() !== trimmed)
+  window.localStorage.setItem(
+    CUSTOM_CATEGORIES_STORAGE_KEY,
+    JSON.stringify(next),
+  )
+  return next
+}
+
 export interface ProductFormValues {
   name: string
   brand: string
@@ -58,6 +72,8 @@ export interface ProductFormValues {
   category: string
   gender: Product['gender']
   price: string
+  salePrice: string
+  originalPrice?: string
   sizeMl: string
   scentFamily: string
   topNotes: string
@@ -87,6 +103,8 @@ export const initialProductFormValues: ProductFormValues = {
   category: PRODUCT_CATEGORIES[0],
   gender: 'unisex',
   price: '',
+  salePrice: '',
+  originalPrice: '',
   sizeMl: '50',
   scentFamily: '',
   topNotes: '',
@@ -150,8 +168,48 @@ export function saveStoredAdminProducts(nextProducts: Product[]) {
   )
 }
 
+export function resolvePricing(values: ProductFormValues): {
+  price: number
+  originalPrice?: number
+} {
+  const regularPrice = Number(values.price)
+  const rawSale = values.salePrice?.trim()
+  let saleNumber = rawSale ? Number(rawSale) : NaN
+
+  // If salePrice wasn't provided, check legacy originalPrice
+  if (!Number.isFinite(saleNumber) && values.originalPrice?.trim()) {
+    const legacyOrig = Number(values.originalPrice)
+    if (Number.isFinite(legacyOrig) && legacyOrig > regularPrice) {
+      saleNumber = regularPrice
+      return {
+        price: saleNumber,
+        originalPrice: legacyOrig,
+      }
+    }
+  }
+
+  // If salePrice is valid and lower than regularPrice, apply sale
+  if (
+    Number.isFinite(saleNumber) &&
+    saleNumber > 0 &&
+    Number.isFinite(regularPrice) &&
+    regularPrice > 0 &&
+    saleNumber < regularPrice
+  ) {
+    return {
+      price: saleNumber,
+      originalPrice: regularPrice,
+    }
+  }
+
+  return {
+    price: regularPrice,
+    originalPrice: undefined,
+  }
+}
+
 export function createProductFromForm(values: ProductFormValues): Product {
-  const price = Number(values.price)
+  const { price, originalPrice } = resolvePricing(values)
   const sizeMl = Number(values.sizeMl)
   const timestamp = Date.now()
   const slugBase = slugify(values.name) || `product-${timestamp}`
@@ -162,6 +220,7 @@ export function createProductFromForm(values: ProductFormValues): Product {
     brand: values.brand.trim(),
     description: values.description.trim(),
     price,
+    originalPrice,
     category: values.category,
     scentFamily: parseList(values.scentFamily, ['Signature']),
     gender: values.gender,
@@ -197,13 +256,26 @@ export function productFormValuesFromProduct(
     price: product.price,
   }
 
+  const isOnSale = Boolean(
+    product.originalPrice &&
+      Number(product.originalPrice) > Number(product.price) &&
+      Number(product.price) > 0,
+  )
+
+  const regularPrice = isOnSale
+    ? String(product.originalPrice)
+    : String(primarySize.price ?? product.price)
+  const salePrice = isOnSale ? String(primarySize.price ?? product.price) : ''
+
   return {
     name: product.name,
     brand: product.brand,
     description: product.description,
     category: product.category,
     gender: product.gender,
-    price: String(primarySize.price ?? product.price),
+    price: regularPrice,
+    salePrice,
+    originalPrice: regularPrice,
     sizeMl: String(primarySize.ml ?? 50),
     scentFamily: product.scentFamily.join(', '),
     topNotes: product.topNotes.join(', '),
@@ -225,7 +297,7 @@ export function updateProductFromForm(
   existingProduct: Product,
   values: ProductFormValues,
 ): Product {
-  const price = Number(values.price)
+  const { price, originalPrice } = resolvePricing(values)
   const sizeMl = Number(values.sizeMl)
   const trailingSizes = existingProduct.sizes.slice(1)
   const primaryImage = values.uploadedImage.trim() || existingProduct.images[0] || '/placeholder.jpg'
@@ -236,6 +308,7 @@ export function updateProductFromForm(
     brand: values.brand.trim(),
     description: values.description.trim(),
     price,
+    originalPrice,
     category: values.category,
     scentFamily: parseList(values.scentFamily, existingProduct.scentFamily),
     gender: values.gender,

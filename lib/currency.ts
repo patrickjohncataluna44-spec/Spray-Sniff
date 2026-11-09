@@ -10,6 +10,17 @@ export function formatPHP(amount: number) {
   }).format(normalizedAmount)
 }
 
+/** Standard Philippine 12% VAT added on top of product subtotal */
+export function calculateVatAdded(subtotal: number) {
+  const vatAmount = Math.round(subtotal * 0.12 * 100) / 100
+  const grossTotal = Math.round((subtotal + vatAmount) * 100) / 100
+  return {
+    subtotal,
+    vatAmount,
+    grossTotal,
+  }
+}
+
 /** Standard Philippine BIR 12% VAT calculations for VAT-inclusive retail prices */
 export function calculateVatBreakdown(grossAmount: number) {
   const vatableSales = Math.round((grossAmount / 1.12) * 100) / 100

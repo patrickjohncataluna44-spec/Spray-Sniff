@@ -25,12 +25,12 @@ import { useStore } from '@/lib/store-context'
 import { Button } from '@/components/ui/button'
 
 const SCENT_CHIPS = [
-  { label: 'Floral', emoji: '🌸', query: 'Floral' },
-  { label: 'Woody', emoji: '🌲', query: 'Woody' },
-  { label: 'Citrus', emoji: '🍋', query: 'Citrus' },
-  { label: 'Fresh', emoji: '🌊', query: 'Fresh' },
-  { label: 'Vanilla', emoji: '🍦', query: 'Vanilla' },
-  { label: 'Unisex', emoji: '⚖️', query: 'Unisex' },
+  { label: 'Floral', query: 'Floral' },
+  { label: 'Woody', query: 'Woody' },
+  { label: 'Citrus', query: 'Citrus' },
+  { label: 'Fresh', query: 'Fresh' },
+  { label: 'Vanilla', query: 'Vanilla' },
+  { label: 'Unisex', query: 'Unisex' },
 ]
 
 export function MobileBottomNav() {
@@ -364,20 +364,15 @@ export function MobileBottomNav() {
                   )}
                 </div>
               ) : (
-                <div
-                  className="rounded-[1.5rem] border border-border/70 p-4"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(255,229,222,0.6) 0%, rgba(255,240,190,0.6) 100%)',
-                  }}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                <div className="rounded-[1.5rem] border border-border/70 bg-[#fff5ee] p-4">
+                  <p className="text-xs font-semibold text-primary">
                     Welcome Guest
                   </p>
                   <p className="mt-1 text-sm font-semibold text-foreground">
                     Sign in to track orders & save favorites
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-foreground/65">
-                    Create an account to track delivery progress and enjoy seamless fragrance shopping.
+                    Create an account to track delivery progress and manage your fragrance wardrobe.
                   </p>
 
                   <div className="mt-3.5 flex gap-2">
@@ -480,9 +475,8 @@ export function MobileBottomNav() {
                       key={chip.label}
                       type="button"
                       onClick={() => handleChipClick(chip.query)}
-                      className="flex items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-white/80 px-2.5 py-2.5 text-xs font-semibold text-foreground/80 shadow-xs transition hover:border-primary/60 hover:bg-white hover:text-primary active:scale-95"
+                      className="flex items-center justify-center rounded-xl border border-border/70 bg-white/80 px-2.5 py-2.5 text-xs font-semibold text-foreground/80 transition hover:border-primary/60 hover:bg-white hover:text-primary active:scale-95"
                     >
-                      <span className="text-sm">{chip.emoji}</span>
                       <span>{chip.label}</span>
                     </button>
                   ))}

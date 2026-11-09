@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
+  RefreshCw,
 } from 'lucide-react'
 
 function TrackContent() {
@@ -63,10 +64,10 @@ function TrackContent() {
 
   return (
     <div className="container max-w-4xl mx-auto px-4 py-8 md:py-12">
-      {/* Shopee Category Quick Access Bar */}
-      <div className="mb-6 rounded-2xl border border-border/80 bg-white/85 p-4 shadow-xs backdrop-blur">
+      {/* Category Quick Access Bar */}
+      <div className="mb-6 rounded-2xl border border-border/80 bg-white/95 p-4" data-ui="order-status-tabs">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-foreground/50">
+          <p className="text-xs font-semibold text-foreground/70">
             Track By Purchase Status
           </p>
           <Link href="/orders" className="text-xs font-semibold text-primary hover:underline">
@@ -98,7 +99,7 @@ function TrackContent() {
       </div>
 
       {/* Search Bar Box */}
-      <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm mb-8">
+      <div className="bg-card border border-border/80 rounded-2xl p-6 mb-8" data-ui="tracking-search-box">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -110,7 +111,7 @@ function TrackContent() {
             <Package className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Enter your Order ID (e.g. WEB-12345678-ABCD) or Tracking #"
+              placeholder="Enter your Order ID (e.g. WEB-12345678-ABCD) or Courier Waybill #"
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
               className="pl-10 h-12 text-sm bg-background"
@@ -120,9 +121,23 @@ function TrackContent() {
             <Search className="w-4 h-4" />
             {isLoading ? 'Searching...' : 'Track Package'}
           </Button>
+
+          {trackingData && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isLoading}
+              onClick={() => handleSearch(trackingNumber)}
+              className="h-12 px-4 gap-1.5"
+              title="Refresh live status"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline text-xs">Refresh</span>
+            </Button>
+          )}
         </form>
         <p className="mt-4 text-xs text-muted-foreground">
-          Track any package instantly using your Order ID from your receipt, confirmation, or courier waybill.
+          Track packages across 1,540+ global couriers (LBC, J&amp;T Express, Ninja Van, 2GO, Flash Express, DHL, FedEx, UPS) or by your store Order ID.
         </p>
       </div>
 
@@ -135,9 +150,9 @@ function TrackContent() {
 
       {/* Loading Skeleton or Content */}
       {isLoading && !trackingData ? (
-        <div className="bg-card border rounded-2xl p-12 text-center text-muted-foreground animate-pulse">
-          <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50 animate-bounce" />
-          <p className="text-sm">Fetching your delivery progress...</p>
+        <div className="bg-card border rounded-2xl p-12 text-center text-muted-foreground">
+          <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50 animate-spin" />
+          <p className="text-sm">Fetching real-time delivery telemetry...</p>
         </div>
       ) : trackingData ? (
         <TrackingTimeline tracking={trackingData} />
@@ -148,15 +163,15 @@ function TrackContent() {
         <div className="flex items-start gap-3 p-4 rounded-xl bg-muted/30 border border-border/40">
           <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-foreground">Insured &amp; Verified Delivery</p>
-            <p className="mt-0.5">All shipments are sealed and verified at dispatch before courier handover.</p>
+            <p className="font-semibold text-foreground">Verified Delivery Tracking</p>
+            <p className="mt-0.5">Real-time carrier scans verified through ParcelsApp logistics network.</p>
           </div>
         </div>
         <div className="flex items-start gap-3 p-4 rounded-xl bg-muted/30 border border-border/40">
           <HelpCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-foreground">Need help with your shipment?</p>
-            <p className="mt-0.5">Contact our support desk if your tracking status has not updated after 48 hours.</p>
+            <p className="mt-0.5">Contact our support desk anytime if your tracking status has not updated after 48 hours.</p>
           </div>
         </div>
       </div>
@@ -168,9 +183,8 @@ export default function TrackPage() {
   return (
     <StorefrontShell>
       <StorefrontPageHero
-        eyebrow="Order Fulfillment & Logistics"
         title="Track Your Delivery"
-        description="Monitor delivery progress and package updates for your order."
+        description="Monitor real-time delivery progress and courier waybill updates for your order."
       />
       <Suspense fallback={
         <div className="container max-w-4xl mx-auto px-4 py-12 text-center text-muted-foreground">

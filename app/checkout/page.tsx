@@ -27,7 +27,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Spinner } from '@/components/ui/spinner'
-import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
+import { formatPHP } from '@/lib/currency'
 import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
 import { isPaymentTestCart, PAYMENT_TEST_PRODUCT_ID, type CartItem, type OrderRecord } from '@/lib/store-engine'
@@ -322,10 +322,9 @@ function CheckoutContent() {
   }, [appliedPromo, subtotal, rawShipping])
 
   const discountedProductSubtotal = Math.max(0, subtotal - (appliedPromo?.type === 'Shipping' ? 0 : discountAmount))
-  // Standard Philippine BIR 12% VAT-inclusive:
-  // Price shown is already VAT-inclusive, VAT amount is extracted rather than added
-  const { vatAmount: tax } = isTestCart ? { vatAmount: 0 } : calculateVatBreakdown(discountedProductSubtotal)
-  const total = Math.max(0, discountedProductSubtotal + shipping)
+  // 12% VAT added on top of product subtotal:
+  const tax = isTestCart ? 0 : Math.round(discountedProductSubtotal * 0.12 * 100) / 100
+  const total = Math.max(0, Math.round((discountedProductSubtotal + tax + shipping) * 100) / 100)
   const totalQuantity = activeCartItems.reduce((sum, item) => sum + item.quantity, 0)
   const paymentFlow = searchParams.get('paymongo')
 
@@ -786,7 +785,7 @@ function CheckoutContent() {
     const shippingAddress = buildShippingAddress()
     const fullName = buildFullName()
 
-    // VAT-inclusive product line items (VAT is already included in unit price, not added separately)
+    // Product line items
     const discountRatio =
       subtotal > 0
         ? (subtotal - (appliedPromo?.type === 'Shipping' ? 0 : discountAmount)) / subtotal
@@ -809,11 +808,21 @@ function CheckoutContent() {
         amount: Math.max(100, Math.round(effectiveUnitPrice * 100)),
         quantity: item.quantity,
         currency: 'PHP',
-        description: `VAT-Inclusive · ${formatPHP(effectiveUnitPrice)} each`,
+        description: `${formatPHP(effectiveUnitPrice)} each`,
       })
 
       return items
     }, [])
+
+    if (tax > 0) {
+      checkoutLineItems.push({
+        name: '12% Value Added Tax (VAT)',
+        amount: Math.round(tax * 100),
+        quantity: 1,
+        currency: 'PHP',
+        description: '12% Value Added Tax',
+      })
+    }
 
     if (shipping > 0) {
       checkoutLineItems.push({
@@ -1067,11 +1076,8 @@ function CheckoutContent() {
                     <span className="font-mono text-slate-900">{formatPHP(confirmedOrder.subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="flex items-center gap-1.5">
-                      12% VAT:
-                      <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">Included</span>
-                    </span>
-                    <span className="font-mono text-slate-900">{formatPHP(confirmedOrder.tax)}</span>
+                    <span>12% VAT:</span>
+                    <span className="font-mono text-slate-900">+ {formatPHP(confirmedOrder.tax)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Shipping:</span>
@@ -1584,11 +1590,8 @@ function CheckoutContent() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-slate-600">
-                  <span className="flex items-center gap-1.5">
-                    12% VAT:
-                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">Included</span>
-                  </span>
-                  <span className="font-semibold text-slate-700 font-mono">{formatPHP(tax)}</span>
+                  <span>12% VAT:</span>
+                  <span className="font-semibold text-slate-700 font-mono">+ {formatPHP(tax)}</span>
                 </div>
                 {discountAmount > 0 && appliedPromo?.type !== 'Shipping' && (
                   <div className="flex justify-between items-center text-emerald-600 font-medium">

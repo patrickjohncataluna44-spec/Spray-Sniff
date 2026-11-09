@@ -1,0 +1,2706 @@
+{
+ "url": "http://localhost:3000",
+ "at": "2026-11-04T04:28:12.797Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 8,
+   "filled": [
+    0.5,
+    0.85,
+    0.59,
+    0.79,
+    0.97,
+    0.57,
+    0.76,
+    0.75
+   ],
+   "motion": {
+    "elements": 16,
+    "css": 16,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 6969,
+     "screens": 7.7,
+     "words": 750,
+     "img": 19,
+     "video": 0,
+     "canvas": 0,
+     "svg": 59,
+     "sections": 10,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 19,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "midnight-elegance-1.jpg",
+      "midnight-elegance-1.jpg",
+      "hero-banner.jpg",
+      "Z",
+      "9k=",
+      "9k=",
+      "2Q==",
+      "timeless-classics-banner.jpg"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Every Fragrance Has A Story To Unfold.",
+     "words": 7,
+     "chars": 38,
+     "lines": 2,
+     "size": 72,
+     "vw": 5,
+     "font": "Georgia",
+     "weight": 400,
+     "tracking": -0.025,
+     "leading": 1.08,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "left",
+     "widthRatio": 0.5,
+     "top": 241,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Every Fragrance Has A Story To Unfold.",
+     "words": 7,
+     "lines": 2,
+     "size": 72,
+     "font": "Georgia"
+    },
+    "headings": [
+     {
+      "text": "Every Fragrance Has A Story To Unfold.",
+      "words": 7,
+      "chars": 38,
+      "lines": 2,
+      "size": 72,
+      "vw": 5,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.5,
+      "top": 241,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Browse By Core Note",
+      "words": 4,
+      "chars": 19,
+      "lines": 1,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.31,
+      "top": 972,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Midnight Elegance",
+      "words": 2,
+      "chars": 17,
+      "lines": 1,
+      "size": 36,
+      "vw": 2.5,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.19,
+      "top": 1226,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "The Olfactory Discovery Wardrobe",
+      "words": 4,
+      "chars": 32,
+      "lines": 2,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.45,
+      "top": 1917,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Featured Fragrances",
+      "words": 2,
+      "chars": 19,
+      "lines": 1,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.27,
+      "top": 2493,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Signature Collections",
+      "words": 2,
+      "chars": 21,
+      "lines": 1,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.4,
+      "top": 3206,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Formulated To Linger. Blended For Memory.",
+      "words": 6,
+      "chars": 41,
+      "lines": 2,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 3989,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Most-Loved Bottles",
+      "words": 2,
+      "chars": 18,
+      "lines": 1,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.27,
+      "top": 4649,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Words From Our Collectors",
+      "words": 4,
+      "chars": 25,
+      "lines": 1,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.37,
+      "top": 5362,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Scent Notes & Buying Guides",
+      "words": 5,
+      "chars": 27,
+      "lines": 1,
+      "size": 48,
+      "vw": 3.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.4,
+      "top": 5968,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 10,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Segoe UI",
+       "share": 0.77,
+       "mono": false
+      },
+      {
+       "family": "Georgia",
+       "share": 0.23,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      18,
+      20,
+      24,
+      36,
+      48,
+      72
+     ],
+     "sizeCount": 10,
+     "notLoaded": [],
+     "body": {
+      "font": "Segoe UI",
+      "size": 14,
+      "leading": 1.63,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 15.2
+     },
+     "measureChars": 68,
+     "max": {
+      "size": 72,
+      "vw": 5,
+      "font": "Georgia",
+      "text": "Every Fragrance Has A Story To Unfold."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.05,
+     "centerShare": 0.05,
+     "smallText": 4
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#fffaf5",
+     "bodyBgHsl": {
+      "h": 30,
+      "s": 1,
+      "l": 0.98
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#fffaf5",
+       "top": 0,
+       "hsl": {
+        "h": 30,
+        "s": 1,
+        "l": 0.98
+       }
+      },
+      {
+       "color": "#fffdfb",
+       "top": 876,
+       "hsl": {
+        "h": 30,
+        "s": 1,
+        "l": 0.99
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 1178,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#26181a",
+       "top": 3893,
+       "hsl": {
+        "h": 351,
+        "s": 0.23,
+        "l": 0.12
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#2d2124",
+       "share": 0.61
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.2
+      },
+      {
+       "color": "#2e2124",
+       "share": 0.07
+      },
+      {
+       "color": "#2d2125",
+       "share": 0.06
+      },
+      {
+       "color": "#fffaf5",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#fff0be",
+      "hsl": {
+       "h": 46,
+       "s": 1,
+       "l": 0.87
+      },
+      "fg": "#2d2124"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 17,
+     "inHero": 9,
+     "radius": "pill",
+     "height": 32,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Cart [0]",
+      "Explore Fragrances",
+      "Order Discovery Set (5×5ml)",
+      "Calabrian Bergamot",
+      "Damascena Rose"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 28,
+     "boxRadius": 16,
+     "squareMedia": 0,
+     "roundedMedia": 19,
+     "mediaRadius": 24,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1364
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 2573
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 3350
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 4729
+      },
+      {
+       "count": 3,
+       "iconTopped": true,
+       "rounded": true,
+       "top": 5482
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 6048
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.24
+     }
+    ],
+    "nav": {
+     "links": 6,
+     "fixed": true,
+     "height": 80,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 6969,
+    "margins": {
+     "left": 80,
+     "right": 80
+    },
+    "sections": [
+     {
+      "sel": "section.px-6.pb-16",
+      "tag": "section",
+      "top": 120,
+      "height": 756,
+      "words": 71,
+      "media": 1,
+      "middle": 105,
+      "heading": {
+       "text": "Every Fragrance Has A Story To Unfold.",
+       "size": 72,
+       "tag": "h1"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 116,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 876,
+      "height": 865,
+      "words": 105,
+      "media": 1,
+      "middle": 3,
+      "heading": {
+       "text": "Browse By Core Note",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 100,
+      "textLeft": 80,
+      "textRight": 100,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 1741,
+      "height": 656,
+      "words": 50,
+      "media": 1,
+      "middle": 71,
+      "heading": {
+       "text": "The Olfactory Discovery Wardrobe",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 144,
+      "right": 144,
+      "textLeft": 144,
+      "textRight": 663,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 2397,
+      "height": 714,
+      "words": 35,
+      "media": 4,
+      "middle": 64,
+      "heading": {
+       "text": "Featured Fragrances",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 96,
+      "textLeft": 80,
+      "textRight": 100,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 3110,
+      "height": 783,
+      "words": 105,
+      "media": 4,
+      "middle": 24,
+      "heading": {
+       "text": "Signature Collections",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 100,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#26181a].px-6",
+      "tag": "section",
+      "top": 3893,
+      "height": 660,
+      "words": 105,
+      "media": 1,
+      "middle": 68,
+      "heading": {
+       "text": "Formulated To Linger. Blended For Memory.",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 756,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 4553,
+      "height": 714,
+      "words": 36,
+      "media": 4,
+      "middle": 64,
+      "heading": {
+       "text": "Most-Loved Bottles",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 96,
+      "textLeft": 80,
+      "textRight": 100,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#reviews.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 5266,
+      "height": 606,
+      "words": 115,
+      "media": 0,
+      "middle": 125,
+      "heading": {
+       "text": "Words From Our Collectors",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 100,
+      "textLeft": 80,
+      "textRight": 100,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#journal.px-6.py-16",
+      "tag": "section",
+      "top": 5872,
+      "height": 783,
+      "words": 94,
+      "media": 3,
+      "middle": 24,
+      "heading": {
+       "text": "Scent Notes & Buying Guides",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 80,
+      "right": 80,
+      "textLeft": 80,
+      "textRight": 100,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "footer#contact.bg-[#fffaf5]",
+      "tag": "footer",
+      "top": 6655,
+      "height": 314,
+      "words": 49,
+      "media": 0,
+      "middle": 180,
+      "heading": {
+       "text": "Shop",
+       "size": 13,
+       "tag": "h3"
+      },
+      "left": 56,
+      "right": 56,
+      "textLeft": 56,
+      "textRight": 56,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Every Fragrance Has A Story To Unfold.",
+      "size": 72,
+      "top": 241,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 80,
+      "n": 15
+     },
+     {
+      "x": 104,
+      "n": 9
+     },
+     {
+      "x": 420,
+      "n": 6
+     },
+     {
+      "x": 541,
+      "n": 5
+     },
+     {
+      "x": 756,
+      "n": 4
+     },
+     {
+      "x": 1082,
+      "n": 4
+     },
+     {
+      "x": 977,
+      "n": 3
+     },
+     {
+      "x": 144,
+      "n": 2
+     },
+     {
+      "x": 396,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 50,
+    "bodySize": 18,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0.08,
+    "voidBox": {
+     "x": 240,
+     "y": 720,
+     "w": 600,
+     "h": 180
+    }
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 12,
+   "filled": [
+    0.51,
+    0.86,
+    0.89,
+    0.83,
+    0.68,
+    0.88,
+    0.93,
+    0.82,
+    0.83,
+    0.89,
+    0.89,
+    0.89
+   ],
+   "motion": {
+    "elements": 16,
+    "css": 16,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 12969,
+     "screens": 12.7,
+     "words": 746,
+     "img": 19,
+     "video": 0,
+     "canvas": 0,
+     "svg": 59,
+     "sections": 10,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 19,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "midnight-elegance-1.jpg",
+      "midnight-elegance-1.jpg",
+      "hero-banner.jpg",
+      "Z",
+      "9k=",
+      "9k=",
+      "2Q==",
+      "timeless-classics-banner.jpg"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Every Fragrance Has A Story To Unfold.",
+     "words": 7,
+     "chars": 38,
+     "lines": 2,
+     "size": 60,
+     "vw": 7.8,
+     "font": "Georgia",
+     "weight": 400,
+     "tracking": -0.025,
+     "leading": 1.08,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.9,
+     "top": 176,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Every Fragrance Has A Story To Unfold.",
+     "words": 7,
+     "lines": 2,
+     "size": 60,
+     "font": "Georgia"
+    },
+    "headings": [
+     {
+      "text": "Every Fragrance Has A Story To Unfold.",
+      "words": 7,
+      "chars": 38,
+      "lines": 2,
+      "size": 60,
+      "vw": 7.8,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.9,
+      "top": 176,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Browse By Core Note",
+      "words": 4,
+      "chars": 19,
+      "lines": 1,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.58,
+      "top": 1740,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Midnight Elegance",
+      "words": 2,
+      "chars": 17,
+      "lines": 1,
+      "size": 36,
+      "vw": 4.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.11,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.36,
+      "top": 2681,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "The Olfactory Discovery Wardrobe",
+      "words": 4,
+      "chars": 32,
+      "lines": 2,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.77,
+      "top": 3356,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Featured Fragrances",
+      "words": 2,
+      "chars": 19,
+      "lines": 1,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.51,
+      "top": 4383,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Signature Collections",
+      "words": 2,
+      "chars": 21,
+      "lines": 1,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.72,
+      "top": 5562,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Formulated To Linger. Blended For Memory.",
+      "words": 6,
+      "chars": 41,
+      "lines": 2,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.9,
+      "top": 6838,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Most-Loved Bottles",
+      "words": 2,
+      "chars": 18,
+      "lines": 1,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.5,
+      "top": 7999,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Words From Our Collectors",
+      "words": 4,
+      "chars": 25,
+      "lines": 1,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.7,
+      "top": 9178,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Scent Notes & Buying Guides",
+      "words": 5,
+      "chars": 27,
+      "lines": 2,
+      "size": 48,
+      "vw": 6.3,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.7,
+      "top": 10187,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 10,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Segoe UI",
+       "share": 0.77,
+       "mono": false
+      },
+      {
+       "family": "Georgia",
+       "share": 0.23,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      18,
+      20,
+      24,
+      36,
+      48,
+      60
+     ],
+     "sizeCount": 10,
+     "notLoaded": [],
+     "body": {
+      "font": "Segoe UI",
+      "size": 14,
+      "leading": 1.63,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 15.2
+     },
+     "measureChars": 76,
+     "max": {
+      "size": 60,
+      "vw": 7.8,
+      "font": "Georgia",
+      "text": "Every Fragrance Has A Story To Unfold."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.05,
+     "centerShare": 0.05,
+     "smallText": 4
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#fffaf5",
+     "bodyBgHsl": {
+      "h": 30,
+      "s": 1,
+      "l": 0.98
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#fffaf5",
+       "top": 0,
+       "hsl": {
+        "h": 30,
+        "s": 1,
+        "l": 0.98
+       }
+      },
+      {
+       "color": "#fffdfb",
+       "top": 720,
+       "hsl": {
+        "h": 30,
+        "s": 1,
+        "l": 0.99
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 1993,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#26181a",
+       "top": 6742,
+       "hsl": {
+        "h": 351,
+        "s": 0.23,
+        "l": 0.12
+       }
+      },
+      {
+       "color": "#2d2124",
+       "top": 10315,
+       "hsl": {
+        "h": 345,
+        "s": 0.15,
+        "l": 0.15
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#2d2124",
+       "share": 0.61
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.2
+      },
+      {
+       "color": "#2e2124",
+       "share": 0.07
+      },
+      {
+       "color": "#2d2125",
+       "share": 0.06
+      },
+      {
+       "color": "#fffaf5",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#fff0be",
+      "hsl": {
+       "h": 46,
+       "s": 1,
+       "l": 0.87
+      },
+      "fg": "#2d2124"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 17,
+     "inHero": 9,
+     "radius": "pill",
+     "height": 32,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Cart [0]",
+      "Explore Fragrances",
+      "Order Discovery Set (5×5ml)",
+      "Calabrian Bergamot",
+      "Damascena Rose"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 28,
+     "boxRadius": 16,
+     "squareMedia": 0,
+     "roundedMedia": 19,
+     "mediaRadius": 24,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 2819
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 4463
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 5706
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 8079
+      },
+      {
+       "count": 3,
+       "iconTopped": true,
+       "rounded": true,
+       "top": 9298
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 10315
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.27
+     }
+    ],
+    "nav": {
+     "links": 3,
+     "fixed": true,
+     "height": 80,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 12969,
+    "margins": {
+     "left": 40,
+     "right": 40
+    },
+    "sections": [
+     {
+      "sel": "section.px-6.pb-16",
+      "tag": "section",
+      "top": 120,
+      "height": 1524,
+      "words": 71,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Every Fragrance Has A Story To Unfold.",
+       "size": 60,
+       "tag": "h1"
+      },
+      "left": 40,
+      "right": 40,
+      "textLeft": 40,
+      "textRight": 65,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 1644,
+      "height": 1568,
+      "words": 105,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Browse By Core Note",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 60,
+      "textLeft": 40,
+      "textRight": 60,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 3212,
+      "height": 1076,
+      "words": 50,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "The Olfactory Discovery Wardrobe",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 88,
+      "right": 88,
+      "textLeft": 88,
+      "textRight": 122,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 4287,
+      "height": 1179,
+      "words": 35,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "Featured Fragrances",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 56,
+      "textLeft": 40,
+      "textRight": 60,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 5466,
+      "height": 1276,
+      "words": 105,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "Signature Collections",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 40,
+      "textLeft": 40,
+      "textRight": 60,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#26181a].px-6",
+      "tag": "section",
+      "top": 6742,
+      "height": 1161,
+      "words": 105,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Formulated To Linger. Blended For Memory.",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 40,
+      "textLeft": 40,
+      "textRight": 46,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 7903,
+      "height": 1179,
+      "words": 36,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "Most-Loved Bottles",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 56,
+      "textLeft": 40,
+      "textRight": 60,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#reviews.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 9082,
+      "height": 1009,
+      "words": 115,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Words From Our Collectors",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 60,
+      "textLeft": 40,
+      "textRight": 60,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#journal.px-6.py-16",
+      "tag": "section",
+      "top": 10091,
+      "height": 2344,
+      "words": 94,
+      "media": 3,
+      "middle": 0,
+      "heading": {
+       "text": "Scent Notes & Buying Guides",
+       "size": 48,
+       "tag": "h2"
+      },
+      "left": 40,
+      "right": 40,
+      "textLeft": 40,
+      "textRight": 78,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "footer#contact.bg-[#fffaf5]",
+      "tag": "footer",
+      "top": 12434,
+      "height": 535,
+      "words": 49,
+      "media": 0,
+      "middle": 21,
+      "heading": {
+       "text": "Shop",
+       "size": 13,
+       "tag": "h3"
+      },
+      "left": 48,
+      "right": 48,
+      "textLeft": 48,
+      "textRight": 48,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Every Fragrance Has A Story To Unfold.",
+      "size": 60,
+      "top": 176,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 64,
+      "n": 19
+     },
+     {
+      "x": 40,
+      "n": 15
+     },
+     {
+      "x": 420,
+      "n": 10
+     },
+     {
+      "x": 80,
+      "n": 4
+     },
+     {
+      "x": 396,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 50,
+    "bodySize": 18,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 12,
+   "filled": [
+    0.53,
+    0.89,
+    0.88,
+    0.81,
+    0.71,
+    0.84,
+    0.79,
+    0.98,
+    0.98,
+    0.95,
+    0.75,
+    0.84
+   ],
+   "motion": {
+    "elements": 8,
+    "css": 8,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 14731,
+     "screens": 17.5,
+     "words": 784,
+     "img": 19,
+     "video": 0,
+     "canvas": 0,
+     "svg": 59,
+     "sections": 10,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 19,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "midnight-elegance-1.jpg",
+      "midnight-elegance-1.jpg",
+      "hero-banner.jpg",
+      "midnight-elegance-1.jpg",
+      "dawn-light-1.jpg",
+      "golden-hour-1.jpg",
+      "silk-dreams-1.jpg",
+      "timeless-classics-banner.jpg"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Every Fragrance Has A Story To Unfold.",
+     "words": 7,
+     "chars": 38,
+     "lines": 2,
+     "size": 30,
+     "vw": 7.7,
+     "font": "Georgia",
+     "weight": 400,
+     "tracking": -0.025,
+     "leading": 1.08,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "left",
+     "position": "center",
+     "widthRatio": 0.88,
+     "top": 156,
+     "tag": "h1",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Every Fragrance Has A Story To Unfold.",
+     "words": 7,
+     "lines": 2,
+     "size": 30,
+     "font": "Georgia"
+    },
+    "headings": [
+     {
+      "text": "Every Fragrance Has A Story To Unfold.",
+      "words": 7,
+      "chars": 38,
+      "lines": 2,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": -0.025,
+      "leading": 1.08,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 156,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Browse By Core Note",
+      "words": 4,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 1310,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Midnight Elegance",
+      "words": 2,
+      "chars": 17,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.59,
+      "top": 2109,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "₱185",
+      "words": 1,
+      "chars": 4,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Segoe UI",
+      "weight": 600,
+      "tracking": 0,
+      "leading": 1.33,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.14,
+      "top": 2185,
+      "tag": "span",
+      "kind": "heading"
+     },
+     {
+      "text": "The Olfactory Discovery Wardrobe",
+      "words": 4,
+      "chars": 32,
+      "lines": 2,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.71,
+      "top": 3070,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Featured Fragrances",
+      "words": 2,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 3838,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Signature Collections",
+      "words": 2,
+      "chars": 21,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 5784,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Formulated To Linger. Blended For Memory.",
+      "words": 6,
+      "chars": 41,
+      "lines": 2,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 7988,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Most-Loved Bottles",
+      "words": 2,
+      "chars": 18,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 9065,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Words From Our Collectors",
+      "words": 4,
+      "chars": 25,
+      "lines": 1,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 11011,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Scent Notes & Buying Guides",
+      "words": 5,
+      "chars": 27,
+      "lines": 2,
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.2,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.88,
+      "top": 12202,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Building Your Fragrance Wardrobe",
+      "words": 4,
+      "chars": 32,
+      "lines": 2,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.38,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.73,
+      "top": 12611,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "The Anatomy of Olfactory Notes",
+      "words": 5,
+      "chars": 30,
+      "lines": 2,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.38,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.73,
+      "top": 13137,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "Choosing Your Signature Scent",
+      "words": 4,
+      "chars": 29,
+      "lines": 2,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.38,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.73,
+      "top": 13662,
+      "tag": "h3",
+      "kind": "heading"
+     },
+     {
+      "text": "SPRAY & SNIFF",
+      "words": 3,
+      "chars": 13,
+      "lines": 1,
+      "size": 24,
+      "vw": 6.2,
+      "font": "Georgia",
+      "weight": 400,
+      "tracking": 0,
+      "leading": 1.25,
+      "upper": true,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.84,
+      "top": 13994,
+      "tag": "p",
+      "kind": "statement"
+     }
+    ],
+    "headingSummary": {
+     "count": 15,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 1,
+     "centered": 0,
+     "medianWords": 4,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Segoe UI",
+       "share": 0.77,
+       "mono": false
+      },
+      {
+       "family": "Georgia",
+       "share": 0.23,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      10,
+      12,
+      13,
+      14,
+      16,
+      18,
+      20,
+      24,
+      30
+     ],
+     "sizeCount": 9,
+     "notLoaded": [],
+     "body": {
+      "font": "Segoe UI",
+      "size": 16,
+      "leading": 1.63,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 14.9
+     },
+     "measureChars": 43,
+     "max": {
+      "size": 30,
+      "vw": 7.7,
+      "font": "Georgia",
+      "text": "Every Fragrance Has A Story To Unfold."
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.03,
+     "centerShare": 0.06,
+     "smallText": 6
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#fffaf5",
+     "bodyBgHsl": {
+      "h": 30,
+      "s": 1,
+      "l": 0.98
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#fffaf5",
+       "top": 0,
+       "hsl": {
+        "h": 30,
+        "s": 1,
+        "l": 0.98
+       }
+      },
+      {
+       "color": "#fffdfb",
+       "top": 755,
+       "hsl": {
+        "h": 30,
+        "s": 1,
+        "l": 0.99
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 1751,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#f7f6f4",
+       "top": 3938,
+       "hsl": {
+        "h": 40,
+        "s": 0.16,
+        "l": 0.96
+       }
+      },
+      {
+       "color": "#26181a",
+       "top": 7924,
+       "hsl": {
+        "h": 351,
+        "s": 0.23,
+        "l": 0.12
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#2d2124",
+       "share": 0.62
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.2
+      },
+      {
+       "color": "#2e2124",
+       "share": 0.07
+      },
+      {
+       "color": "#2d2125",
+       "share": 0.06
+      },
+      {
+       "color": "#fffaf5",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#fff0be",
+      "hsl": {
+       "h": 46,
+       "s": 1,
+       "l": 0.87
+      },
+      "fg": "#2d2124"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 17,
+     "inHero": 9,
+     "radius": "pill",
+     "height": 32,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Cart [0]",
+      "Explore Fragrances",
+      "Order Discovery Set (5×5ml)",
+      "Calabrian Bergamot",
+      "Damascena Rose"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 28,
+     "boxRadius": 16,
+     "squareMedia": 0,
+     "roundedMedia": 19,
+     "mediaRadius": 24,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 3938
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 5972
+      },
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 9165
+      },
+      {
+       "count": 3,
+       "iconTopped": true,
+       "rounded": true,
+       "top": 11167
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 12338
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.09
+     }
+    ],
+    "nav": {
+     "links": 2,
+     "fixed": true,
+     "height": 64,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": []
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 14731,
+    "margins": {
+     "left": 24,
+     "right": 24
+    },
+    "sections": [
+     {
+      "sel": "section.px-6.pb-16",
+      "tag": "section",
+      "top": 116,
+      "height": 1130,
+      "words": 71,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Every Fragrance Has A Story To Unfold.",
+       "size": 30,
+       "tag": "h1"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 27,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 1246,
+      "height": 1728,
+      "words": 105,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Browse By Core Note",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 47,
+      "textLeft": 24,
+      "textRight": 47,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 2974,
+      "height": 800,
+      "words": 50,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "The Olfactory Discovery Wardrobe",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 56,
+      "right": 56,
+      "textLeft": 56,
+      "textRight": 73,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 3774,
+      "height": 1946,
+      "words": 53,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "Featured Fragrances",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 40,
+      "textLeft": 24,
+      "textRight": 122,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 5720,
+      "height": 2204,
+      "words": 105,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "Signature Collections",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 48,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.bg-[#26181a].px-6",
+      "tag": "section",
+      "top": 7924,
+      "height": 1078,
+      "words": 105,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Formulated To Linger. Blended For Memory.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 27,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section.px-6.py-16",
+      "tag": "section",
+      "top": 9001,
+      "height": 1946,
+      "words": 53,
+      "media": 4,
+      "middle": 0,
+      "heading": {
+       "text": "Most-Loved Bottles",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 40,
+      "textLeft": 24,
+      "textRight": 125,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#reviews.bg-[#fffdfb].px-6",
+      "tag": "section",
+      "top": 10947,
+      "height": 1191,
+      "words": 115,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Words From Our Collectors",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 31,
+      "textLeft": 24,
+      "textRight": 31,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "section#journal.px-6.py-16",
+      "tag": "section",
+      "top": 12138,
+      "height": 1816,
+      "words": 94,
+      "media": 3,
+      "middle": 0,
+      "heading": {
+       "text": "Scent Notes & Buying Guides",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 24,
+      "textLeft": 24,
+      "textRight": 54,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": true,
+      "pinned": false
+     },
+     {
+      "sel": "footer#contact.bg-[#fffaf5]",
+      "tag": "footer",
+      "top": 13954,
+      "height": 713,
+      "words": 49,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "SPRAY & SNIFF",
+       "size": 24,
+       "tag": "p"
+      },
+      "left": 32,
+      "right": 88,
+      "textLeft": 32,
+      "textRight": 88,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Every Fragrance Has A Story To Unfold.",
+      "size": 30,
+      "top": 156,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 44,
+      "n": 31
+     },
+     {
+      "x": 24,
+      "n": 17
+     },
+     {
+      "x": 56,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 50,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "outlined-box",
+   "width": 1440,
+   "message": "1 box(es) drawn with a 1px outline.",
+   "fix": "Prefer a filled surface or no box.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "icon-cards",
+   "width": 1440,
+   "message": "1 row(s) of identical cards each topped with a small icon (3 cards).",
+   "fix": "Replace with one composed section from the direction: a narrative split, a list set in large type, or real imagery per item.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "palette-cream",
+   "width": 1440,
+   "message": "Yellow-cream background (page background #fffaf5, section #fffaf5, section #fffdfb).",
+   "fix": "Use the drawn palette. If you want warmth, take a low-chroma stone or bone, not a yellow cream.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "size-count",
+   "width": 1440,
+   "message": "10 different font sizes (12, 13, 14, 16, 18, 20, 24, 36, 48, 72).",
+   "fix": "A page needs about five: display, heading, lead, body, small.",
+   "alsoAt": [
+    768
+   ]
+  },
+  {
+   "level": "FAIL",
+   "id": "body-size",
+   "width": 1440,
+   "message": "Body text is 14px (the size most of the running text is set in).",
+   "fix": "Body copy 16–20px. Map small sizes from blueprints onto your body step.",
+   "alsoAt": [
+    768
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "no-footage",
+   "width": 1440,
+   "message": "No video anywhere on the page.",
+   "fix": "Look for one honest clip with scripts/assets.mjs --video (the place, the material, the process) and use it as a muted loop with a poster frame. Defend its absence only if no clip fits the subject."
+  },
+  {
+   "level": "FAIL",
+   "id": "small-text",
+   "width": 1440,
+   "message": "4 text blocks under 13px.",
+   "fix": "Nothing meant to be read goes below 13px.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/home/rickyler321/e-commerce/.taste-skill/inspect/desktop-fold.jpg",
+   "pages": [
+    "/home/rickyler321/e-commerce/.taste-skill/inspect/desktop-page-01.jpg",
+    "/home/rickyler321/e-commerce/.taste-skill/inspect/desktop-page-02.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/home/rickyler321/e-commerce/.taste-skill/inspect/tablet-fold.jpg",
+   "pages": [
+    "/home/rickyler321/e-commerce/.taste-skill/inspect/tablet-page-01.jpg",
+    "/home/rickyler321/e-commerce/.taste-skill/inspect/tablet-page-02.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/home/rickyler321/e-commerce/.taste-skill/inspect/mobile-fold.jpg",
+   "pages": [
+    "/home/rickyler321/e-commerce/.taste-skill/inspect/mobile-page-01.jpg",
+    "/home/rickyler321/e-commerce/.taste-skill/inspect/mobile-page-02.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

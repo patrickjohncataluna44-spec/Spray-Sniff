@@ -13,6 +13,8 @@ import {
   Calendar,
   Info,
   AlertCircle,
+  Radio,
+  ArrowRight,
 } from 'lucide-react'
 import {
   DELIVERY_STAGES,
@@ -42,30 +44,64 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
   return (
     <div className="space-y-6">
       {/* Header Info Card */}
-      <div className="rounded-2xl border border-border/80 bg-card p-5 md:p-6 shadow-sm">
+      <div className="rounded-2xl border border-border/80 bg-card p-5 md:p-6" data-ui="tracking-card">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold text-muted-foreground">
                 Courier Partner
               </span>
-              {tracking.carrier.website && (
+              {tracking.carrier.externalTrackingUrl ? (
+                <a
+                  href={tracking.carrier.externalTrackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-xs text-primary hover:underline gap-1"
+                >
+                  Track on {tracking.carrier.name} <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : tracking.carrier.website ? (
                 <a
                   href={tracking.carrier.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center text-xs text-primary hover:underline gap-0.5"
+                  className="inline-flex items-center text-xs text-primary hover:underline gap-1"
                 >
-                  Visit site <ExternalLink className="h-3 w-3" />
+                  Courier website <ExternalLink className="h-3 w-3" />
                 </a>
+              ) : null}
+            </div>
+
+            <div className="flex items-baseline gap-2.5 mt-1">
+              <h3 className="text-xl font-bold text-foreground">
+                {tracking.carrier.name}
+              </h3>
+              {tracking.isLiveCourier && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <Radio className="h-3 w-3 text-emerald-600 animate-pulse" />
+                  Live Satellite Scan
+                </span>
               )}
             </div>
-            <h3 className="text-xl font-bold text-foreground mt-0.5">
-              {tracking.carrier.name}
-            </h3>
-            <p className="text-sm font-mono text-muted-foreground mt-1 select-all">
-              Tracking No: <span className="font-semibold text-foreground">{tracking.trackingNumber}</span>
-            </p>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+              <p className="font-mono select-all">
+                Waybill: <span className="font-semibold text-foreground">{tracking.trackingNumber}</span>
+              </p>
+              {tracking.orderId && (
+                <p className="font-mono select-all">
+                  Order: <span className="font-semibold text-foreground">{tracking.orderId}</span>
+                </p>
+              )}
+            </div>
+
+            {(tracking.origin || tracking.destination) && (
+              <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-foreground/80">
+                <span>{tracking.origin || 'Origin Hub'}</span>
+                <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                <span>{tracking.destination || 'Destination'}</span>
+              </div>
+            )}
           </div>
 
           <div className="sm:text-right">
@@ -78,16 +114,16 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
                     : 'bg-primary/10 text-primary border border-primary/20'
               }`}
             >
-              <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-current" />
               {tracking.statusText}
             </span>
             <p className="text-xs text-muted-foreground mt-1.5">
-              Est. Arrival: <span className="font-medium text-foreground">{tracking.estimatedDelivery}</span>
+              Status: <span className="font-medium text-foreground">{tracking.estimatedDelivery}</span>
             </p>
           </div>
         </div>
 
-        {/* Progress Stepper — view only. Delivery stages are set by an admin. */}
+        {/* Progress Stepper */}
         <div className="pt-6 pb-2">
           <div className="relative">
             {/* Background Line */}
@@ -114,7 +150,7 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border-2 ${
                         isPassed
-                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          ? 'bg-primary text-primary-foreground border-primary'
                           : 'bg-card text-muted-foreground border-muted-foreground/30'
                       } ${isCurrent ? 'ring-4 ring-primary/20 scale-110' : ''}`}
                     >
@@ -142,8 +178,7 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
           <div className="mt-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
-              This order is no longer in transit. Contact our support desk if you need help
-              with this shipment.
+              This shipment encountered an exception or cancellation. Contact our support desk if you need assistance.
             </p>
           </div>
         )}
@@ -151,8 +186,17 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            Updates are entered by our store team, not live courier scans. The stage shown is{' '}
-            <span className="font-medium text-foreground">{stageLabel}</span>.
+            {tracking.isLiveCourier ? (
+              <>
+                Live carrier telemetry synchronized via ParcelsApp. Current verified stage:{' '}
+                <span className="font-semibold text-foreground">{stageLabel}</span>.
+              </>
+            ) : (
+              <>
+                Your order is currently being fulfilled by our boutique team. Current stage:{' '}
+                <span className="font-semibold text-foreground">{stageLabel}</span>. Once dispatched to the courier, real-time satellite scans will update here.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -160,19 +204,21 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
       {/* Events Timeline Log */}
       {tracking.events.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4 text-center">
-          No delivery updates have been recorded for this order yet.
+          No delivery checkpoints have been recorded for this package yet.
         </p>
       ) : (
         <div className="space-y-6 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-border/70">
           {tracking.events.map((event, idx) => {
             const isLatest = idx === 0
+            const isCourier = event.source === 'courier'
+
             return (
               <div key={`${event.id}-${idx}`} className="relative flex items-start gap-4">
                 {/* Bullet */}
                 <div
                   className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2 transition ${
                     isLatest
-                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-card text-muted-foreground border-muted-foreground/30'
                   }`}
                 >
@@ -186,9 +232,21 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
                 {/* Content */}
                 <div className="flex-1 pt-0.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <p className={`text-sm font-semibold ${isLatest ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {event.status}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className={`text-sm font-semibold ${isLatest ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {event.status}
+                      </p>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                          isCourier
+                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                            : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300'
+                        }`}
+                      >
+                        {isCourier ? 'Courier Scan' : 'Boutique'}
+                      </span>
+                    </div>
+
                     <time className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
                       <Calendar className="w-3 h-3" />
                       {new Date(event.datetime).toLocaleString('en-US', {
@@ -206,7 +264,7 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
                     <span>{event.location}</span>
                   </p>
 
-                  {event.description && (
+                  {event.description && event.description !== event.status && (
                     <p className="text-xs text-foreground/80 mt-1 bg-muted/30 p-2 rounded-md border border-border/40">
                       {event.description}
                     </p>

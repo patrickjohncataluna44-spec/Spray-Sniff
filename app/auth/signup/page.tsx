@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ShieldCheck, BookOpen, Check } from 'lucide-react'
+import { ShieldCheck, BookOpen, Check, Eye, EyeOff } from 'lucide-react'
 
 function SignUpPageContent() {
   const router = useRouter()
@@ -39,6 +39,8 @@ function SignUpPageContent() {
     password: '',
     confirmPassword: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [hasReadPrivacy, setHasReadPrivacy] = useState(false)
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false)
@@ -427,36 +429,66 @@ function SignUpPageContent() {
                   <label htmlFor="password" className="text-sm font-medium text-foreground">
                     Password
                   </label>
-                  <input
-                    id="password"
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    autoComplete="new-password"
-                    suppressHydrationWarning
-                    required
-                    placeholder="********"
-                    className="storefront-input h-12 w-full"
-                  />
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      autoComplete="new-password"
+                      suppressHydrationWarning
+                      required
+                      placeholder="********"
+                      className="storefront-input h-12 w-full pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none transition-colors p-1"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                     Confirm Password
                   </label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    autoComplete="new-password"
-                    suppressHydrationWarning
-                    required
-                    placeholder="********"
-                    className="storefront-input h-12 w-full"
-                  />
+                  <div className="relative">
+                    <input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      autoComplete="new-password"
+                      suppressHydrationWarning
+                      required
+                      placeholder="********"
+                      className="storefront-input h-12 w-full pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none transition-colors p-1"
+                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Data Privacy Act & Agreement */}

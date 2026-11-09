@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useEffectEvent } from '@/hooks/use-effect-event'
-import { ArrowLeft, Eye, Mail, UserPlus } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProtectedRoute } from '@/components/protected-route'
 import { AdminSidebar } from '@/components/admin-sidebar'
@@ -75,6 +75,7 @@ export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [staffForm, setStaffForm] = useState<StaffFormState>(defaultStaffForm)
+  const [showStaffPassword, setShowStaffPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreatingStaff, setIsCreatingStaff] = useState(false)
 
@@ -271,16 +272,31 @@ export default function AdminCustomersPage() {
                   <label htmlFor="staff-password" className="mb-2 block text-sm font-medium text-foreground">
                     Password
                   </label>
-                  <input
-                    id="staff-password"
-                    type="password"
-                    value={staffForm.password}
-                    onChange={(event) => updateStaffForm('password', event.target.value)}
-                    placeholder="At least 6 characters"
-                    className="w-full rounded-lg border border-border bg-background px-4 py-3 text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
-                    minLength={6}
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      id="staff-password"
+                      type={showStaffPassword ? 'text' : 'password'}
+                      value={staffForm.password}
+                      onChange={(event) => updateStaffForm('password', event.target.value)}
+                      placeholder="At least 6 characters"
+                      className="w-full rounded-lg border border-border bg-background px-4 py-3 pr-11 text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
+                      minLength={6}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowStaffPassword((prev) => !prev)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none transition-colors p-1"
+                      aria-label={showStaffPassword ? 'Hide password' : 'Show password'}
+                      title={showStaffPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showStaffPassword ? (
+                        <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">

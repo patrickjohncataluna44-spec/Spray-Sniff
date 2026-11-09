@@ -24,8 +24,9 @@ import {
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { ProtectedRoute } from '@/components/protected-route'
 import { Button } from '@/components/ui/button'
+import { QuantityInput } from '@/components/ui/quantity-input'
 import { useAuth } from '@/lib/auth-context'
-import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
+import { formatPHP } from '@/lib/currency'
 import { isPaymentTestCart } from '@/lib/store-engine'
 import { type CartItem, getAuthHeaders, useStore } from '@/lib/store-context'
 import { toast } from '@/hooks/use-toast'
@@ -128,8 +129,8 @@ export default function PosPage() {
 
   const subtotal = saleItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const isTestCart = isPaymentTestCart(saleItems)
-  const { vatAmount: tax } = isTestCart ? { vatAmount: 0 } : calculateVatBreakdown(subtotal)
-  const total = subtotal
+  const tax = isTestCart ? 0 : Math.round(subtotal * 0.12 * 100) / 100
+  const total = Math.round((subtotal + tax) * 100) / 100
 
   // Cash change calculation
   const numericTendered = parseFloat(cashTendered)
@@ -635,53 +636,14 @@ export default function PosPage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            disabled={quantity <= 1 || remainingStock <= 0}
-                            onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-                            aria-label="Decrease quantity"
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <input
-                            type="number"
-                            min={1}
-                            max={Math.max(1, remainingStock)}
+                          <QuantityInput
                             value={remainingStock > 0 ? quantity : 0}
+                            max={remainingStock}
+                            min={1}
+                            onChange={setQuantity}
                             disabled={remainingStock <= 0}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              if (val === '') {
-                                setQuantity(1)
-                                return
-                              }
-                              const parsed = parseInt(val, 10)
-                              if (!isNaN(parsed)) {
-                                setQuantity(
-                                  Math.min(
-                                    Math.max(1, parsed),
-                                    Math.max(1, remainingStock),
-                                  ),
-                                )
-                              }
-                            }}
-                            className="w-16 rounded-md border border-border bg-background py-1.5 text-center font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            aria-label="POS Item Quantity"
+                            ariaLabel="POS Item Quantity"
                           />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            disabled={quantity >= remainingStock || remainingStock <= 0}
-                            onClick={() =>
-                              setQuantity((current) => Math.min(remainingStock, current + 1))
-                            }
-                            aria-label="Increase quantity"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
                           <span className="text-sm text-foreground/60">
                             {remainingStock > 0
                               ? `${remainingStock} available`
@@ -791,34 +753,16 @@ export default function PosPage() {
 
                             <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/40">
                               <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() =>
-                                    updateItemQuantity(item.productId, item.size, item.quantity - 1)
+                                <QuantityInput
+                                  size="sm"
+                                  value={item.quantity}
+                                  max={stock}
+                                  min={1}
+                                  onChange={(nextQty) =>
+                                    updateItemQuantity(item.productId, item.size, nextQty)
                                   }
-                                  aria-label="Decrease quantity"
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </Button>
-                                <span className="w-8 text-center text-sm font-semibold text-foreground">
-                                  {item.quantity}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  disabled={!canIncrease}
-                                  onClick={() =>
-                                    updateItemQuantity(item.productId, item.size, item.quantity + 1)
-                                  }
-                                  aria-label="Increase quantity"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </Button>
+                                  ariaLabel={`${product?.name ?? 'Item'} quantity`}
+                                />
                                 {!canIncrease && (
                                   <span className="text-[10px] text-amber-500 font-medium">Max</span>
                                 )}
@@ -880,16 +824,11 @@ export default function PosPage() {
                       <span>{formatPHP(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-foreground/70">
-                      <span className="flex items-center gap-1.5">
-                        12% VAT
-                        <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400">
-                          Included
-                        </span>
-                      </span>
-                      <span>{formatPHP(tax)}</span>
+                      <span>12% VAT</span>
+                      <span>+ {formatPHP(tax)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-semibold text-foreground pt-1 border-t border-border/60">
-                      <span>Total (VAT-Inclusive)</span>
+                      <span>Total</span>
                       <span className="text-accent font-bold">{formatPHP(total)}</span>
                     </div>
                   </div>

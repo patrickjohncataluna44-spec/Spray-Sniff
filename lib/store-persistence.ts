@@ -153,6 +153,7 @@ type CatalogProductRow = {
   brand: string
   description: string
   price: number
+  original_price?: number | null
   category: string
   scent_family: string[]
   gender: Product['gender']
@@ -456,6 +457,10 @@ function mapCatalogProductStateRow(
     brand: row.brand,
     description: row.description,
     price: Number(row.price),
+    originalPrice:
+      row.original_price != null && Number(row.original_price) > 0
+        ? Number(row.original_price)
+        : undefined,
     category: row.category,
     scentFamily: Array.isArray(row.scent_family) ? row.scent_family : [],
     gender: row.gender,
@@ -534,7 +539,7 @@ async function loadBackofficeStoreState() {
     { data: stockMovementRows, error: stockError },
   ] = await Promise.all([
     supabase.from('catalog_products').select(
-      'id, name, brand, description, price, category, scent_family, gender, top_notes, middle_notes, base_notes, longevity, intensity, sizes, images, rating, review_count, in_stock, featured, is_new_arrival, occasions, seasons, related_products',
+      'id, name, brand, description, price, original_price, category, scent_family, gender, top_notes, middle_notes, base_notes, longevity, intensity, sizes, images, rating, review_count, in_stock, featured, is_new_arrival, occasions, seasons, related_products',
     ),
     supabase.from('inventory_items').select(
       'product_id, sku, stock, reorder_point, location, last_updated, last_updated_by, is_archived, archived_at, archived_by',
@@ -662,6 +667,7 @@ function mapCatalogProductRow(product: Product) {
     brand: product.brand,
     description: product.description,
     price: product.price,
+    original_price: product.originalPrice ?? null,
     category: product.category,
     scent_family: product.scentFamily,
     gender: product.gender,
@@ -1343,7 +1349,8 @@ export async function saveStoreMutation(
       }
     }
 
-    case 'cancelOwnOrder': {
+    case 'cancelOwnOrder':
+    case 'adminCancelOrder': {
       const orderId = action.orderId
       const targetOrder = normalized.orders.find((order) => order.id === orderId)
 

@@ -106,6 +106,7 @@ interface StoreContextType extends StoreState {
   placeOnlineOrder: (input: PlaceOnlineOrderInput) => Promise<StoreActionResult<OrderRecord>>
   createPosSale: (input: CreatePosSaleInput) => Promise<StoreActionResult<OrderRecord>>
   cancelOwnOrder: (orderId: string) => Promise<StoreActionResult<OrderRecord>>
+  adminCancelOrder: (orderId: string, reason?: string) => Promise<StoreActionResult<OrderRecord>>
   updateOrderDelivery: (
     orderId: string,
     input: {
@@ -464,6 +465,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       placeOnlineOrder: (input) => callStoreAction<OrderRecord>({ type: 'placeOnlineOrder', input }),
       createPosSale: (input) => callStoreAction<OrderRecord>({ type: 'createPosSale', input }),
       cancelOwnOrder: (orderId) => callStoreAction<OrderRecord>({ type: 'cancelOwnOrder', orderId }),
+      adminCancelOrder: (orderId, reason) =>
+        callStoreAction<OrderRecord>({ type: 'adminCancelOrder', orderId, reason }),
       updateOrderDelivery: (orderId, input) =>
         callStoreAction<OrderRecord>({ type: 'updateOrderDelivery', orderId, ...input }),
       markOrderPaymentPaid: (orderId, actor, note) =>

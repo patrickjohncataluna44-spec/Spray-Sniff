@@ -15,6 +15,10 @@ export interface TrackingEvent {
   stage: TrackingStatus
   location: string
   description: string
+  /** 'store' for internal fulfillment milestones, 'courier' for live ParcelsApp satellite scans. */
+  source?: 'store' | 'courier'
+  /** Carrier name or code when originated from an external courier scan. */
+  carrier?: string
   /** Name of the store admin who recorded this update, when known. */
   recordedBy?: string
   /** The order status this update moved the order away from. */
@@ -24,9 +28,11 @@ export interface TrackingEvent {
 export interface CourierInfo {
   code: string
   name: string
+  slug?: string
   logoUrl?: string
   phone?: string
   website?: string
+  externalTrackingUrl?: string
 }
 
 export interface TrackingResult {
@@ -34,10 +40,13 @@ export interface TrackingResult {
   carrier: CourierInfo
   status: TrackingStatus
   statusText: string
+  orderId?: string
   origin?: string
   destination?: string
   estimatedDelivery?: string
   lastUpdated: string
+  daysInTransit?: number
+  isLiveCourier?: boolean
   events: TrackingEvent[]
 }
 
@@ -102,3 +111,93 @@ export const TRACKABLE_EVENT_STATUSES = new Set([
   'Completed',
   'Cancelled',
 ])
+
+/** Maps ParcelsApp raw status strings or event checkpoints to standard TrackingStatus */
+export function mapParcelsStateToDeliveryStage(raw: string | undefined | null): TrackingStatus {
+  if (!raw) return 'in_transit'
+  const lower = raw.trim().toLowerCase()
+
+  if (
+    lower === 'delivered' ||
+    lower.includes('delivered') ||
+    lower.includes('successfully received')
+  ) {
+    return 'delivered'
+  }
+
+  if (
+    lower === 'out_for_delivery' ||
+    lower.includes('out for delivery') ||
+    lower.includes('with delivery courier') ||
+    lower.includes('with rider')
+  ) {
+    return 'out_for_delivery'
+  }
+
+  if (
+    lower === 'picked_up' ||
+    lower === 'pickup' ||
+    lower.includes('picked up') ||
+    lower.includes('accepted at') ||
+    lower.includes('parcel received at branch') ||
+    lower.includes('shipment collected')
+  ) {
+    return 'picked_up'
+  }
+
+  if (
+    lower.includes('failed attempt') ||
+    lower.includes('delivery attempt failed') ||
+    lower.includes('unsuccessful delivery')
+  ) {
+    return 'failed_attempt'
+  }
+
+  if (
+    lower === 'exception' ||
+    lower === 'alert' ||
+    lower.includes('returned') ||
+    lower.includes('held') ||
+    lower.includes('damaged') ||
+    lower.includes('cancelled')
+  ) {
+    return 'exception'
+  }
+
+  if (lower === 'order_placed' || lower === 'pending') {
+    return 'order_placed'
+  }
+
+  if (lower === 'preparing_to_ship' || lower === 'processing') {
+    return 'preparing_to_ship'
+  }
+
+  return 'in_transit'
+}
+
+/** Delivery status progression ranks for forward-only updates */
+export const DELIVERY_STATUS_RANK: Record<string, number> = {
+  Pending: 0,
+  Processing: 1,
+  Shipped: 2,
+  'In Transit': 3,
+  'Out for Delivery': 4,
+  Delivered: 5,
+  Completed: 5,
+}
+
+/** Maps a TrackingStatus back to the store order status */
+export function mapDeliveryStageToOrderStatus(stage: TrackingStatus): string | null {
+  switch (stage) {
+    case 'picked_up':
+      return 'Shipped'
+    case 'in_transit':
+      return 'In Transit'
+    case 'out_for_delivery':
+      return 'Out for Delivery'
+    case 'delivered':
+      return 'Delivered'
+    default:
+      return null
+  }
+}

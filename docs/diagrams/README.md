@@ -1,17 +1,20 @@
-# System Diagrams
+# System Diagrams & Thesis Flowcharts
 
-This folder contains separate Mermaid diagrams for the main modules in the store:
+This folder contains the system architecture and thesis-ready process flowcharts for the **Spray & Sniff Web-Based Inventory, Sales, E-Commerce, and Customer Service System**:
 
-- `system-overview-diagram.md`
-- `admin-diagram.md`
-- `customer-diagram.md`
-- `inventory-diagram.md`
-- `payment-method-diagram.md`
-- `staff-account-diagram.md`
+- `staff-account-diagram.md`: Figure 4 (Admin & Staff Authentication & RBAC Flow) and Supplementary Staff Creation Flow
+- `admin-diagram.md`: Figure 5 (Admin & Staff Backoffice Operations Flow)
+- `customer-diagram.md`: Figure 6 (Customer E-Commerce Ordering and Checkout Flow)
+- `system-overview-diagram.md`: End-to-end system architecture
+- `inventory-diagram.md`: Inventory stock management & catalog sync
+- `payment-method-diagram.md`: Online and POS payment flows
 
-Recommended reading order:
+---
 
-1. `system-overview-diagram.md` for the end-to-end architecture
-2. The module-specific diagrams for implementation detail
+## 📦 Thesis Export Package & Download Portal
 
-Open each file in a Markdown viewer that supports Mermaid to render the diagram.
+For capstone paper submissions, all diagrams have been rendered in publication quality adhering strictly to **Yes/No binary decision diamonds**:
+
+- **Interactive Download Portal**: [`flowchart-download-center.html`](flowchart-download-center.html) (or `public/diagrams/index.html`)
+- **All-in-One ZIP Archive**: [`spray_sniff_thesis_flowcharts.zip`](spray_sniff_thesis_flowcharts.zip)
+- **High-Res Images**: Located in `public/diagrams/` and `docs/diagrams/exported/` (`.png` and `.svg`)

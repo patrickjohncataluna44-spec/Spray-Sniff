@@ -157,7 +157,7 @@ export function Header() {
   }
 
   return (
-    <header ref={headerRef} className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/95 backdrop-blur-xl">
+    <header data-ui="storefront-header" ref={headerRef} className="sticky top-0 z-40 w-full border-b border-[#f0e6de] bg-[#fffaf5]/95 backdrop-blur-xl">
       <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
         {searchOpen ? (
           /* ACTIVE EXPANDED SEARCH BAR (Header morphs into search input) */
@@ -167,7 +167,7 @@ export function Header() {
               onClick={() => setSearchOpen(false)}
               className="hidden shrink-0 items-center gap-2 sm:flex sm:gap-3"
             >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,#ffb399,#ff9a86)] text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,154,134,0.35)] sm:h-11 sm:w-11">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#2d1a24] text-sm font-semibold text-white sm:h-11 sm:w-11">
                 SS
               </span>
               <span className="hidden font-serif text-lg leading-tight text-foreground md:block">
@@ -185,7 +185,7 @@ export function Header() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search perfumes, brands, scent notes (e.g. Vanilla, Woody, 1 Peso)..."
-                className="h-11 w-full rounded-2xl border-2 border-primary/50 bg-white/95 pl-11 pr-11 text-sm font-normal text-foreground shadow-[0_4px_20px_rgba(255,154,134,0.18)] placeholder:text-foreground/45 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15 sm:h-12 sm:text-base"
+                className="h-11 w-full rounded-2xl border border-primary/50 bg-white/95 pl-11 pr-11 text-sm font-normal text-foreground placeholder:text-foreground/45 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 sm:h-12 sm:text-base"
                 aria-label="Search fragrances"
               />
               {searchQuery ? (
@@ -208,7 +208,7 @@ export function Header() {
               <Button
                 type="button"
                 onClick={handleSearchSubmit}
-                className="h-11 rounded-2xl bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-[#ff8a73] sm:px-5 sm:text-sm"
+                className="h-11 rounded-2xl bg-[#b76e79] px-4 text-xs font-semibold text-white hover:bg-[#9f5762] sm:px-5 sm:text-sm"
               >
                 Search
               </Button>
@@ -229,21 +229,21 @@ export function Header() {
           /* STANDARD NAVIGATION BAR (Search pill + Nav links + Actions) */
           <div className="flex h-16 items-center justify-between gap-3 sm:h-20 lg:grid lg:grid-cols-[auto_1fr_auto] lg:gap-4 xl:gap-6">
             <Link href="/" className="flex shrink-0 items-center gap-2.5 sm:gap-3">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(160deg,#ffb399,#ff9a86)] text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,154,134,0.35)] sm:h-11 sm:w-11">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#2d1a24] text-sm font-semibold text-white sm:h-11 sm:w-11">
                 SS
               </span>
               <span className="min-w-0">
                 <span className="block whitespace-nowrap font-serif text-lg leading-tight text-foreground sm:text-xl xl:text-2xl">
                   {SITE_NAME}
                 </span>
-                <span className="hidden text-[10px] uppercase tracking-[0.24em] text-foreground/45 lg:block">
+                <span className="hidden text-[10px] text-foreground/50 lg:block">
                   Perfume House
                 </span>
               </span>
             </Link>
 
             <div className="hidden min-w-0 justify-center lg:flex">
-              <nav className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border/70 bg-white/65 px-2 py-2 shadow-[0_16px_38px_rgba(145,84,73,0.08)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <nav className="flex items-center gap-5 xl:gap-7">
                 {STOREFRONT_NAV_ITEMS.map((item) => {
                   const href = resolveNavHref(pathname, item.href, item.kind)
                   const active = item.kind === 'route' && isNavActive(pathname, item.href)
@@ -252,10 +252,10 @@ export function Header() {
                     <Link
                       key={`${item.kind}-${item.label}`}
                       href={href}
-                      className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-[13px] font-medium transition xl:px-4 xl:text-sm ${
+                      className={`relative py-1.5 text-[14px] xl:text-[15px] font-medium tracking-[0.01em] transition-colors duration-200 ${
                         active
-                          ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.3)]'
-                          : 'text-foreground/72 hover:bg-muted hover:text-foreground'
+                          ? 'text-[#2d1a24] font-semibold after:absolute after:-bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-[2px] after:w-5 after:bg-[#b76e79] after:rounded-full'
+                          : 'text-[#2d1a24]/70 hover:text-[#b76e79]'
                       }`}
                     >
                       {item.label}
@@ -346,7 +346,7 @@ export function Header() {
 
         {/* LIVE SEARCH RESULTS & SUGGESTIONS DROPDOWN */}
         {searchOpen && (
-          <div className="border-t border-border/70 py-4 sm:py-5 animate-in fade-in slide-in-from-top-2 duration-150">
+          <div data-ui="search-flyout" className="py-4 sm:py-5 animate-in fade-in slide-in-from-top-2 duration-150">
             {/* Quick Scent Tags */}
             <div className="flex flex-wrap items-center gap-1.5 pb-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground/45 mr-1">
@@ -392,7 +392,7 @@ export function Header() {
                           key={product.id}
                           type="button"
                           onClick={() => handleSelectProduct(product.id)}
-                          className="group flex items-center gap-3 rounded-2xl border border-border/60 bg-white/80 p-2.5 text-left transition hover:border-primary/60 hover:bg-white hover:shadow-md"
+                          className="group flex items-center gap-3 rounded-2xl border border-border/60 bg-white/80 p-2.5 text-left transition hover:border-primary/60 hover:bg-white"
                         >
                           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted/40">
                             {product.images[0] ? (
@@ -417,7 +417,7 @@ export function Header() {
                               {product.brand} · {product.category}
                             </p>
                             <div className="mt-1 flex items-center justify-between">
-                              <span className="font-mono text-xs font-bold text-foreground">
+                              <span className="text-xs font-bold text-foreground">
                                 {formatPHP(product.price)}
                               </span>
                               {isOutOfStock ? (
@@ -436,7 +436,7 @@ export function Header() {
                     })}
                   </div>
 
-                  <div className="pt-2 flex items-center justify-between border-t border-border/60">
+                  <div className="pt-2 flex items-center justify-between">
                     <Button
                       type="button"
                       variant="outline"
@@ -492,7 +492,7 @@ export function Header() {
                         <p className="truncate text-xs font-semibold text-foreground group-hover:text-primary">
                           {product.name}
                         </p>
-                        <p className="font-mono text-[11px] text-foreground/60">
+                        <p className="text-[11px] font-semibold text-foreground/70">
                           {formatPHP(product.price)}
                         </p>
                       </div>
@@ -506,7 +506,7 @@ export function Header() {
 
         {/* MOBILE MENU DRAWER (With direct interactive search input) */}
         {mobileMenuOpen && !searchOpen && (
-          <nav className="space-y-4 border-t border-border/70 py-4 sm:py-5 lg:hidden">
+          <nav data-ui="mobile-drawer" className="space-y-4 py-4 sm:py-5 lg:hidden">
             {/* Real Search Input inside Mobile Menu Drawer */}
             <form onSubmit={handleMobileMenuSearchSubmit} className="relative">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/45" />
@@ -558,7 +558,7 @@ export function Header() {
             </div>
 
             {!isLoading && (
-              <div className="rounded-[1.75rem] border border-border/70 bg-white/72 p-4 shadow-[0_18px_42px_rgba(145,84,73,0.08)]">
+              <div className="rounded-3xl border border-border/70 bg-white/90 p-4">
                 {isAuthenticated ? (
                   <div className="space-y-3">
                     <div className="rounded-2xl bg-muted/40 px-4 py-3">

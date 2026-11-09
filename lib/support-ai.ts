@@ -26,6 +26,15 @@ function extractOpenAIResponseText(payload: unknown) {
     return null
   }
 
+  // Check standard OpenAI / Ollama choices format
+  const choices = (payload as { choices?: unknown }).choices
+  if (Array.isArray(choices) && choices.length > 0) {
+    const firstChoice = choices[0] as { message?: { content?: unknown } }
+    if (typeof firstChoice?.message?.content === 'string' && firstChoice.message.content.trim()) {
+      return firstChoice.message.content.trim()
+    }
+  }
+
   const outputText = (payload as { output_text?: unknown }).output_text
   if (typeof outputText === 'string' && outputText.trim()) {
     return outputText.trim()
@@ -65,10 +74,205 @@ function extractOpenAIResponseText(payload: unknown) {
   return segments.length > 0 ? segments.join('\n').trim() : null
 }
 
-async function maybeGenerateAISummary({ fallback, intent, payload }: AISummaryRequest) {
-  const apiKey = getOptionalServerEnv('OPENAI_API_KEY')
+export interface ConciergeChatInput {
+  userMessage: string
+  customerName?: string
+  category?: string
+  orderContext?: {
+    id: string
+    status: string
+    paymentStatus?: string
+    total?: number
+  } | null
+  conversationHistory?: Array<{
+    role: 'user' | 'assistant'
+    content: string
+  }>
+}
 
-  if (!apiKey) {
+export function isHumanEscalationRequest(text: string): boolean {
+  const normalized = text.toLowerCase()
+  return (
+    normalized.includes('admin') ||
+    normalized.includes('human') ||
+    normalized.includes('agent') ||
+    normalized.includes('staff') ||
+    normalized.includes('live support') ||
+    normalized.includes('tao') ||
+    normalized.includes('tawo') ||
+    normalized.includes('istorya sa tao') ||
+    normalized.includes('makigstorya') ||
+    normalized.includes('kaistorya') ||
+    normalized.includes('ka-istorya') ||
+    normalized.includes('reklamo') ||
+    normalized.includes('complaint') ||
+    normalized.includes('ticket') ||
+    normalized.includes('representative') ||
+    normalized.includes('dili kasabot') ||
+    normalized.includes('dili makaya') ||
+    normalized.includes('guba') ||
+    normalized.includes('damaged') ||
+    normalized.includes('wrong item') ||
+    normalized.includes('dispute')
+  )
+}
+
+export function cleanBotResponseText(rawText: string): string {
+  if (!rawText) return ''
+
+  return (
+    rawText
+      // Remove double asterisks (bold) and single asterisks (italics)
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/\*/g, '')
+      // Remove double em-dashes (—— or --- or --)
+      .replace(/——+/g, ', ')
+      .replace(/--+/g, ' - ')
+      // Clean up strange quotation marks around single words like "best"
+      .replace(/"([^"]{1,20})"/g, '$1')
+      // Clean up markdown bullet points at start of lines
+      .replace(/^\s*[-•]\s+/gm, '')
+      // Clean up multiple spaces
+      .replace(/[ \t]+/g, ' ')
+      .trim()
+  )
+}
+
+export async function generateConciergeChatReply(input: ConciergeChatInput): Promise<string | null> {
+  const ollamaKey = getOptionalServerEnv('OLLAMA_API_KEY')
+  if (!ollamaKey) {
+    return null
+  }
+
+  const host = getOptionalServerEnv('OLLAMA_HOST') ?? 'https://ollama.com'
+  const model = getOptionalServerEnv('OLLAMA_MODEL') ?? 'gemma4:31b-cloud'
+
+  const systemPrompt = `You are the Senior Fragrance Consultant & Concierge at Spray & Sniff, an artisanal luxury perfume atelier in Mabini, Manila.
+
+STYLE & FORMATTING REQUIREMENTS (VERY STRICT):
+1. NEVER use asterisks (* or **), hashtags (#), bullet points, or any markdown formatting.
+2. NEVER use double dashes (—— or --). Use natural punctuation like commas or periods.
+3. NEVER place quotation marks around common words (e.g. write best scent, not "best" scent).
+4. Address the client respectfully and warmly. Speak with the poise, understated elegance, and sophistication of a high-end luxury maison.
+5. Keep answers concise, polished, and helpful (typically 2 to 3 sentences).
+
+ATELIER SIGNATURES:
+- Midnight Elegance: Dark plum, amber, nocturnal musk, rich bourbon vanilla. Perfect for evening affairs, dates, and celebrations.
+- Azure Bloom: Crisp bergamot, mandarin, white florals, subtle mineral sea salt. Ideal for radiant, fresh daytime wear.
+- Velvet Santal: Mysore sandalwood, cardamom, violet iris, dry cedar. Distinguished unisex composition.
+- Solar Neroli: Orange blossom, neroli, petitgrain, bright citrus. Vibrant and uplifting.
+- Fragrance Match Quiz: Available at /discovery to help clients find their personal signature scent.
+- Delivery: 2 to 3 business days within Metro Manila, 3 to 5 business days for provincial addresses.
+- Returns & Assistance: Sealed bottles can be returned within 7 days. If a client needs human intervention or staff help, reassure them that an administrator will assist them promptly.
+
+LANGUAGE:
+If addressed in Cebuano/Bisaya or Tagalog, reply fluently and naturally in that language with the same warm luxury boutique grace. Never invent fake tracking numbers or personal order data.`
+
+  const messages: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ]
+
+  if (input.conversationHistory && input.conversationHistory.length > 0) {
+    for (const msg of input.conversationHistory.slice(-4)) {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      })
+    }
+  }
+
+  const userPromptParts: string[] = []
+  if (input.customerName) {
+    userPromptParts.push(`Customer: ${input.customerName}`)
+  }
+  if (input.orderContext) {
+    userPromptParts.push(`Order Context: ${input.orderContext.id} (${input.orderContext.status}, payment: ${input.orderContext.paymentStatus ?? 'pending'})`)
+  }
+  userPromptParts.push(`Message: ${input.userMessage}`)
+
+  messages.push({
+    role: 'user',
+    content: userPromptParts.join('\n'),
+  })
+
+  try {
+    const response = await fetch(`${host.replace(/\/$/, '')}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ollamaKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+      }),
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const data = await response.json().catch(() => null)
+    const reply = data?.choices?.[0]?.message?.content
+    return typeof reply === 'string' && reply.trim()
+      ? cleanBotResponseText(compactText(reply))
+      : null
+  } catch {
+    return null
+  }
+}
+
+async function maybeGenerateAISummary({ fallback, intent, payload }: AISummaryRequest) {
+  const ollamaKey = getOptionalServerEnv('OLLAMA_API_KEY')
+  const openAiKey = getOptionalServerEnv('OPENAI_API_KEY')
+
+  if (!ollamaKey && !openAiKey) {
+    return fallback
+  }
+
+  if (ollamaKey) {
+    const host = getOptionalServerEnv('OLLAMA_HOST') ?? 'https://ollama.com'
+    const model = getOptionalServerEnv('OLLAMA_MODEL') ?? 'gemma4:31b-cloud'
+
+    try {
+      const response = await fetch(`${host.replace(/\/$/, '')}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ollamaKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are the concise Spray & Sniff perfume concierge in Mabini atelier. Use only the provided JSON facts. Never invent data or statuses. Keep the response to 2 short sentences.',
+            },
+            {
+              role: 'user',
+              content: `Intent: ${intent}\nFacts:\n${JSON.stringify(payload, null, 2)}`,
+            },
+          ],
+          stream: false,
+        }),
+        cache: 'no-store',
+      })
+
+      if (response.ok) {
+        const data = await response.json().catch(() => null)
+        const text = extractOpenAIResponseText(data)
+        if (text) return cleanBotResponseText(compactText(text))
+      }
+    } catch {
+      // Fall through to OpenAI or fallback
+    }
+  }
+
+  if (!openAiKey) {
     return fallback
   }
 
@@ -79,7 +283,7 @@ async function maybeGenerateAISummary({ fallback, intent, payload }: AISummaryRe
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${openAiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -104,7 +308,7 @@ async function maybeGenerateAISummary({ fallback, intent, payload }: AISummaryRe
 
     const data = await response.json().catch(() => null)
     const text = extractOpenAIResponseText(data)
-    return text ? compactText(text) : fallback
+    return text ? cleanBotResponseText(compactText(text)) : fallback
   } catch {
     return fallback
   }
@@ -114,9 +318,7 @@ export async function buildSupportWelcomeMessage(
   payload: Pick<SupportBootstrapPayload, 'customer' | 'recentCases' | 'recentOrders'>,
 ) {
   const fallback = payload.customer
-    ? payload.recentOrders.length > 0
-      ? `Hi ${payload.customer.name}. I can see ${payload.recentOrders.length} online order${payload.recentOrders.length === 1 ? '' : 's'} on your account. Pick a quick action below and I'll guide you through tracking, payment details, delivery confirmation, or creating a support request.`
-      : `Hi ${payload.customer.name}. I'm ready to help with orders, payments, and support requests. I don't see any online orders on this account yet, but you can still ask for help and I'll open a case for the team.`
+    ? `Hi ${payload.customer.name}. Welcome to Spray & Sniff Concierge! How can I assist you today? You can ask for fragrance recommendations, track an order, or submit a support inquiry.`
     : 'Welcome to Spray & Sniff support. Sign in to view your orders and payment details, or use the quick help options below for general guidance.'
 
   return maybeGenerateAISummary({
@@ -151,12 +353,16 @@ export async function buildOrdersOverviewMessage(orders: OrderRecord[]) {
 
 export async function buildOrderDetailMessage(order: OrderRecord) {
   const latestUpdate = order.timeline[order.timeline.length - 1]
+  const trackingNote = order.trackingNumber
+    ? `Courier waybill: ${order.trackingNumber} (${order.courier || 'Courier Partner'}). Real-time satellite tracking is active on your /track page.`
+    : 'Tracking progress will appear once dispatched to the courier.'
+
   const fallback = compactText(
-    `${order.id} is currently ${order.status}. ${latestUpdate ? latestUpdate.note : 'Tracking details are available in your timeline.'} ${
+    `${order.id} is currently ${order.status}. ${latestUpdate ? latestUpdate.note : trackingNote} ${
       order.actionAvailability?.canCancel
         ? 'You can still cancel this order from support.'
         : order.actionAvailability?.cancelBlockedReason ??
-          'Delivery progress is updated by our store team. Contact support if your parcel has already arrived.'
+          'Delivery progress updates automatically via our courier network.'
     }`,
   )
 
@@ -169,6 +375,8 @@ export async function buildOrderDetailMessage(order: OrderRecord) {
       createdAt: order.createdAt,
       paymentStatus: order.paymentStatus,
       total: order.total,
+      courier: order.courier ?? null,
+      trackingNumber: order.trackingNumber ?? null,
       latestUpdate: latestUpdate?.note ?? null,
       actionAvailability: order.actionAvailability ?? null,
     },
@@ -203,6 +411,27 @@ export async function buildCaseSummaryMessage(input: {
   order?: OrderRecord
   requestMessage: string
 }) {
+  if (isHumanEscalationRequest(input.requestMessage)) {
+    return `Gipasa na nako ang imong concern sa among Live Admin Team.\n\nTicket Ref: ${input.caseId}\nPriority: High (Waiting on Staff)\n\nNaka-notify na ang among team sa Admin Inbox ug mo-reply sila dire sa chat thread. Mahimo nimong idugang ang ubang detalye samtang nagpaabot ka.`
+  }
+
+  const aiAnswer = await generateConciergeChatReply({
+    userMessage: input.requestMessage,
+    category: input.category,
+    orderContext: input.order
+      ? {
+          id: input.order.id,
+          status: input.order.status,
+          paymentStatus: input.order.paymentStatus,
+          total: input.order.total,
+        }
+      : null,
+  })
+
+  if (aiAnswer) {
+    return `${aiAnswer}\n\n(Ticket ref: ${input.caseId})`
+  }
+
   const fallback = compactText(
     `${input.caseId} has been opened as a ${input.category.replace(/_/g, ' ')} request${
       input.order ? ` for ${input.order.id}` : ''

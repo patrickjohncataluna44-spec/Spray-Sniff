@@ -232,55 +232,33 @@
 
 @layer components {
   .storefront-page {
-    background:
-      radial-gradient(circle at top left, rgba(255, 214, 166, 0.24), transparent 26%),
-      radial-gradient(circle at top right, rgba(255, 179, 153, 0.18), transparent 22%),
-      linear-gradient(180deg, rgba(255, 250, 245, 1), rgba(255, 245, 235, 0.98));
+    background-color: var(--background);
   }
 
   .storefront-panel {
-    border: 1px solid color-mix(in srgb, var(--border) 82%, white 18%);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 251, 246, 0.92));
-    box-shadow:
-      0 28px 75px rgba(145, 84, 73, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background-color: #ffffff;
   }
 
   .storefront-soft-panel {
-    border: 1px solid rgba(255, 179, 153, 0.28);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 240, 190, 0.32));
-    box-shadow: 0 22px 55px rgba(145, 84, 73, 0.09);
-  }
-
-  .storefront-eyebrow {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: rgba(45, 33, 36, 0.55);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    background-color: #fffaf6;
   }
 
   .storefront-input {
-    border: 1px solid rgba(243, 217, 203, 0.96);
-    background: rgba(255, 253, 251, 0.95);
+    border: 1px solid var(--border);
+    background-color: #ffffff;
     color: var(--foreground);
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     padding-inline: 1rem;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
   }
 
   .storefront-input::placeholder {
-    color: rgba(45, 33, 36, 0.42);
+    color: rgba(45, 33, 36, 0.45);
   }
 
   .storefront-input:focus-visible {
     outline: none;
-    box-shadow:
-      0 0 0 3px rgba(255, 154, 134, 0.22),
-      inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    border-color: var(--primary);
   }
 }

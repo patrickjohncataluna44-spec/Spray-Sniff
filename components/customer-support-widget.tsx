@@ -160,6 +160,8 @@ function getActionLabel(mode: OrderSelectionMode) {
 
 function getQuickActionIcon(actionId: SupportQuickAction['id']) {
   switch (actionId) {
+    case 'escalate_to_admin':
+      return <LifeBuoy className="h-3.5 w-3.5" />
     case 'track_order':
       return <Truck className="h-3.5 w-3.5" />
     case 'check_payment':
@@ -178,6 +180,18 @@ function getQuickActionIcon(actionId: SupportQuickAction['id']) {
   }
 }
 
+function formatMessageText(text: string) {
+  if (!text) return ''
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\*/g, '')
+    .replace(/——+/g, ', ')
+    .replace(/--+/g, ' - ')
+    .replace(/"([^"]{1,20})"/g, '$1')
+    .trim()
+}
+
 function MessageAvatar({
   role,
   customerName,
@@ -194,7 +208,7 @@ function MessageAvatar({
       <span
         role="img"
         aria-label={authorName || 'Admin'}
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 bg-cover bg-center shadow-sm"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 bg-cover bg-center"
         style={{
           backgroundImage:
             'url("https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop")',
@@ -206,14 +220,14 @@ function MessageAvatar({
 
   if (role === 'bot') {
     return (
-      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-[0_4px_10px_rgba(255,117,140,0.3)]">
+      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#2d1a24] text-[#e8ded5]">
         <Bot className="h-4 w-4" />
       </span>
     )
   }
 
   return (
-    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f4f4f5] to-[#e4e4e7] text-[11px] font-semibold text-[#3f3f46] shadow-sm">
+    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4ece1] text-[11px] font-semibold text-[#2d1a24]">
       {getCustomerInitial(customerName)}
     </span>
   )
@@ -256,17 +270,17 @@ export function CustomerSupportWidget() {
 
     if (activeCaseId) {
       return [
+        { id: 'reply-admin', label: 'Escalate to Admin', text: 'Gusto ko makig-istorya sa Live Admin bahin ani.' },
         { id: 'reply-update', label: 'Add update', text: 'I have an update for this support case.' },
         { id: 'reply-follow', label: 'Follow up', text: 'Can you please follow up on this request?' },
-        { id: 'reply-payment', label: 'Payment check', text: 'Please review the payment details attached to this case.' },
       ]
     }
 
     return [
+      { id: 'prompt-admin', label: 'Connect to Admin', actionId: 'escalate_to_admin' },
       { id: 'prompt-track', label: 'Track order', actionId: 'track_order' },
-      { id: 'prompt-payment', label: 'Check payment', actionId: 'check_payment' },
       { id: 'prompt-refund', label: 'Request refund', actionId: 'request_refund' },
-      { id: 'prompt-support', label: 'Talk to support', actionId: 'talk_to_support' },
+      { id: 'prompt-payment', label: 'Check payment', actionId: 'check_payment' },
     ]
   }, [activeCaseId, bootstrap?.isAuthenticated])
 
@@ -360,21 +374,13 @@ export function CustomerSupportWidget() {
   }
 
   const resetConversation = (payload: SupportBootstrapPayload) => {
-    const nextMessages: ChatMessage[] = [
-      {
-        id: createMessageId(),
-        role: 'bot',
-        text: payload.welcomeMessage,
-        kind: 'text',
-        createdAt: new Date().toISOString(),
-      },
-    ]
+    const nextMessages: ChatMessage[] = []
 
     if (payload.isAuthenticated && payload.recentCases.length > 0) {
       nextMessages.push({
         id: createMessageId(),
         role: 'bot',
-        text: 'I also found recent support cases if you want to continue one of them.',
+        text: 'Recent active support tickets:',
         kind: 'cases',
         cases: payload.recentCases,
         createdAt: new Date().toISOString(),
@@ -552,7 +558,7 @@ export function CustomerSupportWidget() {
     if (actionId === 'sign_in') {
       appendTextMessage(
         'bot',
-        'Sign in to unlock order-aware support, payment lookups, and guided self-service actions.',
+        'Sign in to access order-aware support, payment lookups, and guided self-service actions.',
       )
       setOpen(false)
       window.location.href = '/auth/signin'
@@ -564,6 +570,32 @@ export function CustomerSupportWidget() {
         'bot',
         'Please sign in first so I can securely read your orders and payment records.',
       )
+      return
+    }
+
+    if (actionId === 'escalate_to_admin' || actionId === 'talk_to_support') {
+      setPendingAction('escalate_to_admin')
+      try {
+        const result = await callSupportAction({
+          action: 'escalateToAdmin',
+          category: composerOrderId ? 'order_help' : 'general',
+          orderId: composerOrderId ?? undefined,
+          message: 'Customer requested human admin assistance from support desk.',
+        })
+        if (result.case) {
+          setActiveCaseId(result.case.id)
+          setComposerMode('reply')
+          await loadBootstrap()
+          appendTextMessage('bot', result.message)
+        }
+      } catch (error) {
+        appendTextMessage(
+          'bot',
+          error instanceof Error ? error.message : 'Unable to connect to live admin right now.',
+        )
+      } finally {
+        setPendingAction(null)
+      }
       return
     }
 
@@ -601,7 +633,7 @@ export function CustomerSupportWidget() {
       if (cancellableOrders.length === 0) {
         appendTextMessage(
           'bot',
-          'There are no customer-cancellable orders right now. Only Pending or Processing online orders can be cancelled here.',
+          'There are no customer-cancellable orders right now. Orders that have reached "To Ship" (Processing) or Delivery cannot be cancelled directly through self-service.',
         )
       } else {
         appendOrdersMessage(
@@ -617,7 +649,7 @@ export function CustomerSupportWidget() {
       // Always show refund policy first so customers know what to expect
       appendTextMessage(
         'bot',
-        '📋 Before we proceed, here is our Refund Policy:\n\n' +
+        'Refund Policy Details:\n\n' +
         '• If you paid via QR Ph (QR code / InstaPay), refunds are processed manually by our team within 3–5 business days. We will send the amount back to your bank or e-wallet and notify you by email.\n\n' +
         '• If you paid via card, GrabPay, or Maya, refunds are processed automatically and usually reflect within 3–7 banking days.\n\n' +
         'Please select the order you would like to request a refund for:',
@@ -715,8 +747,8 @@ export function CustomerSupportWidget() {
         appendTextMessage(
           'bot',
           isQrPh
-            ? '⏱️ Since you paid via QR Ph (QR code), your refund will be processed manually by our team within 3–5 business days. You will receive an email notification once the money has been sent back to your bank or e-wallet. If you have any updates to share, you can reply to this support case.'
-            : '✅ Your refund request has been submitted. Our team will review it within 1–2 business days and update you via email. You can reply to this case anytime to add more details.',
+            ? 'Since you paid via QR Ph (QR code), your refund will be processed manually by our team within 3–5 business days. You will receive an email notification once the money has been sent back to your bank or e-wallet. If you have any updates to share, you can reply to this support case.'
+            : 'Your refund request has been submitted. Our team will review it within 1–2 business days and update you via email. You can reply to this case anytime to add more details.',
         )
       }
     } catch (error) {
@@ -786,7 +818,13 @@ export function CustomerSupportWidget() {
         }
 
         setActiveCaseId(payload.case.id)
-        appendTextMessage('system', 'Your reply has been added to the support thread.')
+        const updatedMessages = payload.case.messages ?? []
+        const lastMsg = updatedMessages[updatedMessages.length - 1]
+        if (lastMsg && (lastMsg.authorType === 'bot' || lastMsg.authorType === 'staff')) {
+          appendTextMessage(lastMsg.authorType, lastMsg.message, lastMsg.authorName)
+        } else {
+          appendTextMessage('system', 'Your reply has been added to the support thread.')
+        }
       } else {
         const result = await callSupportAction({
           action: 'createSupportCase',
@@ -823,8 +861,9 @@ export function CustomerSupportWidget() {
       {!open ? (
         <button
           type="button"
+          data-ui="floating-launcher"
           onClick={() => setOpen(true)}
-          className="fixed bottom-[4.75rem] right-4 md:bottom-5 md:right-5 z-40 flex items-center justify-center h-13 w-13 md:h-14 md:w-14 rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-xl transition hover:-translate-y-1 hover:shadow-2xl"
+          className="fixed bottom-[4.75rem] right-4 md:bottom-5 md:right-5 z-40 flex items-center justify-center h-13 w-13 md:h-14 md:w-14 rounded-full bg-[#2d1a24] text-white transition hover:bg-[#b76e79]"
           aria-label="Open support chat"
         >
           <MessageCircle className="h-6 w-6" />
@@ -836,21 +875,20 @@ export function CustomerSupportWidget() {
           <button
             type="button"
             aria-label="Close support chat backdrop"
-            className="absolute inset-0 bg-black/10 backdrop-blur-[1px] md:bg-transparent"
+            className="absolute inset-0 bg-black/10 md:bg-transparent"
             onClick={() => setOpen(false)}
           />
 
-          <div className="absolute bottom-[4.75rem] left-3 right-3 top-20 overflow-hidden rounded-[1.5rem] bg-[#fafafa] shadow-[0_10px_40px_rgba(0,0,0,0.15)] md:bottom-5 md:left-auto md:right-5 md:top-auto md:h-[42rem] md:w-[24rem] flex flex-col border border-slate-200">
-            <div className="bg-gradient-to-r from-[#FF758C] to-[#FF7EB3] px-5 py-4 text-white shrink-0 relative">
-              <div className="absolute inset-0 bg-white/10 opacity-50 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.4),transparent)]" />
-              <div className="relative flex items-center justify-between">
+          <div data-ui="floating-dialog" className="absolute bottom-[4.75rem] left-3 right-3 top-20 overflow-hidden rounded-[1.5rem] bg-[#faf8f5] md:bottom-5 md:left-auto md:right-5 md:top-auto md:h-[42rem] md:w-[24rem] flex flex-col border border-[#e8ded5]">
+            <div className="bg-[#2d1a24] px-5 py-4 text-white shrink-0">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#FF758C] shadow-sm overflow-hidden p-1.5">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#d89fa8] overflow-hidden p-1.5">
                     <Bot className="h-full w-full" />
                   </span>
                   <div>
-                    <h2 className="text-[16px] font-bold tracking-tight text-white">Spray & Sniff</h2>
-                    <p className="text-[12px] text-white/90 font-medium mt-0.5">You can ask me anything</p>
+                    <h2 className="font-serif text-[17px] font-medium tracking-tight text-white">Spray & Sniff</h2>
+                    <p className="text-[12px] text-stone-300 font-normal mt-0.5">Atelier Concierge</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -883,7 +921,7 @@ export function CustomerSupportWidget() {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>
                   {bootstrap?.isAuthenticated
-                    ? `Secure mode / ${recentOrders.length} online order${recentOrders.length === 1 ? '' : 's'}`
+                    ? 'Atelier Concierge · Active Session'
                     : 'Guest mode'}
                 </span>
               </div>
@@ -894,11 +932,70 @@ export function CustomerSupportWidget() {
                   {loadingBootstrap && messages.length === 0 ? (
                     <div className="flex items-end gap-2">
                       <MessageAvatar role="bot" customerName={user?.name} />
-                      <div className="rounded-[1.15rem] rounded-bl-sm bg-white px-3 py-2.5 text-sm text-[#2e2a28] shadow-[0_10px_22px_rgba(63,52,49,0.12)]">
+                      <div className="rounded-[1.15rem] rounded-bl-sm bg-white px-3 py-2.5 text-sm text-[#2e2a28] border border-[#e8ded5]">
                         <div className="flex items-center gap-2">
                           <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                           <span>Loading support...</span>
                         </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!loadingBootstrap && messages.length === 0 ? (
+                    <div data-ui="support-hub" className="py-6 px-2 flex flex-col items-center text-center">
+                      <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#f4ece1] text-[#2d1a24] mb-2.5">
+                        <LifeBuoy className="h-5 w-5" />
+                      </div>
+                      <h3 className="font-serif text-[17px] font-medium text-[#2d1a24]">Spray & Sniff Support</h3>
+                      <p className="text-[12px] text-stone-500 mt-1 max-w-[17rem] leading-relaxed">
+                        Direct assistance for orders, refunds, and live admin ticketing.
+                      </p>
+
+                      <div className="mt-5 w-full space-y-2 text-left">
+                        <button
+                          type="button"
+                          onClick={() => void handleQuickAction('escalate_to_admin')}
+                          className="w-full flex items-center justify-between rounded-xl border border-[#b76e79]/40 bg-white p-3 text-xs font-medium text-[#2d1a24] transition hover:bg-[#b76e79] hover:text-white group"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <LifeBuoy className="h-4 w-4 text-[#b76e79] group-hover:text-white" />
+                            <div>
+                              <p className="font-semibold text-[13px]">Talk to Admin / Live Agent</p>
+                              <p className="text-[11px] text-stone-400 group-hover:text-white/80">Direct priority ticket for staff</p>
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-[#b76e79] group-hover:text-white font-medium">Connect &rarr;</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleQuickAction('track_order')}
+                          className="w-full flex items-center justify-between rounded-xl border border-[#e8ded5] bg-white p-3 text-xs font-medium text-[#2d1a24] transition hover:bg-stone-50"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Truck className="h-4 w-4 text-stone-500" />
+                            <div>
+                              <p className="font-semibold text-[13px]">Track My Order</p>
+                              <p className="text-[11px] text-stone-400">View courier status & timeline</p>
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-stone-400">Check &rarr;</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleQuickAction('request_refund')}
+                          className="w-full flex items-center justify-between rounded-xl border border-[#e8ded5] bg-white p-3 text-xs font-medium text-[#2d1a24] transition hover:bg-stone-50"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <CreditCard className="h-4 w-4 text-stone-500" />
+                            <div>
+                              <p className="font-semibold text-[13px]">Payment & Refund Help</p>
+                              <p className="text-[11px] text-stone-400">QR Ph, GCash, or Maya policy</p>
+                            </div>
+                          </div>
+                          <span className="text-[11px] text-stone-400">View &rarr;</span>
+                        </button>
                       </div>
                     </div>
                   ) : null}
@@ -910,7 +1007,7 @@ export function CustomerSupportWidget() {
                     if (isSystem) {
                       return (
                         <div key={message.id} className="flex justify-center my-4">
-                          <span className="text-[11px] font-medium text-slate-400 bg-slate-100/60 px-4 py-1.5 rounded-full shadow-sm">
+                          <span className="text-[11px] font-medium text-stone-500 bg-[#f4ece1] px-4 py-1.5 rounded-full">
                             {message.text}
                           </span>
                         </div>
@@ -926,17 +1023,20 @@ export function CustomerSupportWidget() {
 
                         <div className={cn('min-w-0 max-w-[85%]', !isBotOrStaff && 'items-end flex flex-col')}>
                           {isBotOrStaff && message.authorName && message.role === 'staff' ? (
-                             <p className="text-[10px] font-medium text-slate-500 mb-1 ml-1">{message.authorName}</p>
+                            <div className="flex items-center gap-1.5 mb-1 ml-1">
+                              <p className="text-[11px] font-semibold text-emerald-800">{message.authorName}</p>
+                              <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded">Live Staff</span>
+                            </div>
                           ) : null}
                           <div
                             className={cn(
-                              'px-4 py-3 text-[14px] leading-relaxed shadow-sm',
+                              'px-4 py-3 text-[14px] leading-relaxed',
                               isBotOrStaff 
-                                ? 'rounded-[1.25rem] rounded-bl-[0.25rem] bg-white text-slate-800 border border-slate-100' 
-                                : 'rounded-[1.25rem] rounded-br-[0.25rem] bg-[#FF758C] text-white'
+                                ? 'rounded-[1.25rem] rounded-bl-[0.25rem] bg-white text-[#2d1a24] border border-[#e8ded5]' 
+                                : 'rounded-[1.25rem] rounded-br-[0.25rem] bg-[#2d1a24] text-white'
                             )}
                           >
-                            <p className="whitespace-pre-line">{message.text}</p>
+                            <p className="whitespace-pre-line">{formatMessageText(message.text)}</p>
 
                             {message.kind === 'faqs' ? (
                               <div className="mt-3 space-y-2.5">
@@ -1153,7 +1253,7 @@ export function CustomerSupportWidget() {
                 </div>
               </ScrollArea>
 
-              <div className="border-t border-slate-200 bg-white px-4 pb-4 pt-3 shrink-0">
+              <div data-ui="chat-composer" className="bg-[#fcfaf8] px-4 pb-4 pt-3 shrink-0">
                 {showPrompts ? (
                   <div className="mb-3 flex flex-wrap gap-2">
                     {promptChips.map((chip) => (
@@ -1161,7 +1261,7 @@ export function CustomerSupportWidget() {
                         key={chip.id}
                         type="button"
                         onClick={() => void handlePromptChip(chip)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[#FF758C]/30 bg-white px-3 py-1.5 text-[12px] font-medium text-[#FF758C] transition hover:bg-[#FF758C]/5"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#b76e79]/30 bg-[#faf8f5] px-3 py-1.5 text-[12px] font-medium text-[#8c4b56] transition hover:bg-[#b76e79] hover:text-white"
                       >
                         {chip.actionId ? getQuickActionIcon(chip.actionId) : <Sparkles className="h-3.5 w-3.5" />}
                         {chip.label}
@@ -1171,11 +1271,11 @@ export function CustomerSupportWidget() {
                 ) : null}
 
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-inner flex items-center transition-colors focus-within:bg-white focus-within:border-[#FF758C]/50 focus-within:ring-1 focus-within:ring-[#FF758C]/50">
+                  <div className="flex-1 rounded-full border border-[#e8ded5] bg-[#faf8f5] px-3 py-1.5 flex items-center transition-colors focus-within:bg-white focus-within:border-[#b76e79] focus-within:ring-1 focus-within:ring-[#b76e79]">
                     <button
                       type="button"
                       onClick={() => setShowPrompts((currentValue) => !currentValue)}
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-200/50 hover:text-slate-600"
+                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-400 transition hover:bg-stone-200/50 hover:text-stone-600"
                       aria-label="Toggle support shortcuts"
                     >
                       <Paperclip className="h-4 w-4" />
@@ -1194,7 +1294,7 @@ export function CustomerSupportWidget() {
                         }}
                         placeholder={composerPlaceholder}
                         disabled={composerLocked}
-                        className="w-full bg-transparent border-0 text-[14px] leading-relaxed shadow-none focus-visible:ring-0 px-1 py-1.5 outline-none disabled:opacity-50"
+                        className="w-full bg-transparent border-0 text-[14px] leading-relaxed shadow-none focus-visible:ring-0 px-1 py-1.5 outline-none disabled:opacity-50 text-[#2d1a24]"
                       />
                     </div>
                   </div>
@@ -1207,7 +1307,7 @@ export function CustomerSupportWidget() {
                       pendingAction === 'composer' ||
                       draftMessage.trim().length === 0
                     }
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FF758C] to-[#FF7EB3] text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:hover:translate-y-0"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#b76e79] text-white transition hover:bg-[#a25964] disabled:opacity-40"
                     aria-label="Send support message"
                   >
                     {pendingAction === 'composer' ? (

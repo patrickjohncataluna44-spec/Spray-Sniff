@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { KeyRound, Mail, CheckCircle2 } from 'lucide-react'
+import { KeyRound, Mail, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 function SignInPageContent() {
@@ -28,6 +28,7 @@ function SignInPageContent() {
     useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [error, setError] = useState('')
@@ -240,17 +241,32 @@ function SignInPageContent() {
                     Forgot password?
                   </button>
                 </div>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
-                  suppressHydrationWarning
-                  required
-                  placeholder="********"
-                  className="storefront-input h-12 w-full"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="current-password"
+                    suppressHydrationWarning
+                    required
+                    placeholder="********"
+                    className="storefront-input h-12 w-full pr-11"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none transition-colors p-1"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-4 text-sm text-foreground/60">

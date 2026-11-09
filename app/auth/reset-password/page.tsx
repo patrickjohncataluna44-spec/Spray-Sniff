@@ -7,7 +7,7 @@ import { AuthPageShell } from '@/components/auth-page-shell'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { SITE_NAME } from '@/lib/site'
-import { CheckCircle2, KeyRound, ArrowLeft } from 'lucide-react'
+import { CheckCircle2, KeyRound, ArrowLeft, Eye, EyeOff } from 'lucide-react'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -16,6 +16,8 @@ function ResetPasswordForm() {
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -99,32 +101,62 @@ function ResetPasswordForm() {
         <label htmlFor="password" className="text-sm font-medium text-foreground">
           New Password
         </label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          placeholder="At least 6 characters"
-          className="storefront-input h-12 w-full"
-        />
+        <div className="relative">
+          <input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            placeholder="At least 6 characters"
+            className="storefront-input h-12 w-full pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none transition-colors p-1"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2">
         <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
           Confirm New Password
         </label>
-        <input
-          id="confirmPassword"
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          placeholder="Re-type new password"
-          className="storefront-input h-12 w-full"
-        />
+        <div className="relative">
+          <input
+            id="confirmPassword"
+            type={showConfirmPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            placeholder="Re-type new password"
+            className="storefront-input h-12 w-full pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword((prev) => !prev)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground focus:outline-none transition-colors p-1"
+            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+            title={showConfirmPassword ? 'Hide password' : 'Show password'}
+          >
+            {showConfirmPassword ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
       </div>
 
       <Button

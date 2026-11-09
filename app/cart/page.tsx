@@ -7,9 +7,10 @@ import { Check, Trash2 } from 'lucide-react'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { Button } from '@/components/ui/button'
+import { QuantityInput } from '@/components/ui/quantity-input'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
-import { calculateVatBreakdown, formatPHP } from '@/lib/currency'
+import { formatPHP } from '@/lib/currency'
 import { useStore } from '@/lib/store-context'
 import { isPaymentTestCart } from '@/lib/store-engine'
 import { toast } from '@/hooks/use-toast'
@@ -30,69 +31,14 @@ function CartQuantityInput({
   maxStock: number
   onChange: (nextQuantity: number) => void
 }) {
-  const [val, setVal] = useState(String(quantity))
-
-  useEffect(() => {
-    setVal(String(quantity))
-  }, [quantity])
-
-  const commit = (inputStr: string) => {
-    const parsed = parseInt(inputStr, 10)
-    if (isNaN(parsed) || parsed < 1) {
-      setVal('1')
-      onChange(1)
-    } else {
-      const clamped = Math.min(Math.max(1, parsed), Math.max(1, maxStock))
-      setVal(String(clamped))
-      if (clamped !== quantity) {
-        onChange(clamped)
-      }
-    }
-  }
-
   return (
-    <div className="inline-flex items-center gap-1 rounded-2xl border border-border/70 bg-white/75 p-1">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(1, quantity - 1))}
-        disabled={quantity <= 1}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-        aria-label="Decrease quantity"
-      >
-        -
-      </button>
-      <input
-        type="number"
-        min={1}
-        max={Math.max(1, maxStock)}
-        value={val}
-        onChange={(e) => {
-          setVal(e.target.value)
-          const parsed = parseInt(e.target.value, 10)
-          if (!isNaN(parsed) && parsed >= 1 && parsed <= maxStock) {
-            onChange(parsed)
-          }
-        }}
-        onBlur={(e) => commit(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            commit(val)
-            ;(e.target as HTMLInputElement).blur()
-          }
-        }}
-        className="w-12 text-center font-semibold text-foreground bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-accent rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        aria-label="Quantity"
-      />
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(Math.max(1, maxStock), quantity + 1))}
-        disabled={maxStock <= 0 || quantity >= maxStock}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-        aria-label="Increase quantity"
-      >
-        +
-      </button>
-    </div>
+    <QuantityInput
+      value={quantity}
+      max={maxStock}
+      min={1}
+      onChange={onChange}
+      ariaLabel="Cart item quantity"
+    />
   )
 }
 
@@ -223,11 +169,10 @@ export default function CartPage() {
   const selectedCount = selectedCart.reduce((sum, item) => sum + item.quantity, 0)
   const subtotal = selectedCart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const isTestCart = isPaymentTestCart(selectedCart)
-  // Standard Philippine BIR 12% VAT-inclusive:
-  // Price shown is already VAT-inclusive, VAT amount is extracted rather than added
-  const { vatAmount: tax } = isTestCart ? { vatAmount: 0 } : calculateVatBreakdown(subtotal)
+  // 12% VAT added on top of product subtotal:
+  const tax = isTestCart ? 0 : Math.round(subtotal * 0.12 * 100) / 100
   const shipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
-  const total = subtotal + shipping
+  const total = subtotal + tax + shipping
   const checkoutHref = isAuthenticated ? '/checkout' : CHECKOUT_SIGN_IN_HREF
 
   const hasSelectedUnavailableItems = selectedCart.some((item) => {
@@ -471,11 +416,8 @@ export default function CartPage() {
                 <span className="font-mono font-medium text-foreground">{formatPHP(subtotal)}</span>
               </div>
               <div className="flex justify-between items-center text-foreground/70">
-                <span className="inline-flex items-center gap-1.5 text-foreground/60">
-                  12% VAT
-                  <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">Included</span>
-                </span>
-                <span className="font-mono font-medium text-foreground/80">{formatPHP(tax)}</span>
+                <span className="text-foreground/60">12% VAT</span>
+                <span className="font-mono font-medium text-foreground/80">+ {formatPHP(tax)}</span>
               </div>
               <div className="flex justify-between items-center text-foreground/70">
                 <span className="text-foreground/60">Shipping</span>
@@ -508,7 +450,7 @@ export default function CartPage() {
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Total</span>
                   <p className="text-[10px] text-foreground/45 mt-0.5">
-                    {selectedCart.length > 0 ? 'VAT-Inclusive · Free delivery ₱400+' : 'No items selected'}
+                    {selectedCart.length > 0 ? '12% VAT included in total · Free delivery ₱400+' : 'No items selected'}
                   </p>
                 </div>
                 <span className="text-3xl font-serif font-bold text-foreground">{formatPHP(total)}</span>

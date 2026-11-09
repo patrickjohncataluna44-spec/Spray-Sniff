@@ -11,6 +11,7 @@ export type SupportPriority = 'low' | 'normal' | 'high'
 export type SupportSource = 'chatbot'
 export type SupportAuthorType = 'customer' | 'bot' | 'staff' | 'system'
 export type SupportQuickActionId =
+  | 'escalate_to_admin'
   | 'track_order'
   | 'check_payment'
   | 'cancel_order'
@@ -99,6 +100,7 @@ export type SupportAction =
   | 'cancelOwnOrder'
   | 'createRefundRequest'
   | 'createSupportCase'
+  | 'escalateToAdmin'
 
 export type SupportActionRequest =
   | { action: 'listOwnOrders' }
@@ -108,6 +110,12 @@ export type SupportActionRequest =
   | { action: 'createRefundRequest'; orderId: string; message?: string }
   | {
       action: 'createSupportCase'
+      category?: SupportCategory
+      orderId?: string
+      message?: string
+    }
+  | {
+      action: 'escalateToAdmin'
       category?: SupportCategory
       orderId?: string
       message?: string

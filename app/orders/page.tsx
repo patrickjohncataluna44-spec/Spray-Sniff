@@ -837,7 +837,7 @@ function OrdersContent() {
                                 {formatPHP(order.total)}
                               </span>
                               <span className="rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700">
-                                12% VAT Included
+                                incl. 12% VAT
                               </span>
                             </div>
                           </div>
@@ -845,7 +845,7 @@ function OrdersContent() {
                           {/* Action Buttons tailored to category */}
                           <div className="flex flex-wrap items-center gap-2">
                             {/* Cancellation Button */}
-                            {actionAvailability?.canCancel && (
+                            {actionAvailability?.canCancel ? (
                               <Button
                                 type="button"
                                 variant="outline"
@@ -856,7 +856,11 @@ function OrdersContent() {
                               >
                                 {submittingOrderId === order.id ? 'Cancelling...' : 'Cancel Order'}
                               </Button>
-                            )}
+                            ) : matchesCategory(order, 'to-ship') ? (
+                              <span className="text-xs text-muted-foreground/80 italic">
+                                Preparing to ship • Non-cancellable
+                              </span>
+                            ) : null}
 
                             {/* Pay Now Button (If To Pay) */}
                             {matchesCategory(order, 'to-pay') && (

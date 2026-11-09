@@ -16,6 +16,7 @@ export interface Product {
   brand: string
   description: string
   price: number
+  originalPrice?: number
   category: string
   scentFamily: string[]
   gender: 'male' | 'female' | 'unisex'

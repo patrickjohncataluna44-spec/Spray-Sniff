@@ -18,6 +18,17 @@ import {
   useStore,
 } from '@/lib/store-context'
 import { AdminDeliveryDialog } from '@/components/admin-delivery-dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
 
 const ALL_STATUSES = ['All Status', ...ONLINE_ORDER_STATUSES, 'Cancelled', 'Completed']
@@ -104,7 +115,7 @@ function needsRefundFollowUp(order: OrderRecord) {
 
 export default function AdminOrdersPage() {
   const { user } = useAuth()
-  const { markOrderPaymentPaid, orders, updateOrderStatus, getProductById } = useStore()
+  const { markOrderPaymentPaid, orders, updateOrderStatus, adminCancelOrder, getProductById } = useStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All Status')
   const [channelFilter, setChannelFilter] = useState('All Channels')
@@ -113,6 +124,9 @@ export default function AdminOrdersPage() {
   const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null)
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null)
   const [deliveryOrder, setDeliveryOrder] = useState<OrderRecord | null>(null)
+  const [adminCancelOrderTarget, setAdminCancelOrderTarget] = useState<OrderRecord | null>(null)
+  const [adminCancelReason, setAdminCancelReason] = useState('')
+  const [isAdminCancelling, setIsAdminCancelling] = useState(false)
 
   const counts = useMemo(() => {
     return {
@@ -208,6 +222,28 @@ export default function AdminOrdersPage() {
       })
     } finally {
       setPaymentUpdatingOrderId(null)
+    }
+  }
+
+  const handleConfirmAdminCancel = async () => {
+    if (!adminCancelOrderTarget) return
+    try {
+      setIsAdminCancelling(true)
+      const result = await adminCancelOrder(
+        adminCancelOrderTarget.id,
+        adminCancelReason.trim() || `Cancelled by admin (${user?.name || 'Staff'}).`,
+      )
+      toast({
+        title: result.ok ? 'Order cancelled' : 'Unable to cancel order',
+        description: result.message,
+        variant: result.ok ? 'default' : 'destructive',
+      })
+      if (result.ok) {
+        setAdminCancelOrderTarget(null)
+        setAdminCancelReason('')
+      }
+    } finally {
+      setIsAdminCancelling(false)
     }
   }
 
@@ -461,7 +497,7 @@ export default function AdminOrdersPage() {
                             Subtotal: {formatPHP(order.subtotal)}
                           </p>
                           <p className="text-[11px] text-foreground/55">
-                            12% VAT (Included): {formatPHP(order.tax)}
+                            12% VAT: +{formatPHP(order.tax)}
                           </p>
                           {order.shipping > 0 ? (
                             <p className="text-[11px] text-foreground/55">
@@ -511,14 +547,30 @@ export default function AdminOrdersPage() {
                                   </select>
                                 )}
                                 {user?.role === 'ADMIN' ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setDeliveryOrder(order)}
-                                  >
-                                    Manage Delivery
-                                  </Button>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setDeliveryOrder(order)}
+                                    >
+                                      Manage Delivery
+                                    </Button>
+                                    {order.status !== 'Delivered' && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                                        onClick={() => {
+                                          setAdminCancelOrderTarget(order)
+                                          setAdminCancelReason('')
+                                        }}
+                                      >
+                                        Cancel Order
+                                      </Button>
+                                    )}
+                                  </div>
                                 ) : (
                                   <p className="text-xs text-foreground/50">
                                     Delivery stages are managed by an administrator.
@@ -596,6 +648,54 @@ export default function AdminOrdersPage() {
           }
         }}
       />
+
+      <AlertDialog
+        open={adminCancelOrderTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAdminCancelOrderTarget(null)
+            setAdminCancelReason('')
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Order {adminCancelOrderTarget?.id}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the order as Cancelled and automatically restore the perfume inventory.
+              {adminCancelOrderTarget?.paymentStatus === 'Paid' && (
+                <span className="block mt-2 font-medium text-amber-700">
+                  Note: Payment was recorded via {adminCancelOrderTarget.paymentMethod}. You can issue a refund after cancellation.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <label className="text-xs font-semibold text-foreground/70 block mb-1">
+              Cancellation Reason (Optional)
+            </label>
+            <Input
+              placeholder="e.g., Customer requested cancellation via support"
+              value={adminCancelReason}
+              onChange={(e) => setAdminCancelReason(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isAdminCancelling}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleConfirmAdminCancel()
+              }}
+              disabled={isAdminCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isAdminCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ProtectedRoute>
   )
 }

@@ -13,19 +13,30 @@ export type StorefrontBenefit = {
 }
 
 export type StorefrontTestimonial = {
+  id: string
   name: string
   role: string
   quote: string
+  productName: string
+  rating: number
+  longevity: string
+  verified: boolean
+  date: string
 }
 
-export type StorefrontJournalEntry = {
+export type StorefrontJournalArticle = {
+  id: string
+  slug: string
   title: string
   excerpt: string
+  content: string[]
   image: string
   imageAlt: string
-  label: string
+  category: string
+  readTime: string
   date: string
-  href: string
+  author: string
+  relatedScents: string[]
 }
 
 export type StorefrontFooterGroup = {
@@ -42,128 +53,207 @@ export const STOREFRONT_NAV_ITEMS: StorefrontNavItem[] = [
   { label: 'Collections', href: '/collections', kind: 'route' },
   { label: 'Discovery', href: '/discovery', kind: 'route' },
   { label: 'About', href: '/about', kind: 'route' },
-  { label: 'Reviews', href: '#reviews', kind: 'anchor' },
-  { label: 'Journal', href: '#journal', kind: 'anchor' },
-  { label: 'Contact', href: '#contact', kind: 'anchor' },
+  { label: 'Reviews', href: '/reviews', kind: 'route' },
+  { label: 'Journal', href: '/journal', kind: 'route' },
+  { label: 'Contact', href: '/contact', kind: 'route' },
 ]
 
 export const HOME_BENEFITS: StorefrontBenefit[] = [
   {
     id: 'craft',
-    title: 'Long-Wear Blends',
+    title: 'Artisanal Maceration',
     description:
-      'Each bottle is chosen for a polished scent trail that stays elegant from first spray to late evening.',
+      'Every formulation rests for weeks to allow natural oils and resins to mature into a cohesive, enduring fragrance profile.',
   },
   {
     id: 'notes',
-    title: 'Curated Scent Families',
+    title: 'Note-Led Discovery',
     description:
-      'Shop floral, woody, fresh, oriental, and citrus profiles with note breakdowns that make choosing easier.',
+      'We map top, heart, and base notes so you understand how each fragrance evolves on your skin across 8+ hours of wear.',
   },
   {
     id: 'gifting',
-    title: 'Gift-Ready Picks',
+    title: 'Curated Presentation',
     description:
-      'Our featured collections are easy to gift, easy to layer into a wardrobe, and easy to wear every day.',
+      'Bottles arrive in signature atelier boxes with individualized blotter cards and gifting-ready packaging.',
   },
   {
     id: 'delivery',
-    title: 'Fast Fragrance Dispatch',
+    title: 'Direct Dispatch from Mabini',
     description:
-      'From quick shipping updates to clear order tracking, the full experience stays smooth after checkout.',
+      'Hand-inspected and packed locally with real-time delivery notifications and responsive concierge support.',
   },
 ]
 
-export const HOME_TESTIMONIALS: StorefrontTestimonial[] = [
+export const STOREFRONT_TESTIMONIALS: StorefrontTestimonial[] = [
   {
-    name: 'Iris M.',
-    role: 'Signature-scent collector',
+    id: 'rev-1',
+    name: 'Iris Morales',
+    role: 'Collector & Architect',
     quote:
-      'I wanted a perfume wardrobe that felt refined without being overwhelming. Spray & Sniff made it easy to discover scents that actually match my day-to-day style.',
+      'Midnight Elegance is by far the most balanced evening extrait I have worn this year. The iris and sandalwood dry-down is intoxicating without screaming across the room.',
+    productName: 'Midnight Elegance',
+    rating: 5,
+    longevity: '9-10 hours',
+    verified: true,
+    date: 'March 2026',
   },
   {
-    name: 'Daniel R.',
-    role: 'Evening fragrance buyer',
+    id: 'rev-2',
+    name: 'Daniel Rivera',
+    role: 'Creative Director',
     quote:
-      'The note breakdowns and scent families helped me shop with confidence. My order arrived quickly, and the fragrance wore beautifully through dinner and late-night events.',
+      'Forest Trail evokes damp cedar and cold pine needles after rain. It does not smell like artificial cologne; it smells like walking through Benguet pine woods at daybreak.',
+    productName: 'Forest Trail',
+    rating: 5,
+    longevity: '8 hours',
+    verified: true,
+    date: 'April 2026',
   },
   {
-    name: 'Camille T.',
-    role: 'Gift shopper',
+    id: 'rev-3',
+    name: 'Camille Tan',
+    role: 'Brand Strategist',
     quote:
-      'I ordered a bottle as a gift and ended up buying one for myself too. The site feels premium, and the recommendations are genuinely useful for perfume-only shopping.',
+      'Took the Discovery Quiz on a whim and ordered Dawn Light. The recommendation was spot on: crisp bergamot and neroli that lifts my morning without fading by lunchtime.',
+    productName: 'Dawn Light',
+    rating: 5,
+    longevity: '7 hours',
+    verified: true,
+    date: 'April 2026',
+  },
+  {
+    id: 'rev-4',
+    name: 'Marco Santos',
+    role: 'Interior Designer',
+    quote:
+      'Velvet Spice has this warm, enveloping cardamom and bourbon vanilla profile that garners compliments everywhere. Delivery was fast and beautifully boxed.',
+    productName: 'Velvet Spice',
+    rating: 5,
+    longevity: '10+ hours',
+    verified: true,
+    date: 'April 2026',
+  },
+  {
+    id: 'rev-5',
+    name: 'Elena Rostova',
+    role: 'Photographer',
+    quote:
+      'Silk Dreams is my default office scent. White florals wrapped in clean musk. Subtle, sophisticated, and completely non-cloying even in hot weather.',
+    productName: 'Silk Dreams',
+    rating: 4,
+    longevity: '6-7 hours',
+    verified: true,
+    date: 'March 2026',
+  },
+  {
+    id: 'rev-6',
+    name: 'Rafael Cruz',
+    role: 'Culinary Artist',
+    quote:
+      'Golden Hour feels like afternoon sun trapped in amber glass. Citrus and rich tonka bean with fantastic projection. A triumph of local perfume curation.',
+    productName: 'Golden Hour',
+    rating: 5,
+    longevity: '8 hours',
+    verified: true,
+    date: 'February 2026',
   },
 ]
 
-export const HOME_JOURNAL_ENTRIES: StorefrontJournalEntry[] = [
+export const STOREFRONT_JOURNAL_ARTICLES: StorefrontJournalArticle[] = [
   {
-    title: 'How To Build A Perfume Wardrobe For Day, Date Night, And Special Events',
+    id: 'article-1',
+    slug: 'build-perfume-wardrobe',
+    title: 'How To Build A Fragrance Wardrobe For Day, Date Night, And Formal Wear',
     excerpt:
-      'A simple approach to choosing bottles that work across casual mornings, polished office days, and evening plans.',
+      'A structured approach to selecting signature bottles that harmonize with your routine rather than compete with it.',
+    content: [
+      'Just as a capsule wardrobe provides dependable choices for any dress code, an intentional fragrance wardrobe ensures your scent fluidly matches the hour, temperature, and mood.',
+      'We recommend curating three foundational pillars: A crisp, uplifting daily signature with high volatility (bergamot, aquatic notes, neroli); an intimate skin scent for focused work or travel; and a resinous, dark evening statement composed around labdanum, iris, or aged woods.',
+      'When testing candidates, always evaluate the dry-down after 4 hours on pulse points, where body warmth activates the true personality of the base notes.',
+    ],
     image: '/collections/timeless-classics-banner.jpg',
     imageAlt: 'Perfume bottles from the Timeless Classics collection',
-    label: 'Scent Styling',
+    category: 'Olfactive Styling',
+    readTime: '4 min read',
     date: 'April 2026',
-    href: '/collections',
+    author: 'Editorial Desk',
+    relatedScents: ['Midnight Elegance', 'Dawn Light'],
   },
   {
-    title: 'Understanding Top, Heart, And Base Notes Before You Buy',
+    id: 'article-2',
+    slug: 'perfume-concentration-guide',
+    title: 'Extrait, EDP, and EDT: Demystifying Concentration and Sillage',
     excerpt:
-      'Learn what each perfume note layer does so you can shop fragrance profiles with more confidence.',
-    image: '/collections/fresh-essence-banner.jpg',
-    imageAlt: 'Fresh perfume collection banner',
-    label: 'Fragrance Basics',
-    date: 'April 2026',
-    href: '/discovery',
-  },
-  {
-    title: 'Warm, Fresh, Or Floral: Choosing A Signature Scent That Feels Like You',
-    excerpt:
-      'Use mood, season, and intensity to narrow down the perfume styles that fit your wardrobe and routine.',
+      'Understanding the percentage of aromatic compounds and why high concentration behaves differently on the skin.',
+    content: [
+      'The difference between Eau de Toilette (10–15%), Eau de Parfum (15–20%), and Extrait de Parfum (25–35%) is not merely longevity; it dictates how the fragrance blooms in the air.',
+      'Eau de Toilette carries higher alcohol volatility, creating a sharp opening and immediate sillage that fades more quickly. Extrait de Parfum, having less alcohol and more dense resinous oils, stays closer to the wearer as a rich aura that endures well into the night.',
+      'Choosing concentration depends on how you want to be remembered: as a presence that enters the room before you, or an intimate discovery revealed only to those closest.',
+    ],
     image: '/collections/evening-elegance-banner.jpg',
-    imageAlt: 'Evening Elegance perfume collection banner',
-    label: 'Buying Guide',
+    imageAlt: 'Bottles in dark atelier evening light',
+    category: 'Fragrance Science',
+    readTime: '5 min read',
     date: 'April 2026',
-    href: '/shop',
+    author: 'Atelier Chemist',
+    relatedScents: ['Forest Trail', 'Velvet Spice'],
+  },
+  {
+    id: 'article-3',
+    slug: 'art-of-scent-layering',
+    title: 'The Art of Scent Layering: Harmonizing Woody and Floral Accords',
+    excerpt:
+      'How to blend complementary fragrances on your skin without creating sensory discord.',
+    content: [
+      'Layering fragrances is an exercise in restraint. The golden rule is applying the heavier, resinous scent first as a structural foundation before misting a lighter, more volatile floral or citrus over top.',
+      'For example, pair the cedar and moss base of Forest Trail with a light whisper of Dawn Light’s neroli to create a dewy mountain dawn aura that is uniquely yours.',
+      'Never rub your wrists together after spraying; friction crushes delicate volatile molecules and truncates the top note transition.',
+    ],
+    image: '/collections/fresh-essence-banner.jpg',
+    imageAlt: 'Fresh botanical essences and perfume flacons',
+    category: 'Rituals & Craft',
+    readTime: '3 min read',
+    date: 'March 2026',
+    author: 'Fragrance Curation',
+    relatedScents: ['Dawn Light', 'Forest Trail', 'Golden Hour'],
   },
 ]
 
 export const STOREFRONT_FOOTER_GROUPS: StorefrontFooterGroup[] = [
   {
-    title: 'Shop',
+    title: 'Storefront',
     links: [
-      { label: 'All Fragrances', href: '/shop' },
-      { label: 'Collections', href: '/collections' },
+      { label: 'Home', href: '/' },
+      { label: 'Shop Catalog', href: '/shop' },
+      { label: 'Curated Collections', href: '/collections' },
       { label: 'Discovery Quiz', href: '/discovery' },
     ],
   },
   {
-    title: 'Customer Care',
+    title: 'Editorial & Community',
     links: [
-      { label: 'My Account', href: '/account' },
-      { label: 'Track Orders', href: '/orders' },
-      { label: 'FAQ', href: '/help/faq' },
+      { label: 'Boutique Story', href: '/about' },
+      { label: 'Customer Reviews', href: '/reviews' },
+      { label: 'Scent Journal', href: '/journal' },
+      { label: 'Concierge & Contact', href: '/contact' },
     ],
   },
   {
-    title: 'Brand',
+    title: 'Orders & Care',
     links: [
-      { label: 'About Us', href: '/about' },
-      { label: 'Reviews', href: '/#reviews' },
-      { label: 'Journal', href: '/#journal' },
+      { label: 'My Account', href: '/account' },
+      { label: 'Track Parcel', href: '/orders' },
+      { label: 'FAQ', href: '/help/faq' },
     ],
   },
 ]
 
 export const STOREFRONT_CONTACT_DETAILS = {
-  location: 'Mabini fragrance boutique',
+  atelierName: 'Spray & Sniff Atelier & Boutique',
+  location: 'A. Mabini Street, Malate / Ermita Cultural District, Manila',
   email: ADMIN_EMAIL,
-  hours: 'Mon-Sat, 10:00 AM - 7:00 PM',
-}
-
-export const STOREFRONT_NEWSLETTER = {
-  eyebrow: 'Perfume Circle',
-  title: `Join The ${SITE_NAME} List`,
-  description:
-    'Receive fragrance launches, curated scent edits, and perfume gifting ideas in a warm editorial format.',
+  phone: '+63 917 800 7764',
+  hours: 'Monday – Saturday: 10:00 AM – 7:00 PM (PHT)',
+  conciergePromise: 'Inquiries answered within 2 hours during atelier hours.',
 }

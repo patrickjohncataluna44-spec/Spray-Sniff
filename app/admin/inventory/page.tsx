@@ -631,6 +631,7 @@ export default function InventoryPage() {
                                     type="number"
                                     min="0"
                                     value={draft.stock}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(event) =>
                                       handleDraftChange(row.productId, 'stock', event.target.value)
                                     }
@@ -642,6 +643,7 @@ export default function InventoryPage() {
                                     type="number"
                                     min="0"
                                     value={draft.reorderPoint}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(event) =>
                                       handleDraftChange(row.productId, 'reorderPoint', event.target.value)
                                     }
@@ -653,6 +655,7 @@ export default function InventoryPage() {
                                     type="number"
                                     min="1"
                                     value={draft.overStockThreshold}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(event) =>
                                       handleDraftChange(row.productId, 'overStockThreshold', event.target.value)
                                     }
@@ -818,6 +821,7 @@ export default function InventoryPage() {
                 type="number"
                 min="1"
                 value={restockDraft.quantity}
+                onFocus={(e) => e.target.select()}
                 onChange={(event) =>
                   setRestockDraft((current) => ({
                     ...current,

@@ -1,52 +1,71 @@
-# Customer Diagram
+# Customer E-Commerce Ordering and Checkout Process Flowchart (Figure 6)
+
+This flowchart details the online customer journey from product browsing through cart management, authentication check, shipping, payment processing, and order confirmation, strictly adhering to **binary Yes/No decision diamonds**.
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '14px', 'fontFamily': 'Arial, sans-serif'}}}%%
 flowchart TD
-    A[Visitor opens store] --> B[Browse shop, collections, and product detail pages]
-    B --> C[(public_store_snapshots)]
-    B --> D[(catalog_products)]
-    B --> E[(inventory_items)]
-
-    B --> F{Customer tries cart, wishlist, or checkout?}
-    F -- No --> G[Continue browsing]
-    F -- Yes --> H{Signed in as USER?}
-    H -- No --> I[Redirect to sign in]
-    H -- Yes --> J[Load customer profile]
-    J --> K[(profiles)]
-
-    J --> L{What does the customer do?}
-
-    L -- Add to Cart --> M[POST api/store/action addToCart]
-    M --> N{Product exists and stock available?}
-    N -- No --> O[Show unavailable or out of stock message]
-    N -- Yes --> P[(user_carts)]
-    P --> Q[Cart page updates]
-
-    L -- Update Cart or Remove Item --> R[POST api/store/action cart update]
-    R --> S{Requested quantity valid and within stock?}
-    S -- No --> T[Show quantity error]
-    S -- Yes --> P
-
-    L -- Toggle Wishlist --> U[POST api/wishlist]
-    U --> V[(user_wishlists)]
-    V --> W[Wishlist page updates]
-
-    Q --> X{Customer clicks Checkout?}
-    X -- No --> Q
-    X -- Yes --> Y{Cart still has enough stock?}
-    Y -- No --> Z[Block checkout and ask customer to fix cart]
-    Y -- Yes --> AA[Enter shipping details]
-    AA --> AB{Payment method selected?}
-    AB -- PayMongo --> AC[Start PayMongo checkout flow]
-    AB -- Cash on Delivery --> AD[placeOnlineOrder with pending payment]
-    AC --> AE[placeOnlineOrder after successful payment verification]
-
-    AD --> AF[(store_orders)]
-    AE --> AF
-    AF --> AG[(store_order_items)]
-    AF --> AH[(order_timeline_entries)]
-    AF --> AI[(stock_movements)]
-    AF --> AJ[My Orders page]
-    AH --> AJ
-    J --> AK[Account page]
+    Start([Start]) --> OpenStore[Open Online Storefront]
+    OpenStore --> BrowseProducts[Browse Catalog and Collection Pages]
+    
+    BrowseProducts --> SelectProduct{Select a Product to View Details?}
+    SelectProduct -- Yes --> ViewDetails[Display Product Details, Fragrance Notes, and Price]
+    SelectProduct -- No --> CheckWishlistAction{Open Wishlist Page?}
+    
+    ViewDetails --> AddWishlist{Save Item to Wishlist?}
+    AddWishlist -- Yes --> ToggleWishlist[Update Customer Wishlist in Database]
+    ToggleWishlist --> ViewDetails
+    AddWishlist -- No --> CheckAddToCart{Add Item to Shopping Cart?}
+    
+    CheckWishlistAction -- Yes --> ShowWishlist[Display Saved Wishlist Items]
+    ShowWishlist --> BrowseProducts
+    CheckWishlistAction -- No --> CheckAddToCart
+    
+    CheckAddToCart -- No --> CheckViewCart{View Cart Page?}
+    CheckAddToCart -- Yes --> CheckStock{Is Item In Stock and Available?}
+    
+    CheckStock -- No --> OutOfStockMsg[Display 'Item Out of Stock' Notice]
+    OutOfStockMsg --> BrowseProducts
+    
+    CheckStock -- Yes --> AddItemCart[Add Selected Item and Quantity to Cart]
+    AddItemCart --> ViewCart[Display Cart Summary with Updated Totals]
+    
+    CheckViewCart -- Yes --> ViewCart
+    CheckViewCart -- No --> BrowseProducts
+    
+    ViewCart --> ModifyCart{Update Item Quantity or Remove?}
+    ModifyCart -- Yes --> UpdateCartItems[Update Cart Quantities in Database]
+    UpdateCartItems --> ViewCart
+    ModifyCart -- No --> ProceedCheckout{Proceed to Checkout?}
+    
+    ProceedCheckout -- No --> BrowseProducts
+    ProceedCheckout -- Yes --> CheckAuth{Is Customer Signed In?}
+    
+    CheckAuth -- No --> PromptLogin[Display Customer Login or Registration Dialog]
+    PromptLogin --> AuthSuccess{Sign In Successful?}
+    AuthSuccess -- No --> ViewCart
+    AuthSuccess -- Yes --> LoadCustomerProfile[Load Customer Profile and Saved Addresses]
+    
+    CheckAuth -- Yes --> LoadCustomerProfile
+    LoadCustomerProfile --> InputShipping[/Input Shipping Address and Contact Details/]
+    InputShipping --> SelectPaymentMethod[/Select Payment Method: COD or PayMongo/]
+    SelectPaymentMethod --> SubmitOrder[Submit Order for Processing]
+    
+    SubmitOrder --> CheckFinalStock{Verify Inventory Stock Availability?}
+    CheckFinalStock -- No --> StockError[Display 'Stock Changed: Item No Longer Available' Error]
+    StockError --> ViewCart
+    
+    CheckFinalStock -- Yes --> ProcessPayment[Process Payment Transaction]
+    ProcessPayment --> PaymentSuccess{Is Payment or Order Confirmed?}
+    
+    PaymentSuccess -- No --> PaymentError[Display Payment Failure or Cancellation Message]
+    PaymentError --> SelectPaymentMethod
+    
+    PaymentSuccess -- Yes --> FinalizeOrder[Deduct Inventory Stock and Create Order Record]
+    FinalizeOrder --> OrderSuccess[Display Order Confirmation and Order Receipt]
+    OrderSuccess --> TrackOrder{View Order History Now?}
+    
+    TrackOrder -- Yes --> MyOrdersPage[Display My Orders Tracking Page]
+    MyOrdersPage --> End([End])
+    TrackOrder -- No --> End
 ```

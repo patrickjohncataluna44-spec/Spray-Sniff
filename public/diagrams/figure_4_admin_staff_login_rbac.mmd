@@ -1,0 +1,36 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '14px', 'fontFamily': 'Arial, sans-serif'}}}%%
+flowchart TD
+    Start([Start]) --> OpenLogin[Open Admin Login Page]
+    OpenLogin --> InputCreds[/Input Email and Password/]
+    InputCreds --> VerifyCreds[Authenticate Credentials via Auth Service]
+    VerifyCreds --> ValidCreds{Credentials Valid?}
+    
+    ValidCreds -- No --> ShowLoginError[Display Invalid Credentials Error]
+    ShowLoginError --> InputCreds
+    
+    ValidCreds -- Yes --> FetchProfile[Retrieve User Profile and Role from Database]
+    FetchProfile --> CheckRole{Role is Staff or Admin?}
+    
+    CheckRole -- No --> AccessDenied[Display Unauthorized Access Notification]
+    AccessDenied --> RedirectStore[Redirect User to Storefront Homepage]
+    RedirectStore --> EndNode([End])
+    
+    CheckRole -- Yes --> OpenBackoffice[Open Backoffice Dashboard]
+    OpenBackoffice --> CheckIsStaff{Is Role Staff?}
+    
+    CheckIsStaff -- No --> AdminAccess[Grant Full Administrative Privileges]
+    AdminAccess --> LoadAdminUI[Display Admin Dashboard with All Modules Accessible]
+    LoadAdminUI --> EndNode
+    
+    CheckIsStaff -- Yes --> StaffAccess[Grant Staff Operational Privileges]
+    StaffAccess --> LoadStaffUI[Display Staff Console with Permitted Modules]
+    LoadStaffUI --> SelectModule[Staff Selects Module to Access]
+    SelectModule --> CheckRestricted{Is Module Restricted to Admin?}
+    
+    CheckRestricted -- Yes --> DenyModule[Display 'Admin Privilege Required' Error]
+    DenyModule --> LoadStaffUI
+    
+    CheckRestricted -- No --> AllowModule["Grant Access to Selected Module
+(Dashboard, POS, Inventory, Orders, Products)"]
+    AllowModule --> ExecuteStaffOps[Load Module Interface and Perform Daily Operations]
+    ExecuteStaffOps --> EndNode

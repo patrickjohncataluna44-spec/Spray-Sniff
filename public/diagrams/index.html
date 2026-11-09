@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spray & Sniff — Thesis Flowcharts Download Portal</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --success: #16a34a;
+      --badge-bg: #f1f5f9;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 16px;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .header-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    p.lead {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: #ffffff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: #f1f5f9;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 36px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title-group h2 {
+      font-size: 19px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .card-title-group .page-tag {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .button-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .resolution-notes {
+      background: #f8fafc;
+      border-left: 4px solid var(--primary);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 20px;
+      font-size: 13.5px;
+      color: #334155;
+    }
+    .resolution-notes ul {
+      margin-left: 20px;
+      margin-top: 6px;
+    }
+    .img-preview-container {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+    .img-preview-container img {
+      max-width: 100%;
+      height: auto;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      border-radius: 4px;
+    }
+    .thesis-text-box {
+      background: #fdfdfd;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13.5px;
+      color: #1e293b;
+    }
+    .thesis-text-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: #0f172a;
+    }
+    .thesis-text-box p {
+      font-style: italic;
+      color: #475569;
+    }
+    .copy-btn {
+      float: right;
+      padding: 4px 10px;
+      font-size: 12px;
+      background: #e2e8f0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .copy-btn:hover { background: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="header-badge">STI College of Tagum — Capstone Thesis</span>
+      <h1>Spray & Sniff System Flowcharts Download Portal</h1>
+      <p class="lead">
+        Publication-ready flowcharts updated in full compliance with the panel evaluator's red-pen annotations:
+        all decision diamonds are strictly binary (<strong>Yes/No only</strong>), truncated text is resolved, raw code function names are replaced with systems engineering terminology, hanging branches are terminated cleanly, and figure captions match the narrative text.
+      </p>
+      <div class="quick-actions">
+        <a href="spray_sniff_thesis_flowcharts.zip" class="btn btn-primary" download>
+          📦 Download All Flowcharts (ZIP Package - PNG, SVG, MMD)
+        </a>
+      </div>
+    </header>
+
+    <!-- Figure 4 -->
+    <div class="card" id="fig4">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2>Figure 4. Admin and Staff Authentication and Role-Based Access Control Flowchart</h2>
+          <span class="page-tag">Replaces original diagram on <strong>Page 22</strong></span>
+        </div>
+        <div class="button-group">
+          <a href="figure_4_admin_staff_login_rbac.png" class="btn btn-primary" download>📥 Download PNG</a>
+          <a href="figure_4_admin_staff_login_rbac.svg" class="btn btn-secondary" download>📐 Download SVG</a>
+        </div>
+      </div>
+      <div class="resolution-notes">
+        <strong>Evaluator Annotations Resolved:</strong>
+        <ul>
+          <li><strong>Mismatched Title:</strong> Corrected from *"Staff Creation Account"* to *"Admin and Staff Authentication and Role-Based Access Control Flowchart"*, exactly matching the paragraph text below it.</li>
+          <li><strong>Truncated Text:</strong> Completed `"Submit email and password"`, `"Retrieve user profile and role from database"`, and `"Redirect to storefront homepage"`.</li>
+          <li><strong>Code Replaced:</strong> Replaced `"Supabase Auth signInWithPassword"` with `"Authenticate Credentials via Auth Service"`.</li>
+          <li><strong>Dead End Fixed:</strong> Connected `"User is ADMIN..."` to full dashboard access and terminal End.</li>
+          <li><strong>Diamond Strictly Yes/No:</strong> Replaced the 8-branch `"Which page does staff open?"` with a binary condition check `"Is Module Restricted to Admin?"` (Yes &rarr; Deny & return to console; No &rarr; Grant access and load module).</li>
+        </ul>
+      </div>
+      <div class="img-preview-container">
+        <img src="figure_4_admin_staff_login_rbac.png" alt="Figure 4. Admin and Staff Authentication and Role-Based Access Control Flowchart" />
+      </div>
+      <div class="thesis-text-box">
+        <button class="copy-btn" onclick="copyText('fig4-desc')">Copy Paragraph</button>
+        <strong>Manuscript Caption & Narrative Text (Page 22):</strong>
+        <p id="fig4-desc">
+          Figure 4. Admin and Staff Authentication and Role-Based Access Control Flowchart of Spray & Sniff Web-Based Inventory, Sales, E-Commerce, and Customer Service System.<br><br>
+          The Figure 4 diagram illustrates the authentication and role-based access control (RBAC) flow of the administrative portal. The process begins when an admin or staff member accesses the administrative login interface and submits their email and password. The system transmits the credentials to the authentication service for verification. If the credentials are invalid, an error message is returned and the user is prompted to re-enter their credentials. Upon successful authentication, the system retrieves the user's profile and assigned role from the database. If the user does not possess either a STAFF or ADMIN role, access is denied and the user is redirected to the public storefront homepage. If valid privileges are detected, the user enters the backoffice environment. Admin users receive full administrative privileges across all system modules. For staff users, operational privileges are granted for daily management tasks—including Dashboard, Point-of-Sale (POS), Inventory, Orders, and Products—while access to restricted administrative modules (Reports, Accounts, and Promotions) is strictly denied.
+        </p>
+      </div>
+    </div>
+
+    <!-- Supplementary Flowchart: Staff Account Creation -->
+    <div class="card" id="staff-creation">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2>Supplementary: Staff Account Creation Flowchart</h2>
+          <span class="page-tag">Provided in case panel specifically requires the Account Creation flow</span>
+        </div>
+        <div class="button-group">
+          <a href="staff_account_creation_flow.png" class="btn btn-primary" download>📥 Download PNG</a>
+          <a href="staff_account_creation_flow.svg" class="btn btn-secondary" download>📐 Download SVG</a>
+        </div>
+      </div>
+      <div class="resolution-notes">
+        <strong>Flow Overview:</strong>
+        <ul>
+          <li>Details the dedicated creation of Staff accounts by Administrators inside the Accounts module.</li>
+          <li>Includes Admin authorization verification, Auth account generation, database profile sync (role = STAFF), rollback safety mechanism on database failure, and email notification.</li>
+          <li>Every decision diamond is strictly binary (Yes / No).</li>
+        </ul>
+      </div>
+      <div class="img-preview-container">
+        <img src="staff_account_creation_flow.png" alt="Staff Account Creation Flowchart" />
+      </div>
+    </div>
+
+    <!-- Figure 5 -->
+    <div class="card" id="fig5">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2>Figure 5. Admin and Staff Backoffice Operations Flowchart</h2>
+          <span class="page-tag">Replaces original diagram on <strong>Page 23</strong></span>
+        </div>
+        <div class="button-group">
+          <a href="figure_5_backoffice_operations.png" class="btn btn-primary" download>📥 Download PNG</a>
+          <a href="figure_5_backoffice_operations.svg" class="btn btn-secondary" download>📐 Download SVG</a>
+        </div>
+      </div>
+      <div class="resolution-notes">
+        <strong>Evaluator Annotations Resolved:</strong>
+        <ul>
+          <li><strong>"Choose Module" Diamond Eliminated:</strong> The multi-branch selector diamond circled in red was replaced with structured binary conditions (`"Is Module Admin-Only?"` and `"Is Module Products Catalog?"`).</li>
+          <li><strong>Role Differentiation:</strong> Clear differentiation showing that non-admin staff get View-Only catalog access while admins get Full Management (Add, Edit, Delete).</li>
+          <li><strong>Clean Loopback:</strong> Unsuccessful actions loop back to re-editing, and successful changes trigger database commit, realtime broadcast synchronization, and optional continuation or logout.</li>
+        </ul>
+      </div>
+      <div class="img-preview-container">
+        <img src="figure_5_backoffice_operations.png" alt="Figure 5. Admin and Staff Backoffice Operations Flowchart" />
+      </div>
+      <div class="thesis-text-box">
+        <button class="copy-btn" onclick="copyText('fig5-desc')">Copy Paragraph</button>
+        <strong>Manuscript Caption & Narrative Text (Pages 23 & 24):</strong>
+        <p id="fig5-desc">
+          Figure 5. Admin and Staff Backoffice Operations Flowchart of Spray & Sniff Web-Based Inventory, Sales, E-Commerce, and Customer Service System.<br><br>
+          The Figure 5 diagram illustrates the administrative and operational management process within the backoffice console. After successful authentication and authorization, the system hydrates the interface with synchronized real-time data from the store catalog, inventory records, orders, and POS transactions. When an authorized user selects a module, the system evaluates the required access tier. Restricted modules—specifically Reports, Account Management, and Promotions—require full administrator privileges; unauthorized access attempts by staff members trigger an access rejection notice. For shared operational modules, role-based controls remain active: within the Products module, administrators have full authoring capabilities (create, update, archive), whereas staff accounts are constrained to catalog browsing and stock lookups. When an action or transaction is submitted, the backend API validates role permissions and business constraints before persisting changes. Once validated, updates are committed to the database, trigger immediate cache and snapshot refreshes, and broadcast realtime updates to both the backoffice and the online storefront.
+        </p>
+      </div>
+    </div>
+
+    <!-- Figure 6 -->
+    <div class="card" id="fig6">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2>Figure 6. Customer E-Commerce Ordering and Checkout Process Flowchart</h2>
+          <span class="page-tag">Replaces original diagram on <strong>Page 24</strong></span>
+        </div>
+        <div class="button-group">
+          <a href="figure_6_customer_checkout_flow.png" class="btn btn-primary" download>📥 Download PNG</a>
+          <a href="figure_6_customer_checkout_flow.svg" class="btn btn-secondary" download>📐 Download SVG</a>
+        </div>
+      </div>
+      <div class="resolution-notes">
+        <strong>Evaluator Annotations Resolved:</strong>
+        <ul>
+          <li><strong>"Diamond is yes or no only":</strong> Fully solved! The reviewer's handwritten note explicitly addressed the `"Choose Action"` diamond with 3 outgoing branches. All steps are now sequential binary decisions (`Select a Product?`, `Add to Wishlist?`, `Add to Cart?`, `In Stock?`, `Proceed to Checkout?`, `Signed In?`, `Payment Confirmed?`).</li>
+          <li><strong>Re-Titled from "User UI/UX Flow":</strong> Retitled to academic system design standard *"Figure 6. Customer E-Commerce Ordering and Checkout Process Flowchart"*.</li>
+          <li><strong>Complete Flow Logic:</strong> Added inventory availability validation, authentication prompt for guest users, payment gateway (COD / PayMongo) validation, and post-order tracking navigation.</li>
+        </ul>
+      </div>
+      <div class="img-preview-container">
+        <img src="figure_6_customer_checkout_flow.png" alt="Figure 6. Customer E-Commerce Ordering and Checkout Process Flowchart" />
+      </div>
+      <div class="thesis-text-box">
+        <button class="copy-btn" onclick="copyText('fig6-desc')">Copy Paragraph</button>
+        <strong>Manuscript Caption & Narrative Text (Page 24):</strong>
+        <p id="fig6-desc">
+          Figure 6. Customer E-Commerce Ordering and Checkout Process Flowchart of Spray & Sniff Web-Based Inventory, Sales, E-Commerce, and Customer Service System.<br><br>
+          The Figure 6 diagram depicts the complete customer shopping and order fulfillment flow within the online storefront. Customers browse product listings, collections, and detailed fragrance profiles. Users may optionally save items to their personal wishlist or add selections directly to their shopping cart, subject to real-time inventory availability checks. When the customer initiates checkout, the system verifies authentication status; unauthenticated users are guided to sign in or register before completing their transaction. Once authenticated, shipping addresses and contact information are gathered, and the customer selects between Cash on Delivery (COD) and online card/e-wallet payment via PayMongo. Before payment execution, a final real-time stock verification ensures inventory availability. Upon verified payment confirmation, inventory records are automatically decremented, a permanent order record and timeline entry are generated, an invoice confirmation is presented, and the customer can monitor fulfillment progress through the Order History interface.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function copyText(id) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Copied narrative paragraph to clipboard!');
+      });
+    }
+  </script>
+</body>
+</html>
+

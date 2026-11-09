@@ -328,6 +328,7 @@ export type StoreAction =
   | { type: 'placeOnlineOrder'; input: PlaceOnlineOrderInput }
   | { type: 'createPosSale'; input: CreatePosSaleInput }
   | { type: 'cancelOwnOrder'; orderId: string }
+  | { type: 'adminCancelOrder'; orderId: string; reason?: string }
   | {
     type: 'updateOrderDelivery'
     orderId: string
@@ -437,6 +438,19 @@ export function getOrderNeedsRefundFollowUp(
   return order.status === 'Cancelled' && order.paymentStatus === 'Paid'
 }
 
+/**
+ * Checks whether an order is in the "To Ship" stage (either Processing or Paid Pending).
+ * When in this stage, customer self-service cancellation is disabled.
+ */
+export function isOrderInToShip(
+  order: Pick<OrderRecord, 'status' | 'paymentStatus'>,
+): boolean {
+  return (
+    order.status === 'Processing' ||
+    (order.status === 'Pending' && order.paymentStatus === 'Paid')
+  )
+}
+
 export function getCustomerOrderActionAvailability(
   order: OrderRecord,
   actor?: StoreActor | null,
@@ -451,7 +465,12 @@ export function getCustomerOrderActionAvailability(
     }
   }
 
-  const canCancel = order.status === 'Pending' || order.status === 'Processing'
+  const inToShip = isOrderInToShip(order)
+  const isDelivery = isDeliveryOrderStatus(order.status)
+
+  // Once an order reaches "To Ship" (Processing or Paid Pending) or any delivery stage,
+  // self-service customer cancellation is closed.
+  const canCancel = order.status === 'Pending' && order.paymentStatus === 'Pending'
 
   let cancelBlockedReason: string | undefined
 
@@ -460,16 +479,24 @@ export function getCustomerOrderActionAvailability(
       case 'Cancelled':
         cancelBlockedReason = 'This order has already been cancelled.'
         break
+      case 'Processing':
+        cancelBlockedReason = 'This order is already in To Ship (preparing for shipment) and can no longer be cancelled.'
+        break
       case 'Shipped':
       case 'In Transit':
       case 'Out for Delivery':
         cancelBlockedReason = 'This order is already in dispatch and can no longer be cancelled here.'
         break
       case 'Delivered':
-        cancelBlockedReason = 'Delivered orders can no longer be cancelled here.'
+      case 'Completed':
+        cancelBlockedReason = 'Delivered or completed orders can no longer be cancelled here.'
         break
       default:
-        cancelBlockedReason = 'This order cannot be cancelled from your account.'
+        if (inToShip) {
+          cancelBlockedReason = 'This order is already in To Ship (preparing for shipment) and can no longer be cancelled.'
+        } else {
+          cancelBlockedReason = 'This order cannot be cancelled from your account.'
+        }
         break
     }
   }
@@ -595,11 +622,9 @@ function calculateTotals(items: CartItem[], source: OrderSource) {
     !isTestCart && source === 'ONLINE' && subtotal < FREE_SHIPPING_THRESHOLD
       ? STANDARD_SHIPPING_FEE
       : 0
-  // Standard Philippine BIR 12% VAT-inclusive breakdown:
-  // Retail perfume price is already VAT-inclusive.
-  const vatableSales = isTestCart ? 0 : roundCurrency(subtotal / 1.12)
-  const tax = isTestCart ? 0 : roundCurrency(subtotal - vatableSales)
-  const total = roundCurrency(subtotal + shipping)
+  // Standard 12% VAT added on top of product subtotal:
+  const tax = isTestCart ? 0 : roundCurrency(subtotal * 0.12)
+  const total = roundCurrency(subtotal + tax + shipping)
 
   return { subtotal, shipping, tax, total }
 }
@@ -1505,12 +1530,22 @@ export function performStoreAction(
         }
       }
 
-      if (existingOrder.status !== 'Pending' && existingOrder.status !== 'Processing') {
+      if (isOrderInToShip(existingOrder)) {
         return {
           nextState: currentState,
           result: {
             ok: false,
-            message: 'Only pending or processing orders can be cancelled from your account.',
+            message: 'Orders that are already in To Ship (preparing for shipment) cannot be cancelled from your account.',
+          },
+        }
+      }
+
+      if (existingOrder.status !== 'Pending') {
+        return {
+          nextState: currentState,
+          result: {
+            ok: false,
+            message: 'Only pending orders can be cancelled from your account.',
           },
         }
       }
@@ -1581,6 +1616,106 @@ export function performStoreAction(
             existingOrder.paymentStatus === 'Paid'
               ? `Order ${existingOrder.id} has been cancelled. Our team will review the refund and follow up separately.`
               : `Order ${existingOrder.id} has been cancelled successfully.`,
+          data: updatedOrder,
+        },
+      }
+    }
+
+    case 'adminCancelOrder': {
+      if (!canAccessBackoffice(actor)) {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Only staff and administrators can cancel orders from backoffice.' },
+        }
+      }
+
+      const existingOrder = currentState.orders.find((order) => order.id === action.orderId)
+      if (!existingOrder) {
+        return { nextState: currentState, result: { ok: false, message: 'Order not found.' } }
+      }
+
+      if (existingOrder.status === 'Cancelled') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: `Order ${existingOrder.id} has already been cancelled.` },
+        }
+      }
+
+      if (existingOrder.status === 'Delivered' || existingOrder.status === 'Completed') {
+        return {
+          nextState: currentState,
+          result: { ok: false, message: 'Delivered or completed orders cannot be cancelled.' },
+        }
+      }
+
+      const timestamp = new Date().toISOString()
+      const actorName = getActorName(actor, 'Store Admin')
+      const reason = action.reason?.trim() || 'Order cancelled by store administrator.'
+
+      const quantityByProduct = existingOrder.items.reduce<Record<string, number>>((totals, item) => {
+        totals[item.productId] = (totals[item.productId] ?? 0) + item.quantity
+        return totals
+      }, {})
+
+      const nextInventory = currentState.inventory.map((record) => {
+        const restoredQuantity = quantityByProduct[record.productId]
+        if (!restoredQuantity) {
+          return record
+        }
+
+        return {
+          ...record,
+          stock: clampToWholeNumber(record.stock + restoredQuantity),
+          lastUpdated: timestamp,
+          lastUpdatedBy: actorName,
+        }
+      })
+
+      const updatedOrder: OrderRecord = {
+        ...existingOrder,
+        status: 'Cancelled',
+        timeline: [
+          ...existingOrder.timeline,
+          {
+            status: 'Cancelled',
+            previousStatus: existingOrder.status,
+            createdAt: timestamp,
+            actorName,
+            actorId: actor?.id,
+            note:
+              existingOrder.paymentStatus === 'Paid'
+                ? `${reason} Manual PayMongo refund follow-up is required.`
+                : reason,
+          },
+        ],
+      }
+
+      const nextMovements = [
+        ...existingOrder.items.map((item) => ({
+          id: createMovementId(),
+          productId: item.productId,
+          productName: item.productName,
+          change: item.quantity,
+          reason: 'order-cancelled' as const,
+          actor: actorName,
+          createdAt: timestamp,
+          resultingStock: nextInventory.find((record) => record.productId === item.productId)?.stock ?? item.quantity,
+          note: `Admin cancellation for ${existingOrder.id}: ${reason}`,
+        })),
+        ...currentState.stockMovements,
+      ]
+
+      return {
+        nextState: {
+          ...currentState,
+          catalog: syncCatalogStock(currentState.catalog, nextInventory),
+          inventory: nextInventory,
+          orders: currentState.orders.map((order) => (order.id === action.orderId ? updatedOrder : order)),
+          stockMovements: nextMovements,
+        },
+        result: {
+          ok: true,
+          message: `Order ${existingOrder.id} has been cancelled and stock restored.`,
           data: updatedOrder,
         },
       }

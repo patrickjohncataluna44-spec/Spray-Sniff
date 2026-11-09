@@ -14,9 +14,9 @@ import { subscribeToProductCategories } from '@/lib/supabase-realtime'
 const SCENT_FAMILIES = ['Floral', 'Woody', 'Fresh', 'Citrus', 'Oriental', 'Spicy', 'Aquatic', 'Aromatic']
 const GENDERS = ['Male', 'Female', 'Unisex']
 const PRICE_RANGES = [
-  { min: 0, max: 100 },
-  { min: 100, max: 200 },
-  { min: 200, max: Infinity },
+  { min: 0, max: 100, label: 'Under ₱100' },
+  { min: 100, max: 200, label: '₱100 – ₱200' },
+  { min: 200, max: Infinity, label: 'Over ₱200' },
 ]
 
 function ShopContent() {
@@ -159,44 +159,43 @@ function ShopContent() {
     Boolean(searchQuery.trim())
 
   const FilterPanel = () => (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-7">
+      <div className="flex items-center justify-between gap-3 pb-3">
         <div>
-          <p className="storefront-eyebrow">Filters</p>
-          <h2 className="mt-2 text-2xl text-foreground">Refine Your Mood</h2>
+          <h2 className="font-serif text-2xl text-foreground">Refine Catalog</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">Filter by olfactive profile</p>
         </div>
         {hasFilters ? (
           <button
             type="button"
             suppressHydrationWarning
             onClick={clearFilters}
-            className="text-sm font-semibold text-primary transition hover:text-[#ff8a73]"
+            className="text-xs font-semibold text-primary hover:underline cursor-pointer"
           >
-            Reset
+            Reset All
           </button>
         ) : null}
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* Dynamic Product Categories from Supabase */}
         <section>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
+          <p className="text-xs font-semibold text-foreground/70 mb-3">
             Category
-          </h3>
-          <div className="mt-4 flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
+          </p>
+          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
             {availableCategories.map((cat) => {
               const active = selectedCategory === cat
-
               return (
                 <button
                   key={cat}
                   type="button"
                   suppressHydrationWarning
                   onClick={() => setSelectedCategory(cat)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     active
-                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
-                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                      ? 'bg-foreground text-background'
+                      : 'border border-border/70 bg-[#fffdfa] text-foreground/80 hover:border-primary/60'
                   }`}
                 >
                   {cat}
@@ -206,24 +205,24 @@ function ShopContent() {
           </div>
         </section>
 
+        {/* Scent Families */}
         <section>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
+          <p className="text-xs font-semibold text-foreground/70 mb-3">
             Scent Family
-          </h3>
-          <div className="mt-4 flex flex-wrap gap-2">
+          </p>
+          <div className="flex flex-wrap gap-2">
             {SCENT_FAMILIES.map((scent) => {
               const active = selectedScents.includes(scent)
-
               return (
                 <button
                   key={scent}
                   type="button"
                   suppressHydrationWarning
                   onClick={() => toggleScent(scent)}
-                  className={`rounded-full px-3 py-2 text-sm transition ${
+                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     active
-                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
-                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border/70 bg-[#fffdfa] text-foreground/80 hover:border-primary/60'
                   }`}
                 >
                   {scent}
@@ -233,24 +232,24 @@ function ShopContent() {
           </div>
         </section>
 
+        {/* Gender */}
         <section>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
-            Gender
-          </h3>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <p className="text-xs font-semibold text-foreground/70 mb-3">
+            Expression
+          </p>
+          <div className="flex flex-wrap gap-2">
             {GENDERS.map((gender) => {
               const active = selectedGenders.includes(gender)
-
               return (
                 <button
                   key={gender}
                   type="button"
                   suppressHydrationWarning
                   onClick={() => toggleGender(gender)}
-                  className={`rounded-full px-3 py-2 text-sm transition ${
+                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     active
-                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
-                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border/70 bg-[#fffdfa] text-foreground/80 hover:border-primary/60'
                   }`}
                 >
                   {gender}
@@ -260,33 +259,27 @@ function ShopContent() {
           </div>
         </section>
 
+        {/* Price Range */}
         <section>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-foreground/50">
+          <p className="text-xs font-semibold text-foreground/70 mb-3">
             Price Range
-          </h3>
-          <div className="mt-4 flex flex-wrap gap-2">
+          </p>
+          <div className="flex flex-wrap gap-2">
             {PRICE_RANGES.map((range, index) => {
               const active = priceRange?.min === range.min && priceRange?.max === range.max
-              const label =
-                range.max === Infinity
-                  ? 'Over ₱200'
-                  : range.min === 0
-                    ? 'Under ₱100'
-                    : '₱100 - ₱200'
-
               return (
                 <button
                   key={index}
                   type="button"
                   suppressHydrationWarning
                   onClick={() => setPriceRange(active ? null : range)}
-                  className={`rounded-full px-3 py-2 text-sm transition ${
+                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     active
-                      ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(255,154,134,0.26)]'
-                      : 'bg-muted/65 text-foreground/72 hover:bg-[#ffd6a6]'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border/70 bg-[#fffdfa] text-foreground/80 hover:border-primary/60'
                   }`}
                 >
-                  {label}
+                  {range.label}
                 </button>
               )
             })}
@@ -299,27 +292,25 @@ function ShopContent() {
   return (
     <StorefrontShell>
       <StorefrontPageHero
-        eyebrow="Perfume Catalog"
-        title="Shop Fragrances"
-        description="Browse floral, woody, citrus, fresh, and evening-ready perfume profiles with clear note direction and smooth filtering."
+        title="Fragrance Catalog"
+        description="Browse floral, woody, citrus, and oriental perfume profiles formulated with high oil concentrations and distinct note architectures."
       />
 
-      <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+      <section className="px-4 pb-20 pt-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-
           {/* Mobile filter toggle bar */}
-          <div className="mb-4 flex items-center gap-3 lg:hidden">
+          <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
             <button
               type="button"
               suppressHydrationWarning
               onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-border/70 bg-white/80 px-4 py-2.5 text-sm font-medium text-foreground shadow-sm transition hover:bg-muted"
+              className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-white px-4 py-2.5 text-sm font-medium text-foreground transition hover:border-primary"
             >
-              {mobileFiltersOpen ? <X className="h-4 w-4" /> : <SlidersHorizontal className="h-4 w-4" />}
-              {mobileFiltersOpen ? 'Close Filters' : 'Filters'}
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>{mobileFiltersOpen ? 'Hide Filters' : 'Filter Fragrances'}</span>
               {hasFilters && (
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                  {selectedScents.length + selectedGenders.length + (priceRange ? 1 : 0) + (searchQuery ? 1 : 0)}
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {selectedScents.length + selectedGenders.length + (priceRange ? 1 : 0) + (selectedCategory !== 'All' ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -328,7 +319,7 @@ function ShopContent() {
                 type="button"
                 suppressHydrationWarning
                 onClick={clearFilters}
-                className="text-sm font-semibold text-primary transition hover:text-[#ff8a73]"
+                className="text-xs font-semibold text-primary hover:underline cursor-pointer"
               >
                 Reset
               </button>
@@ -337,11 +328,11 @@ function ShopContent() {
 
           {/* Mobile filter drawer */}
           {mobileFiltersOpen && (
-            <div className="mb-6 storefront-panel rounded-[2rem] p-6 lg:hidden">
+            <div className="mb-8 rounded-3xl border border-border/80 bg-white p-6 lg:hidden">
               <FilterPanel />
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 pt-4 flex gap-3">
                 <Button
-                  className="h-11 flex-1 rounded-2xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
+                  className="h-11 flex-1 rounded-xl bg-primary text-primary-foreground hover:bg-[#ff8a73]"
                   onClick={() => setMobileFiltersOpen(false)}
                 >
                   Show {filtered.length} result{filtered.length === 1 ? '' : 's'}
@@ -352,13 +343,13 @@ function ShopContent() {
 
           <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
             {/* Desktop sidebar */}
-            <aside className="storefront-panel sticky top-28 hidden h-fit rounded-[2rem] p-6 lg:block">
+            <aside className="sticky top-28 hidden h-fit rounded-3xl border border-border/80 bg-white p-6 lg:block">
               <FilterPanel />
             </aside>
 
             <div>
               {/* Search Bar & View Controls */}
-              <div className="storefront-panel mb-6 flex flex-col gap-4 rounded-[2rem] p-5 sm:p-6">
+              <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-border/80 bg-white p-5 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   {/* Interactive Search Bar Input */}
                   <div className="relative flex-1">
@@ -367,15 +358,15 @@ function ShopContent() {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search fragrances by name, brand, scent notes..."
-                      className="h-11 w-full rounded-2xl border border-border/70 bg-white/80 pl-11 pr-10 text-sm text-foreground shadow-xs transition placeholder:text-foreground/40 focus:border-primary/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      placeholder="Search fragrances by name, note, or scent family..."
+                      className="h-11 w-full rounded-xl border border-border/70 bg-[#fffdfa] pl-11 pr-10 text-sm text-foreground transition placeholder:text-foreground/40 focus:border-primary focus:bg-white focus:outline-none"
                       aria-label="Search fragrances"
                     />
                     {searchQuery && (
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-foreground/40 transition hover:bg-muted hover:text-foreground"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-foreground/40 transition hover:text-foreground"
                         aria-label="Clear search query"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -389,22 +380,22 @@ function ShopContent() {
                       value={sortBy}
                       suppressHydrationWarning
                       onChange={(event) => setSortBy(event.target.value)}
-                      className="storefront-input h-11 w-full appearance-none pr-10 text-sm sm:min-w-56 sm:w-auto"
+                      className="h-11 w-full appearance-none rounded-xl border border-border/70 bg-[#fffdfa] px-4 pr-10 text-sm text-foreground focus:border-primary focus:outline-none sm:min-w-52"
                     >
-                      <option value="featured">Featured</option>
-                      <option value="new">New Arrivals</option>
+                      <option value="featured">Featured Picks</option>
+                      <option value="new">New Releases</option>
                       <option value="rating">Highest Rated</option>
                       <option value="price-low">Price: Low to High</option>
                       <option value="price-high">Price: High to Low</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/55" />
+                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/50" />
                   </div>
                 </div>
 
                 {/* Search query status indicator & count */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-xs text-foreground/60">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 text-xs text-foreground/60">
                   <p>
-                    Showing <span className="font-semibold text-foreground">{filtered.length}</span> fragrance{filtered.length === 1 ? '' : 's'}
+                    Showing <span className="font-semibold text-foreground">{filtered.length}</span> bottle{filtered.length === 1 ? '' : 's'}
                     {searchQuery.trim() && (
                       <> for &ldquo;<span className="font-semibold text-primary">{searchQuery}</span>&rdquo;</>
                     )}
@@ -413,7 +404,7 @@ function ShopContent() {
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="font-semibold text-primary hover:underline"
+                      className="font-semibold text-primary hover:underline cursor-pointer"
                     >
                       Clear search
                     </button>
@@ -428,16 +419,16 @@ function ShopContent() {
                   ))}
                 </div>
               ) : (
-                <div className="storefront-panel rounded-[2rem] p-12 text-center">
-                  <p className="text-2xl font-serif text-foreground">No fragrances matched your search</p>
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-foreground/62">
+                <div className="rounded-3xl border border-border/80 bg-white p-12 text-center">
+                  <p className="font-serif text-2xl text-foreground">No fragrances matched your selection</p>
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-foreground/65">
                     {searchQuery.trim()
                       ? `We couldn't find any fragrances matching "${searchQuery}". Try searching for another scent note or reset your filters.`
-                      : 'No perfumes available in this filter combination. Try resetting your filters to see more fragrances.'}
+                      : 'No perfumes available in this specific filter combination. Reset filters to see our full catalogue.'}
                   </p>
                   <Button
                     variant="outline"
-                    className="mt-6 h-11 rounded-2xl border-border/70 bg-white/70 px-6"
+                    className="mt-6 h-11 rounded-xl border-border bg-white px-6"
                     onClick={clearFilters}
                   >
                     Reset All Filters

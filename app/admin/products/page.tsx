@@ -205,8 +205,22 @@ export default function AdminProductsPage() {
                         <td className="px-6 py-4 text-foreground">
                           {product.category}
                         </td>
-                        <td className="px-6 py-4 font-medium text-foreground">
-                          {formatPHP(product.price)}
+                        <td className="px-6 py-4">
+                          {product.originalPrice && Number(product.originalPrice) > Number(product.price) ? (
+                            <div>
+                              <div className="flex items-center gap-1.5 font-semibold text-red-600">
+                                <span>{formatPHP(product.price)}</span>
+                                <span className="rounded bg-red-600 text-white text-[9px] font-bold px-1 py-0.2 uppercase tracking-wide">
+                                  Sale
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-through">
+                                {formatPHP(product.originalPrice)}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="font-medium text-foreground">{formatPHP(product.price)}</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm font-medium text-foreground">

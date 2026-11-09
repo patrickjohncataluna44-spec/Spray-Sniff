@@ -1,0 +1,47 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '14px', 'fontFamily': 'Arial, sans-serif'}}}%%
+flowchart TD
+    Start([Start]) --> OpenAdminLogin[Open Admin Portal Login]
+    OpenAdminLogin --> InputCreds[/Input Email and Password/]
+    InputCreds --> Authenticate[Authenticate and Retrieve User Profile]
+    Authenticate --> IsAdminOrStaff{Is Role Staff or Admin?}
+    
+    IsAdminOrStaff -- No --> RedirectStore[Redirect to Public Storefront]
+    RedirectStore --> EndStore([End / Browse Store])
+    
+    IsAdminOrStaff -- Yes --> OpenBackoffice[Open Backoffice and Load Store Data]
+    OpenBackoffice --> SelectModule[User Selects Management Module]
+    
+    SelectModule --> IsAdminOnlyModule{"Is Module Admin-Only?
+(Reports, Accounts, Promotions)"}
+    
+    IsAdminOnlyModule -- Yes --> CheckIsAdminForModule{Is Active Role Admin?}
+    CheckIsAdminForModule -- No --> DenyModuleAccess[Display 'Access Denied: Admin Privilege Required']
+    DenyModuleAccess --> OpenBackoffice
+    CheckIsAdminForModule -- Yes --> LoadAdminModule[Open Admin Module Interface]
+    LoadAdminModule --> PrepareAction[User Prepares Management Action]
+    
+    IsAdminOnlyModule -- No --> LoadStandardModule["Open Operational Module
+(Dashboard, Inventory, Orders, POS, Products)"]
+    LoadStandardModule --> IsProductModule{Is Module Products Catalog?}
+    
+    IsProductModule -- Yes --> CheckProductAdmin{Is Role Admin?}
+    CheckProductAdmin -- No --> SetViewOnly[Enable View-Only Mode: Search and Stock Check Only]
+    CheckProductAdmin -- Yes --> SetFullProduct[Enable Full Product Management: Add, Edit, Delete]
+    SetViewOnly --> PrepareAction
+    SetFullProduct --> PrepareAction
+    
+    IsProductModule -- No --> PrepareAction
+    
+    PrepareAction --> SubmitAction[Submit Action Request to System API]
+    SubmitAction --> ValidateRules{Are Role and Business Rules Valid?}
+    
+    ValidateRules -- No --> ShowActionError[Display Action Rejection Error]
+    ShowActionError --> PrepareAction
+    
+    ValidateRules -- Yes --> SaveChanges[Persist Snapshot and Database Changes]
+    SaveChanges --> BroadcastSync[Broadcast Realtime Sync to Backoffice and Storefront]
+    BroadcastSync --> ShowSuccessNotification[Display Operation Success Confirmation]
+    ShowSuccessNotification --> ContinueWork{Perform Another Operation?}
+    
+    ContinueWork -- Yes --> OpenBackoffice
+    ContinueWork -- No --> LogoutOrEnd([End Session])

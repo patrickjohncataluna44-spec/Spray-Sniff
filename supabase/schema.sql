@@ -57,6 +57,7 @@ create table if not exists public.catalog_products (
   brand text not null,
   description text not null default '',
   price numeric not null default 0,
+  original_price numeric null,
   category text not null default '',
   scent_family text[] not null default '{}',
   gender text not null default 'unisex',

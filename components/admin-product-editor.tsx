@@ -64,7 +64,17 @@ function validateForm(values: ProductFormValues): FormErrors {
   }
 
   if (!Number.isFinite(Number(values.price)) || Number(values.price) <= 0) {
-    errors.price = 'Enter a valid base price.'
+    errors.price = 'Enter a valid regular price.'
+  }
+
+  if (values.salePrice && values.salePrice.trim()) {
+    const sale = Number(values.salePrice)
+    const regular = Number(values.price)
+    if (!Number.isFinite(sale) || sale <= 0) {
+      errors.salePrice = 'Enter a valid sale price greater than 0.'
+    } else if (Number.isFinite(regular) && regular > 0 && sale >= regular) {
+      errors.salePrice = `Sale price (₱${sale.toLocaleString()}) must be lower than regular price (₱${regular.toLocaleString()}) to show a sale.`
+    }
   }
 
   if (!Number.isFinite(Number(values.sizeMl)) || Number(values.sizeMl) <= 0) {
@@ -124,7 +134,19 @@ export function AdminProductEditor({
   }, [initialValues])
 
   const previewImage = formValues.uploadedImage.trim() || '/placeholder.jpg'
-  const previewPrice = Number(formValues.price)
+  const regularPriceNum = Number(formValues.price)
+  const salePriceNum = formValues.salePrice?.trim() ? Number(formValues.salePrice) : NaN
+  const isPreviewOnSale =
+    Number.isFinite(salePriceNum) &&
+    salePriceNum > 0 &&
+    Number.isFinite(regularPriceNum) &&
+    regularPriceNum > 0 &&
+    salePriceNum < regularPriceNum
+  const previewPrice = isPreviewOnSale ? salePriceNum : regularPriceNum
+  const previewDiscountPercent = isPreviewOnSale
+    ? Math.round(((regularPriceNum - salePriceNum) / regularPriceNum) * 100)
+    : 0
+  const previewSavings = isPreviewOnSale ? regularPriceNum - salePriceNum : 0
   const previewStock = Math.max(0, Math.round(Number(formValues.stockQuantity) || 0))
   const previewReorderPoint = Math.max(
     0,
@@ -342,7 +364,7 @@ export function AdminProductEditor({
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="price">Base Price (PHP)</Label>
+                      <Label htmlFor="price">Regular Price (PHP)</Label>
                       <Input
                         id="price"
                         type="number"
@@ -350,12 +372,43 @@ export function AdminProductEditor({
                         step="0.01"
                         value={formValues.price}
                         onChange={(event) => updateField('price', event.target.value)}
-                        placeholder="245"
+                        placeholder="2340"
                       />
                       <p className="text-[11px] text-foreground/60 leading-relaxed">
-                        🔒 <strong>Price Protection:</strong> Changing the price takes effect for upcoming sales only. Past completed orders (e.g. from June or earlier) permanently retain their original purchase prices.
+                        Standard retail price before any sale discount.
                       </p>
                       <FieldError message={errors.price} />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="salePrice">Sale Price (PHP)</Label>
+                        <span className="text-[11px] text-muted-foreground font-normal">Optional</span>
+                      </div>
+                      <Input
+                        id="salePrice"
+                        type="number"
+                        min="1"
+                        step="0.01"
+                        value={formValues.salePrice}
+                        onChange={(event) => updateField('salePrice', event.target.value)}
+                        placeholder="e.g. 599"
+                      />
+                      {isPreviewOnSale ? (
+                        <div className="flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-1.5 text-xs text-red-600 font-medium">
+                          <span className="font-bold uppercase tracking-wider text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded">
+                            SALE ACTIVE
+                          </span>
+                          <span>
+                            {previewDiscountPercent}% OFF &bull; Customer pays ₱{salePriceNum.toLocaleString()} (Regular ₱{regularPriceNum.toLocaleString()} strikethrough, save ₱{previewSavings.toLocaleString()})
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-foreground/60 leading-relaxed">
+                          Leave blank if not on sale. If filled (e.g. <strong>599</strong>), customers pay this promo price with a red <strong>SALE</strong> badge.
+                        </p>
+                      )}
+                      <FieldError message={errors.salePrice} />
                     </div>
 
                     <div className="grid gap-2">
@@ -491,6 +544,7 @@ export function AdminProductEditor({
                         type="number"
                         min="0"
                         value={formValues.stockQuantity}
+                        onFocus={(e) => e.target.select()}
                         onChange={(event) =>
                           updateField('stockQuantity', event.target.value)
                         }
@@ -505,6 +559,7 @@ export function AdminProductEditor({
                         type="number"
                         min="0"
                         value={formValues.reorderPoint}
+                        onFocus={(e) => e.target.select()}
                         onChange={(event) =>
                           updateField('reorderPoint', event.target.value)
                         }
@@ -666,7 +721,7 @@ export function AdminProductEditor({
                           <div
                             role="img"
                             aria-label={formValues.name || 'Product preview'}
-                            className="h-full w-full bg-cover bg-center"
+                            className="h-full w-full bg-contain bg-center bg-no-repeat p-3"
                             style={{ backgroundImage: `url("${previewImage}")` }}
                           />
                         )}
@@ -675,6 +730,11 @@ export function AdminProductEditor({
 
                     <div className="space-y-4 p-5">
                       <div className="flex flex-wrap items-center gap-2">
+                        {isPreviewOnSale && (
+                          <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-xs">
+                            Sale {previewDiscountPercent}% OFF
+                          </span>
+                        )}
                         <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                           {formValues.category}
                         </span>
@@ -700,11 +760,27 @@ export function AdminProductEditor({
                           <p className="text-xs uppercase tracking-[0.18em] text-foreground/45">
                             Price
                           </p>
-                          <p className="mt-2 font-serif text-2xl text-foreground">
-                            {Number.isFinite(previewPrice) && previewPrice > 0
-                              ? formatPHP(previewPrice)
-                              : formatPHP(0)}
-                          </p>
+                          {isPreviewOnSale ? (
+                            <div className="mt-2">
+                              <div className="flex flex-wrap items-baseline gap-2">
+                                <p className="font-serif text-2xl font-bold text-red-600">
+                                  {formatPHP(previewPrice)}
+                                </p>
+                                <p className="text-sm text-muted-foreground line-through">
+                                  {formatPHP(regularPriceNum)}
+                                </p>
+                              </div>
+                              <p className="mt-1 text-xs font-semibold text-red-600">
+                                Save {previewDiscountPercent}% ({formatPHP(previewSavings)})
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="mt-2 font-serif text-2xl text-foreground">
+                              {Number.isFinite(previewPrice) && previewPrice > 0
+                                ? formatPHP(previewPrice)
+                                : formatPHP(0)}
+                            </p>
+                          )}
                         </div>
                         <div className="rounded-2xl bg-background p-4">
                           <p className="text-xs uppercase tracking-[0.18em] text-foreground/45">

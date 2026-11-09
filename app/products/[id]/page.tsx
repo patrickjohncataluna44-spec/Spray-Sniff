@@ -6,6 +6,7 @@ import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { CheckCircle2, Heart, MessageSquarePlus, ShoppingBag, Star, ShieldCheck, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { QuantityInput } from '@/components/ui/quantity-input'
 import { ProductCard } from '@/components/product-card'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { useAuth } from '@/lib/auth-context'
@@ -35,6 +36,7 @@ export default function ProductPage({
   const { id } = use(params)
   const {
     addToCart,
+    cart,
     getAvailabilityStatus,
     getAvailableStock,
     getInventoryRecord,
@@ -206,6 +208,10 @@ export default function ProductPage({
 
   const selectedSize = product.sizes.find((size) => size.ml === selectedSizeMl) ?? product.sizes[0]
   const availableStock = getAvailableStock(product.id)
+  const itemsInCartForProduct = cart
+    .filter((item) => item.productId === product.id)
+    .reduce((sum, item) => sum + item.quantity, 0)
+  const remainingAddableStock = Math.max(0, availableStock - itemsInCartForProduct)
   const availability = getAvailabilityStatus(product.id)
   const displayAvailability = isArchived ? 'Archived' : availability
   const relatedProducts = product.relatedProducts
@@ -270,8 +276,12 @@ export default function ProductPage({
           <div className="space-y-4">
             {/* Main image */}
             <div
-              className="storefront-panel relative overflow-hidden rounded-[2.25rem]"
-              style={{ height: '320px', minHeight: '320px' }}
+              className="storefront-panel relative overflow-hidden rounded-[2.25rem] bg-white border border-[#f3ede7]"
+              style={{
+                height: '440px',
+                minHeight: '440px',
+                backgroundColor: '#ffffff',
+              }}
             >
               <Image
                 src={mainImage || product.images[0] || '/placeholder.jpg'}
@@ -279,7 +289,10 @@ export default function ProductPage({
                 fill
                 unoptimized
                 priority
-                className="object-cover"
+                className="object-contain p-4 sm:p-6"
+                style={{
+                  backgroundColor: '#ffffff',
+                }}
               />
             </div>
 
@@ -289,10 +302,13 @@ export default function ProductPage({
                   key={index}
                   type="button"
                   onClick={() => setMainImage(image)}
-                  className={`storefront-panel relative overflow-hidden rounded-[1.5rem] ${
+                  className={`storefront-panel relative overflow-hidden rounded-[1.5rem] bg-white border border-[#f3ede7] transition hover:scale-105 ${
                     (mainImage || product.images[0]) === image ? 'ring-2 ring-primary/55' : ''
                   }`}
-                  style={{ height: '72px' }}
+                  style={{
+                    height: '84px',
+                    backgroundColor: '#ffffff',
+                  }}
                   aria-label={`View product image ${index + 1}`}
                 >
                   <Image
@@ -300,8 +316,8 @@ export default function ProductPage({
                     alt={`${product.name} view ${index + 1}`}
                     fill
                     unoptimized
-                    className="object-cover"
-                    sizes="72px"
+                    className="object-contain p-2"
+                    sizes="84px"
                   />
                 </button>
               ))}
@@ -314,6 +330,11 @@ export default function ProductPage({
               <h1 className="mt-3 text-[clamp(1.875rem,6vw,3.5rem)] leading-tight text-foreground sm:text-5xl lg:text-6xl">{product.name}</h1>
 
               <div className="mt-5 flex flex-wrap items-center gap-4">
+                {Boolean(product.originalPrice && Number(product.originalPrice) > Number(product.price)) && (
+                  <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-xs">
+                    Sale {Math.round(((Number(product.originalPrice) - Number(product.price)) / Number(product.originalPrice)) * 100)}% OFF
+                  </span>
+                )}
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${availabilityTone}`}>
                   {displayAvailability}
                 </span>
@@ -368,49 +389,26 @@ export default function ProductPage({
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/48">
                     Quantity
                   </p>
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-[1.25rem] border border-border/70 bg-white/72 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      disabled={quantity <= 1}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
+                  <div className="mt-3">
+                    <QuantityInput
+                      value={remainingAddableStock > 0 ? quantity : 0}
+                      onChange={setQuantity}
                       min={1}
-                      max={Math.max(1, availableStock)}
-                      value={quantity}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        if (val === '') {
-                          setQuantity(1)
-                          return
-                        }
-                        const parsed = parseInt(val, 10)
-                        if (!isNaN(parsed)) {
-                          setQuantity(Math.min(Math.max(1, parsed), Math.max(1, availableStock)))
-                        }
-                      }}
-                      className="w-12 text-center font-semibold text-foreground bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-accent rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      aria-label="Product quantity"
+                      max={remainingAddableStock}
+                      disabled={isArchived || remainingAddableStock === 0}
+                      ariaLabel="Product quantity"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setQuantity(Math.min(Math.max(1, availableStock), quantity + 1))}
-                      disabled={availableStock === 0 || quantity >= availableStock}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      +
-                    </button>
                   </div>
                   <p className="mt-3 text-sm text-foreground/58">
                     {isArchived
                       ? 'This perfume has been archived and is not available for checkout.'
-                      : availability === 'Out of Stock'
+                      : availableStock === 0
                         ? 'Currently unavailable online and in store.'
-                        : `${availableStock} unit(s) available right now.`}
+                        : remainingAddableStock === 0
+                          ? `All ${availableStock} available unit(s) are already in your cart.`
+                          : itemsInCartForProduct > 0
+                            ? `${availableStock} unit(s) available (${itemsInCartForProduct} in your cart, max ${remainingAddableStock} more).`
+                            : `${availableStock} unit(s) available right now.`}
                   </p>
                 </div>
               </div>
@@ -418,7 +416,35 @@ export default function ProductPage({
               <div className="mt-8 flex flex-col gap-4 border-t border-border/70 pt-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-sm uppercase tracking-[0.18em] text-foreground/48">Selected Total</p>
-                  <p className="mt-2 text-4xl text-foreground">{formatPHP(selectedSize.price * quantity)}</p>
+                  {product.originalPrice && Number(product.originalPrice) > Number(product.price) ? (
+                    <div className="mt-2">
+                      <div className="flex flex-wrap items-baseline gap-3">
+                        <p className="text-4xl font-bold text-red-600">
+                          {formatPHP(selectedSize.price * quantity)}
+                        </p>
+                        <p className="text-xl text-muted-foreground line-through">
+                          {formatPHP(
+                            Math.round(
+                              selectedSize.price * (Number(product.originalPrice) / Number(product.price)),
+                            ) * quantity,
+                          )}
+                        </p>
+                      </div>
+                      <p className="mt-1 text-xs font-semibold text-red-600">
+                        🎉 Special Offer: Save{' '}
+                        {formatPHP(
+                          (Math.round(
+                            selectedSize.price * (Number(product.originalPrice) / Number(product.price)),
+                          ) -
+                            selectedSize.price) *
+                            quantity,
+                        )}{' '}
+                        ({Math.round(((Number(product.originalPrice) - Number(product.price)) / Number(product.originalPrice)) * 100)}% OFF)
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-4xl text-foreground">{formatPHP(selectedSize.price * quantity)}</p>
+                  )}
                 </div>
 
                 {canShop ? (
@@ -427,16 +453,18 @@ export default function ProductPage({
                       size="lg"
                       className="h-12 rounded-2xl bg-primary px-6 text-primary-foreground shadow-[0_16px_34px_rgba(255,154,134,0.28)] hover:bg-[#ff8a73]"
                       onClick={() => void handleAddToCart()}
-                      disabled={availableStock === 0 || isArchived || isAddingToCart}
+                      disabled={remainingAddableStock === 0 || isArchived || isAddingToCart}
                     >
                       <ShoppingBag className="mr-2 h-4 w-4" />
                       {isArchived
                         ? 'Archived'
                         : availableStock === 0
                           ? 'Out Of Stock'
-                          : isAddingToCart
-                            ? 'Adding...'
-                            : 'Add To Cart'}
+                          : remainingAddableStock === 0
+                            ? 'Max In Cart'
+                            : isAddingToCart
+                              ? 'Adding...'
+                              : 'Add To Cart'}
                     </Button>
                     <Button
                       size="lg"

@@ -2,6 +2,39 @@ import { createSupabaseAdminClient } from './supabase-server'
 import { getPaymongoSecretKey } from './paymongo'
 import { PAYMENT_TEST_PRODUCT_ID } from './store-engine'
 
+// Historical test payment IDs from prior test runs that were permanently purged and must not be resurrected
+const PURGED_PAYMENT_IDS = new Set<string>([
+  'pay_57pQkkcpSgzkgBvasT92Co94',
+  'pay_8j7J4Ehzy3X1ep9fVQ3uKQqL',
+  'pay_jseKgLN9rZdBp532wamtkqEt',
+  'pay_2SuDCEANXLWp22ZBPcJrFaem',
+  'pay_JCzz1ssQBHEEGidnMh9SwjPu',
+  'pay_oHgKH7HdYHXhx1Loc61aCwAW',
+  'pay_AFUq3yaUHuZ6GtGts7muBPsi',
+  'pay_MoBGY2rx6Zd76W5gM2dY14Yd',
+  'pay_Kub5zF9rsx7jv3yCzXSQBLLs',
+  'pay_we9zpMjMfaGrU8CxScutVo9b',
+  'pay_kNmgnMHxQSN2uoeMdhdKzZD2',
+  'pay_ftqCSwALokBos8F91gHRi7qn',
+  'pay_y2eyuQubJAnVwjziWApTb1Ht',
+  'pay_99HxQ6pY1hxXkfTuyNdaLsdr',
+  'pay_kKtCWUurYnbyzTWL1c4ud9fe',
+  'pay_QKvM7owiN6hp92DQn2wdyBF2',
+  'pay_a4MguGvA6cWfiaJDaVdXNgBb',
+  'pay_JRBqmQsAhkAYL6carMDYJbqj',
+  'pay_FfZNYmke33FFXETvn16ZVU1m',
+  'pay_Fxzxx2uMUuKhkeQEVMucgHYz',
+  'pay_8PRXL8RH1WoPSYmbkES37aiD',
+  'pay_NB7KcVs8ZzhuzUHU2VTjXCnV',
+  'pay_2NcmwcG7qkD7RtFBSsND87Ny',
+  'pay_xpsAmiQt9kmUqzVvTP8GsyYg',
+  'pay_qwGe1N23fDUiPAkoxbhBUSNi',
+  'pay_35eFaS8r3vLn9rRCjG5zkpjE',
+  'pay_ASmoSiyrYnN9pZDWTVaVM5xB',
+])
+
+const PAYMONGO_SYNC_MIN_DATE = process.env.PAYMONGO_SYNC_MIN_DATE || '2026-11-09T00:00:00.000Z'
+
 interface PaymongoSyncResult {
   ok: boolean
   syncedCount: number
@@ -95,11 +128,19 @@ export async function syncPaymongoOrdersToDatabase(): Promise<PaymongoSyncResult
   // 3. Process unrecorded paid payments
   for (const payment of paymongoPayments) {
     const payId = payment.id
-    if (knownPaymentIds.has(payId)) {
+    if (knownPaymentIds.has(payId) || PURGED_PAYMENT_IDS.has(payId)) {
       continue
     }
 
     const attr = payment.attributes ?? {}
+    const paymentTimestamp = attr.paid_at || attr.created_at
+    const paymentIsoDate = paymentTimestamp
+      ? new Date(paymentTimestamp * 1000).toISOString()
+      : null
+
+    if (paymentIsoDate && paymentIsoDate < PAYMONGO_SYNC_MIN_DATE) {
+      continue
+    }
     const billing = attr.billing ?? {}
     const meta = attr.metadata ?? {}
     const piId = attr.payment_intent_id

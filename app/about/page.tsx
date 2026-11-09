@@ -1,48 +1,55 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Droplets, Sparkles, MoveRight, ShieldCheck, HeartHandshake } from 'lucide-react'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
 import { SITE_NAME } from '@/lib/site'
 
 const values = [
   {
-    title: 'Curated Selection',
+    icon: Droplets,
+    title: 'Pure Oil Concentration',
     description:
-      'Every featured bottle is chosen to cover a clear mood, occasion, or scent direction instead of overwhelming you with noise.',
+      'We formulate at Eau de Parfum and Extrait strengths so your chosen scent endures from first morning spray to late evening plans.',
   },
   {
-    title: 'Note-Led Shopping',
+    icon: Sparkles,
+    title: 'Note-Led Education',
     description:
-      'We believe perfume becomes easier to love when shoppers can understand top, heart, and base notes before they commit.',
+      'We demystify perfumery by clearly cataloguing top, heart, and base notes before you commit, removing the guesswork from fragrance shopping.',
   },
   {
-    title: 'Wearable Luxury',
+    icon: HeartHandshake,
+    title: 'Mabini Atelier Roots',
     description:
-      'Our focus is premium-feeling fragrance that fits real routines, real gifting, and real signature-scent habits.',
+      'Born in Manila’s historic cultural quarter, our boutique blends timeless European formulation methods with an intimate, contemporary local perspective.',
   },
 ]
 
 const processSteps = [
   {
-    title: 'Sourcing',
+    step: 'Phase I',
+    title: 'Botanical Extraction',
     description:
-      'We build our assortment around scent families and perfume moods that feel polished, wearable, and giftable.',
+      'Direct sourcing of high-grade essential oils, absolute resins, and aromatic isolates from sustainable distilleries.',
   },
   {
-    title: 'Curation',
+    step: 'Phase II',
+    title: 'Artisanal Maceration',
     description:
-      'Each fragrance earns its place through composition, wearability, and how clearly it fits the customer journey on site.',
+      'Blends rest in dark glass maturation vessels for a minimum of 21 days, allowing molecules to bind without heat distortion.',
   },
   {
-    title: 'Testing',
+    step: 'Phase III',
+    title: 'Olfactory Balancing',
     description:
-      'We look for perfumes that retain character from the first spray through the dry down, not just the opening note.',
+      'Every batch undergoes skin testing in tropical conditions to verify projection, sillage, and stability across humidity.',
   },
   {
-    title: 'Presentation',
+    step: 'Phase IV',
+    title: 'Atelier Bottling & Inspection',
     description:
-      'From product pages to delivery updates, we keep the full perfume-buying experience soft, warm, and easy to revisit.',
+      'Hand-filled, fitted with micro-mist atomizers, sealed, and packaged with individual fragrance story cards.',
   },
 ]
 
@@ -50,69 +57,154 @@ export default function AboutPage() {
   return (
     <StorefrontShell>
       <StorefrontPageHero
-        eyebrow="Our Story"
         title="A Boutique Built Around Perfume"
-        description={`${SITE_NAME} is a fragrance-first destination shaped around note storytelling, curated scent families, and premium perfume shopping that still feels warm and approachable.`}
+        description={`${SITE_NAME} is an independent fragrance atelier in Manila dedicated to note storytelling, pure maceration, and signature scents that feel deeply personal.`}
       />
 
-      <section className="px-4 pb-16 pt-2 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="storefront-panel relative min-h-[420px] overflow-hidden rounded-[2rem]">
-            <Image
-              src="/hero-banner.jpg"
-              alt={`${SITE_NAME} perfume story`}
-              fill
-              sizes="(min-width: 1024px) 45vw, 100vw"
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(45,33,36,0.08),rgba(45,33,36,0.32))]" />
-          </div>
+      <section className="px-4 pb-20 pt-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-12">
+          {/* Main Editorial Story */}
+          <div className="grid gap-10 rounded-3xl border border-border/80 bg-white p-8 sm:p-12 lg:grid-cols-12 lg:items-center">
+            <div className="relative h-[340px] sm:h-[440px] rounded-2xl overflow-hidden lg:col-span-6 bg-neutral-100">
+              <Image
+                src="/hero-banner.jpg"
+                alt={`${SITE_NAME} perfume story`}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+              />
+            </div>
 
-          <div className="space-y-6">
-            <article className="storefront-panel rounded-[2rem] p-7 sm:p-9">
-              <p className="storefront-eyebrow">Fragrance Philosophy</p>
-              <h2 className="mt-3 text-4xl text-foreground">Why {SITE_NAME}</h2>
-              <p className="mt-4 text-base leading-8 text-foreground/68 sm:text-lg">
-                Spray &amp; Sniff began with one simple belief: perfume should be expressive, memorable,
-                and easy to shop when the story behind the scent is clear. We built the store around
-                discovery, note education, and wardrobe-ready fragrance edits that feel luxurious without losing warmth.
+            <div className="space-y-6 lg:col-span-6">
+              <span className="text-xs font-semibold text-primary">
+                Our Philosophy
+              </span>
+              <h2 className="font-serif text-3xl sm:text-4xl text-foreground leading-tight">
+                Fragrance Is The Architecture Of Presence
+              </h2>
+              <p className="text-base text-foreground/75 leading-relaxed">
+                Spray &amp; Sniff was founded on the belief that scent is not a cosmetic afterthought, but invisible architecture. A great perfume does not mask who you are; it accentuates your posture, settles into your garments, and lingers in the memories of those who meet you.
               </p>
-              <p className="mt-4 text-base leading-8 text-foreground/68 sm:text-lg">
-                Based in Mabini, our boutique perspective favors polished daily signatures, evening statements,
-                and gift-ready bottles that make it easier to choose perfume with confidence.
+              <p className="text-base text-foreground/75 leading-relaxed">
+                From our boutique in the cultural heart of Mabini, Manila, we curate compositions that balance polished elegance with authentic, daily wearability.
               </p>
-            </article>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              {values.map((value) => (
-                <article key={value.title} className="storefront-panel rounded-[1.75rem] p-5">
-                  <h3 className="text-2xl text-foreground">{value.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-foreground/62">{value.description}</p>
-                </article>
-              ))}
+              <div className="pt-2">
+                <Link
+                  href="/shop"
+                  className="inline-flex items-center gap-2 rounded-xl bg-foreground px-6 py-3 text-sm font-semibold text-background transition hover:bg-foreground/85"
+                >
+                  <span>Explore The Catalog</span>
+                  <MoveRight className="h-4 w-4" />
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="mx-auto mt-8 max-w-7xl">
-          <article className="storefront-panel rounded-[2rem] p-7 sm:p-9">
-            <p className="storefront-eyebrow">How We Work</p>
-            <h2 className="mt-3 text-4xl text-foreground">From Selection To Delivery</h2>
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              {processSteps.map((step, index) => (
-                <div key={step.title} className="rounded-[1.5rem] bg-muted/30 p-5">
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-foreground/46">
-                    Step {index + 1}
+          {/* Three Pillars */}
+          <div className="grid gap-6 sm:grid-cols-3">
+            {values.map((value) => {
+              const Icon = value.icon
+              return (
+                <div
+                  key={value.title}
+                  className="rounded-3xl border border-border/80 bg-[#fffdfa] p-8 space-y-3"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-serif text-2xl text-foreground">
+                    {value.title}
+                  </h3>
+                  <p className="text-sm text-foreground/70 leading-relaxed">
+                    {value.description}
                   </p>
-                  <h3 className="mt-3 text-2xl text-foreground">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-foreground/64">{step.description}</p>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* How We Craft Fragrances */}
+          <div className="rounded-3xl border border-border/80 bg-white p-8 sm:p-12">
+            <div className="max-w-2xl mb-10">
+              <h2 className="font-serif text-3xl sm:text-4xl text-foreground">
+                The Four Pillars Of Formulation
+              </h2>
+              <p className="mt-2 text-base text-foreground/70">
+                From distillation to aging, our slow-perfumery process guarantees consistent quality and olfactive clarity.
+              </p>
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {processSteps.map((step) => (
+                <div
+                  key={step.title}
+                  className="rounded-2xl border border-border/60 bg-[#fffaf5] p-6 space-y-3"
+                >
+                  <span className="text-xs font-semibold text-primary">
+                    {step.step}
+                  </span>
+                  <h3 className="font-serif text-xl text-foreground">
+                    {step.title}
+                  </h3>
+                  <p className="text-sm text-foreground/65 leading-relaxed">
+                    {step.description}
+                  </p>
                 </div>
               ))}
             </div>
-            <Button className="mt-8 h-11 rounded-2xl bg-primary px-6 text-primary-foreground hover:bg-[#ff8a73]" asChild>
-              <Link href="/shop">Discover Your Scent</Link>
-            </Button>
-          </article>
+          </div>
+
+          {/* The Olfactory Pyramid Educational Section */}
+          <div className="grid gap-8 rounded-3xl border border-border/80 bg-[#fffdfa] p-8 sm:p-12 lg:grid-cols-12 lg:items-center">
+            <div className="lg:col-span-5 space-y-4">
+              <h2 className="font-serif text-3xl text-foreground">
+                How Fragrance Evolves On Skin
+              </h2>
+              <p className="text-sm text-foreground/70 leading-relaxed">
+                When you spray a Spray &amp; Sniff creation, the perfume unfolds in three distinct acts as heat evaporates lighter molecules and reveals deeper resins.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/journal"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Read our full Fragrance Wardrobe Guide →
+                </Link>
+              </div>
+            </div>
+
+            <div className="lg:col-span-7 space-y-4">
+              <div className="rounded-2xl border border-border/70 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif text-lg text-foreground">1. Top Notes</h4>
+                  <span className="text-xs text-foreground/50">0 to 30 mins</span>
+                </div>
+                <p className="text-xs text-foreground/70 mt-1 leading-relaxed">
+                  Citrus, aromatic herbs, pink pepper, and green aldehydes that provide an immediate sensory greeting.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif text-lg text-foreground">2. Heart Notes</h4>
+                  <span className="text-xs text-foreground/50">1 to 4 hours</span>
+                </div>
+                <p className="text-xs text-foreground/70 mt-1 leading-relaxed">
+                  Rose absolute, white jasmine, clary sage, and warm spices that define the emotional soul of the perfume.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif text-lg text-foreground">3. Base Notes</h4>
+                  <span className="text-xs text-foreground/50">5 to 10+ hours</span>
+                </div>
+                <p className="text-xs text-foreground/70 mt-1 leading-relaxed">
+                  Sandalwood, bourbon vanilla, labdanum, and clean musk that anchor to your pulse points until the end of the day.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </StorefrontShell>

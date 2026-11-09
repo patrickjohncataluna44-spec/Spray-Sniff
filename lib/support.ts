@@ -21,6 +21,8 @@ import {
   buildOrdersOverviewMessage,
   buildPaymentDetailMessage,
   buildSupportWelcomeMessage,
+  generateConciergeChatReply,
+  isHumanEscalationRequest,
 } from '@/lib/support-ai'
 import type {
   SupportActionRequest,
@@ -98,7 +100,7 @@ const DEFAULT_FAQS: SupportFaq[] = [
     id: 'faq-cancel',
     question: 'When can I cancel my order?',
     answer:
-      'You can cancel your order yourself as long as it is still in Pending or Processing status. Once it moves to Shipped or Out for Delivery, cancellation is no longer available through self-service — please contact our support team as soon as possible.',
+      'You can cancel your order yourself as long as it is still in Pending status (e.g. awaiting payment or order confirmation). Once it moves to To Ship (Processing) or into delivery, cancellation is no longer available through self-service to protect packaging and fulfillment. Please contact our support team as soon as possible if you need urgent assistance.',
   },
   {
     id: 'faq-refund',
@@ -140,7 +142,7 @@ const CUSTOMER_QUICK_ACTIONS: SupportQuickAction[] = [
   {
     id: 'cancel_order',
     label: 'Cancel my order',
-    description: 'Cancel only eligible Pending or Processing orders.',
+    description: 'Cancel only eligible Pending orders (before To Ship).',
   },
   {
     id: 'request_refund',
@@ -506,6 +508,8 @@ async function createSupportCaseRecord(actor: StoreActor, input: {
   category: SupportCategory
   order?: OrderRecord
   message?: string
+  priority?: SupportPriority
+  status?: SupportStatus
 }) {
   const supabase = createSupabaseAdminClient()
   const timestamp = new Date().toISOString()
@@ -516,6 +520,10 @@ async function createSupportCaseRecord(actor: StoreActor, input: {
       : getDefaultCaseMessage(input.category, input.order),
   )
 
+  const isEscalation = input.priority === 'high' || isHumanEscalationRequest(initialMessage)
+  const casePriority = input.priority ?? (isEscalation ? 'high' : getCasePriority(input.category))
+  const caseStatus = input.status ?? (isEscalation ? 'waiting_on_staff' : 'open')
+
   const paymentRecordId = input.order?.id ? `${input.order.id}::payment` : null
   const paymentReference = input.order?.paymentSummary?.reference ?? null
   const latestSummary = await buildCaseHandoffSummary({
@@ -524,8 +532,8 @@ async function createSupportCaseRecord(actor: StoreActor, input: {
     requestMessage: initialMessage,
     supportCase: {
       id: supportCaseId,
-      status: 'open',
-      priority: getCasePriority(input.category),
+      status: caseStatus,
+      priority: casePriority,
     },
   })
 
@@ -534,13 +542,13 @@ async function createSupportCaseRecord(actor: StoreActor, input: {
     customer_id: actor.id,
     customer_email: actor.email,
     category: input.category,
-    status: 'open' as const,
-    priority: getCasePriority(input.category),
+    status: caseStatus,
+    priority: casePriority,
     source: 'chatbot' as const,
     order_id: input.order?.id ?? null,
     payment_record_id: paymentRecordId,
     payment_reference: paymentReference,
-    latest_summary: latestSummary,
+    latest_summary: isEscalation ? `[ESCALATED TO LIVE ADMIN] ${latestSummary}` : latestSummary,
     assigned_to: null,
     created_at: timestamp,
     updated_at: timestamp,
@@ -557,16 +565,20 @@ async function createSupportCaseRecord(actor: StoreActor, input: {
       case_id: supportCaseId,
       author_type: 'bot' as const,
       author_id: null,
-      message: input.order
-        ? `Guided support captured ${input.order.id} and its payment context for the team.`
-        : 'Guided support created this case from the customer chatbot.',
-      metadata: input.order
-        ? {
-            orderId: input.order.id,
-            orderStatus: input.order.status,
-            paymentStatus: input.order.paymentStatus,
-          }
-        : { source: 'chatbot' },
+      message: isEscalation
+        ? 'Gipasa kini sa Live Admin Support Desk (Priority: HIGH). Palihug hulat samtang mag-review ang staff.'
+        : input.order
+          ? `Guided support captured ${input.order.id} and its payment context for the team.`
+          : 'Guided support created this case from the customer chatbot.',
+      metadata: isEscalation
+        ? { escalated: true }
+        : input.order
+          ? {
+              orderId: input.order.id,
+              orderStatus: input.order.status,
+              paymentStatus: input.order.paymentStatus,
+            }
+          : { source: 'chatbot' },
       created_at: timestamp,
     },
     {
@@ -782,6 +794,29 @@ export async function runSupportAction(
         case: supportCase,
       }
     }
+
+    case 'escalateToAdmin': {
+      const order = request.orderId ? await loadAccessibleOrder(actor, request.orderId) : undefined
+      const category = request.category ?? (order ? 'order_help' : 'general')
+      const message =
+        request.message && request.message.trim().length > 0
+          ? normalizeText(request.message)
+          : 'Customer requested live human admin assistance from support desk.'
+
+      const supportCase = await createSupportCaseRecord(actor, {
+        category,
+        order,
+        message,
+        priority: 'high',
+        status: 'waiting_on_staff',
+      })
+
+      return {
+        ok: true,
+        message: `Gipasa na nako ang imong concern sa among Live Admin Team.\n\nTicket Ref: ${supportCase.id}\nPriority: High (Waiting on Staff)\n\nNaka-notify na ang among staff sa Admin Inbox ug mo-reply sila dire sa chat thread. Mahimo nimong idugang ang ubang detalye samtang nagpaabot ka.`,
+        case: supportCase,
+      }
+    }
   }
 }
 
@@ -829,6 +864,53 @@ export async function addSupportCaseMessage(
 
   if (messageError) {
     throw messageError
+  }
+
+  if (authorType === 'customer') {
+    if (isHumanEscalationRequest(trimmedMessage)) {
+      await supabase
+        .from('support_cases')
+        .update({
+          status: 'waiting_on_staff',
+          priority: 'high',
+          latest_summary: `[ESCALATED TO LIVE ADMIN] ${trimmedMessage}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', caseId)
+
+      await supabase.from('support_messages').insert({
+        id: createSupportMessageId(),
+        case_id: caseId,
+        author_type: 'bot',
+        author_id: null,
+        message: `Nakasabot ko nga kinahanglan nimo og tabang gikan sa among Live Admin. Gipataas na nako ang priority sa imong Ticket (${caseId}) ngadto sa HIGH ug gipasa kini sa among human team.\n\nMo-reply ang among staff dire mismo sa thread sa labing madaling panahon.`,
+        metadata: { escalated: true },
+        created_at: new Date().toISOString(),
+      })
+    } else {
+      try {
+        const aiReply = await generateConciergeChatReply({
+          userMessage: trimmedMessage,
+          customerName: actor.name,
+          category: caseRow.category,
+          orderContext: caseRow.order_id ? { id: caseRow.order_id, status: caseRow.status } : null,
+        })
+
+        if (aiReply) {
+          await supabase.from('support_messages').insert({
+            id: createSupportMessageId(),
+            case_id: caseId,
+            author_type: 'bot',
+            author_id: null,
+            message: aiReply,
+            metadata: { provider: 'ollama' },
+            created_at: new Date().toISOString(),
+          })
+        }
+      } catch {
+        // Continue without interrupting customer thread if AI call fails
+      }
+    }
   }
 
   const nextSummary = await refreshSupportCaseSummary(

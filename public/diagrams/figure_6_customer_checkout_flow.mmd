@@ -1,0 +1,65 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '14px', 'fontFamily': 'Arial, sans-serif'}}}%%
+flowchart TD
+    Start([Start]) --> OpenStore[Open Online Storefront]
+    OpenStore --> BrowseProducts[Browse Catalog and Collection Pages]
+    
+    BrowseProducts --> SelectProduct{Select a Product to View Details?}
+    SelectProduct -- Yes --> ViewDetails[Display Product Details, Fragrance Notes, and Price]
+    SelectProduct -- No --> CheckWishlistAction{Open Wishlist Page?}
+    
+    ViewDetails --> AddWishlist{Save Item to Wishlist?}
+    AddWishlist -- Yes --> ToggleWishlist[Update Customer Wishlist in Database]
+    ToggleWishlist --> ViewDetails
+    AddWishlist -- No --> CheckAddToCart{Add Item to Shopping Cart?}
+    
+    CheckWishlistAction -- Yes --> ShowWishlist[Display Saved Wishlist Items]
+    ShowWishlist --> BrowseProducts
+    CheckWishlistAction -- No --> CheckAddToCart
+    
+    CheckAddToCart -- No --> CheckViewCart{View Cart Page?}
+    CheckAddToCart -- Yes --> CheckStock{Is Item In Stock and Available?}
+    
+    CheckStock -- No --> OutOfStockMsg[Display 'Item Out of Stock' Notice]
+    OutOfStockMsg --> BrowseProducts
+    
+    CheckStock -- Yes --> AddItemCart[Add Selected Item and Quantity to Cart]
+    AddItemCart --> ViewCart[Display Cart Summary with Updated Totals]
+    
+    CheckViewCart -- Yes --> ViewCart
+    CheckViewCart -- No --> BrowseProducts
+    
+    ViewCart --> ModifyCart{Update Item Quantity or Remove?}
+    ModifyCart -- Yes --> UpdateCartItems[Update Cart Quantities in Database]
+    UpdateCartItems --> ViewCart
+    ModifyCart -- No --> ProceedCheckout{Proceed to Checkout?}
+    
+    ProceedCheckout -- No --> BrowseProducts
+    ProceedCheckout -- Yes --> CheckAuth{Is Customer Signed In?}
+    
+    CheckAuth -- No --> PromptLogin[Display Customer Login or Registration Dialog]
+    PromptLogin --> AuthSuccess{Sign In Successful?}
+    AuthSuccess -- No --> ViewCart
+    AuthSuccess -- Yes --> LoadCustomerProfile[Load Customer Profile and Saved Addresses]
+    
+    CheckAuth -- Yes --> LoadCustomerProfile
+    LoadCustomerProfile --> InputShipping[/Input Shipping Address and Contact Details/]
+    InputShipping --> SelectPaymentMethod[/Select Payment Method: COD or PayMongo/]
+    SelectPaymentMethod --> SubmitOrder[Submit Order for Processing]
+    
+    SubmitOrder --> CheckFinalStock{Verify Inventory Stock Availability?}
+    CheckFinalStock -- No --> StockError[Display 'Stock Changed: Item No Longer Available' Error]
+    StockError --> ViewCart
+    
+    CheckFinalStock -- Yes --> ProcessPayment[Process Payment Transaction]
+    ProcessPayment --> PaymentSuccess{Is Payment or Order Confirmed?}
+    
+    PaymentSuccess -- No --> PaymentError[Display Payment Failure or Cancellation Message]
+    PaymentError --> SelectPaymentMethod
+    
+    PaymentSuccess -- Yes --> FinalizeOrder[Deduct Inventory Stock and Create Order Record]
+    FinalizeOrder --> OrderSuccess[Display Order Confirmation and Order Receipt]
+    OrderSuccess --> TrackOrder{View Order History Now?}
+    
+    TrackOrder -- Yes --> MyOrdersPage[Display My Orders Tracking Page]
+    MyOrdersPage --> End([End])
+    TrackOrder -- No --> End

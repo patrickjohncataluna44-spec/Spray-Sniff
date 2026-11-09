@@ -61,6 +61,7 @@ const FULL_SNAPSHOT_ACTIONS = new Set<StoreAction['type']>([
   'placeOnlineOrder',
   'createPosSale',
   'cancelOwnOrder',
+  'adminCancelOrder',
   'updateOrderDelivery',
   'markOrderPaymentPaid',
   'updateOrderStatus',

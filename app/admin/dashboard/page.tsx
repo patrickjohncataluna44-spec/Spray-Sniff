@@ -111,71 +111,71 @@ export default function AdminDashboard() {
   const highlightedOrders = isStaffView ? recentOperationalOrders : recentOrders
   const lastSyncLabel = lastSyncedAt
     ? new Date(lastSyncedAt).toLocaleTimeString('en-PH', {
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-      })
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    })
     : 'Waiting for first sync'
 
   const stats = isStaffView
     ? [
-        {
-          label: 'Open Online Orders',
-          value: openOnlineOrders.toString(),
-          caption: `${fulfillmentQueueCount} currently need fulfillment`,
-          icon: ShoppingCart,
-        },
-        {
-          label: 'Today POS Sales',
-          value: todayPosTransactions.length.toString(),
-          caption: `${formatPHP(todayPosRevenue)} processed in store today`,
-          icon: ReceiptText,
-        },
-        {
-          label: 'Low Stock Alerts',
-          value: lowStockCount.toString(),
-          caption: `${outOfStockCount} items are fully out of stock`,
-          icon: AlertTriangle,
-        },
-        {
-          label: 'Active Inventory',
-          value: activeInventory.length.toString(),
-          caption: 'Shared across storefront and POS availability',
-          icon: Boxes,
-        },
-      ]
+      {
+        label: 'Open Online Orders',
+        value: openOnlineOrders.toString(),
+        caption: `${fulfillmentQueueCount} currently need fulfillment`,
+        icon: ShoppingCart,
+      },
+      {
+        label: 'Today POS Sales',
+        value: todayPosTransactions.length.toString(),
+        caption: `${formatPHP(todayPosRevenue)} processed in store today`,
+        icon: ReceiptText,
+      },
+      {
+        label: 'Low Stock Alerts',
+        value: lowStockCount.toString(),
+        caption: `${outOfStockCount} items are fully out of stock`,
+        icon: AlertTriangle,
+      },
+      {
+        label: 'Active Inventory',
+        value: activeInventory.length.toString(),
+        caption: 'Shared across storefront and POS availability',
+        icon: Boxes,
+      },
+    ]
     : [
-        {
-          label: 'Paid Revenue',
-          value: formatPHP(totalRevenue),
-          caption: 'Successful online and POS payments only',
-          icon: BarChart3,
-        },
-        {
-          label: 'Today Revenue',
-          value: formatPHP(todayRevenue),
-          caption: `${successfulPaymentCount} successful payment(s) recorded`,
-          icon: ReceiptText,
-        },
-        {
-          label: 'Pending Payments',
-          value: pendingPaymentOrders.length.toString(),
-          caption: 'Orders still waiting for payment collection',
-          icon: ShoppingCart,
-        },
-        {
-          label: 'Tax Collected',
-          value: formatPHP(totalTax),
-          caption: 'Collected from successful payments',
-          icon: BarChart3,
-        },
-        {
-          label: 'Inventory Alerts',
-          value: `${lowStockCount + outOfStockCount}`,
-          caption: `${lowStockCount} low stock, ${outOfStockCount} out of stock`,
-          icon: AlertTriangle,
-        },
-      ]
+      {
+        label: 'Paid Revenue',
+        value: formatPHP(totalRevenue),
+        caption: 'Successful online and POS payments only',
+        icon: BarChart3,
+      },
+      {
+        label: 'Today Revenue',
+        value: formatPHP(todayRevenue),
+        caption: `${successfulPaymentCount} successful payment(s) recorded`,
+        icon: ReceiptText,
+      },
+      {
+        label: 'Pending Payments',
+        value: pendingPaymentOrders.length.toString(),
+        caption: 'Orders still waiting for payment collection',
+        icon: ShoppingCart,
+      },
+      {
+        label: 'Tax Collected',
+        value: formatPHP(totalTax),
+        caption: 'Collected from successful payments',
+        icon: BarChart3,
+      },
+      {
+        label: 'Inventory Alerts',
+        value: `${lowStockCount + outOfStockCount}`,
+        caption: `${lowStockCount} low stock, ${outOfStockCount} out of stock`,
+        icon: AlertTriangle,
+      },
+    ]
 
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
@@ -199,9 +199,8 @@ export default function AdminDashboard() {
                   </p>
                   <div className="mt-4 inline-flex items-center gap-3 rounded-full border border-border bg-background px-4 py-2 text-xs text-foreground/65">
                     <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        isRealtimeRefreshing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-                      }`}
+                      className={`h-2.5 w-2.5 rounded-full ${isRealtimeRefreshing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                        }`}
                     />
                     <span>
                       {isRealtimeRefreshing
