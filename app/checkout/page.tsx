@@ -32,6 +32,12 @@ import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
 import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
 import { isPaymentTestCart, PAYMENT_TEST_PRODUCT_ID, type CartItem, type OrderRecord } from '@/lib/store-engine'
+import {
+  calculateJntShipping,
+  detectPhilippineShippingRegion,
+  SHIPPING_REGION_META,
+  type ShippingRegion,
+} from '@/lib/shipping'
 import { useAuth } from '@/lib/auth-context'
 import { toast } from '@/hooks/use-toast'
 import type { SelectedLocationData } from '@/components/address-map-picker'
@@ -67,6 +73,7 @@ interface SavedDeliveryInfo {
   state: string
   zip: string
   country: string
+  shippingRegion?: ShippingRegion
   latitude?: number | null
   longitude?: number | null
 }
@@ -75,6 +82,8 @@ interface PendingPaymongoCheckout {
   token?: string
   checkoutSessionId: string
   shippingAddress: string
+  shippingRegion?: ShippingRegion
+  promoCode?: string
   customerName: string
   customerEmail: string
   expectedAmount?: number
@@ -305,8 +314,30 @@ function CheckoutContent() {
 
   const subtotal = activeCartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const isTestCart = isPaymentTestCart(activeCartItems)
-  const rawShipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
-  const shipping = appliedPromo?.type === 'Shipping' ? 0 : rawShipping
+  const detectedShipping = useMemo(
+    () =>
+      detectPhilippineShippingRegion({
+        province: formData.state,
+        city: formData.city,
+        postalCode: formData.zip,
+        shippingAddress: formData.address,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      }),
+    [formData.address, formData.city, formData.latitude, formData.longitude, formData.state, formData.zip],
+  )
+  const shippingEstimate = useMemo(
+    () =>
+      calculateJntShipping({
+        items: activeCartItems,
+        region: detectedShipping.region,
+        isTestCart,
+        waiveShipping: appliedPromo?.type === 'Shipping',
+      }),
+    [activeCartItems, detectedShipping.region, isTestCart, appliedPromo?.type],
+  )
+  const rawShipping = shippingEstimate.baseFee
+  const shipping = isTestCart || detectedShipping.detected ? shippingEstimate.fee : 0
 
   const discountAmount = useMemo(() => {
     if (!appliedPromo) return 0
@@ -645,6 +676,8 @@ function CheckoutContent() {
         .join(' | '),
       paymentMethod: PAYMONGO_PAYMENT_METHOD_VALUE,
       shippingAddress: pendingCheckout.shippingAddress,
+      shippingRegion: pendingCheckout.shippingRegion,
+      promoCode: pendingCheckout.promoCode,
     })
 
     if (!result.ok || !result.data) {
@@ -758,6 +791,16 @@ function CheckoutContent() {
       return
     }
 
+    if (!isTestCart && !detectedShipping.detected) {
+      setIsEditingAddress(true)
+      toast({
+        title: 'Verify delivery location for shipping',
+        description: 'Enter a valid Philippine City/Province or ZIP code, or pin your location on the map so we can automatically calculate J&T shipping.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     // Auto-save delivery address for returning customers ("Dili na mo fill-up ug balik!")
     if (saveAddressForFuture || formData.saveCard) {
       try {
@@ -770,6 +813,7 @@ function CheckoutContent() {
           state: formData.state,
           zip: formData.zip,
           country: formData.country,
+          shippingRegion: detectedShipping.region,
           latitude: formData.latitude,
           longitude: formData.longitude,
         }
@@ -833,11 +877,11 @@ function CheckoutContent() {
 
     if (shipping > 0) {
       checkoutLineItems.push({
-        name: 'Courier Delivery Fee',
+        name: `J&T Express (${shippingEstimate.routeLabel})`,
         amount: Math.round(shipping * 100),
         quantity: 1,
         currency: 'PHP',
-        description: 'Door-to-door express parcel delivery',
+        description: `${shippingEstimate.weightLabel} (${shippingEstimate.bracketLabel} tier)`,
       })
     }
 
@@ -865,6 +909,11 @@ function CheckoutContent() {
             expectedAmount: Math.round(total * 100),
             reference: formData.reference,
             shippingAddress,
+            shippingRegion: detectedShipping.region,
+            shippingFee: shipping,
+            taxAmount: tax,
+            subtotalAmount: discountedProductSubtotal,
+            promoCode: appliedPromo?.code,
             lineItems: checkoutLineItems,
             notes: formData.notes,
             cartItems: activeCartItems,
@@ -911,6 +960,8 @@ function CheckoutContent() {
           paymentMethodLabel,
           reference: formData.reference,
           shippingAddress,
+          shippingRegion: detectedShipping.region,
+          promoCode: appliedPromo?.code,
           items: activeCartItems,
         })
 
@@ -925,6 +976,8 @@ function CheckoutContent() {
         notes: [formData.reference, formData.notes].filter(Boolean).join(' | '),
         paymentMethod: 'Cash on Delivery',
         shippingAddress,
+        shippingRegion: detectedShipping.region,
+        promoCode: appliedPromo?.code,
         items: activeCartItems,
       })
 
@@ -1196,6 +1249,17 @@ function CheckoutContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <span
+                      className={`hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                        detectedShipping.detected
+                          ? 'bg-[#ECECFE] text-[#4F46E5] border-[#4F46E5]/20'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {detectedShipping.detected
+                        ? SHIPPING_REGION_META[detectedShipping.region].routeLabel
+                        : 'Confirm Location'}
+                    </span>
                     {formData.latitude && formData.longitude && (
                       <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
                         <Check className="h-2.5 w-2.5 stroke-[3]" />
@@ -1275,6 +1339,51 @@ function CheckoutContent() {
                         placeholder="House / Unit No., Street, Barangay"
                         className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-600 mb-1 block">Province</label>
+                        <input
+                          type="text"
+                          name="state"
+                          value={formData.state}
+                          onChange={handleChange}
+                          placeholder="e.g. Davao del Norte / Cebu"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-slate-600 mb-1 block">ZIP Code</label>
+                        <input
+                          type="text"
+                          name="zip"
+                          value={formData.zip}
+                          onChange={handleChange}
+                          placeholder="e.g. 8100"
+                          className="w-full h-9 rounded-lg border border-slate-200 px-2.5 text-xs bg-white outline-none focus:border-[#4F46E5]"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[11px] ${
+                        detectedShipping.detected
+                          ? 'border-[#4F46E5]/20 bg-[#ECECFE]/50 text-slate-700'
+                          : 'border-amber-200 bg-amber-50/70 text-amber-800'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <Truck className="h-3.5 w-3.5 text-[#4F46E5] shrink-0" />
+                        {detectedShipping.detected
+                          ? `Automatic J&T Route: ${SHIPPING_REGION_META[detectedShipping.region].routeLabel}`
+                          : 'Enter your City / Province / ZIP or pin the map to auto-detect J&T shipping'}
+                      </span>
+                      {detectedShipping.detected && !isTestCart && (
+                        <span className="font-mono font-semibold text-slate-900 shrink-0">
+                          {shipping === 0 ? 'FREE' : formatPHP(shipping)}
+                        </span>
+                      )}
                     </div>
 
                     {/* OpenStreetMap Address Verification & Instant Pin */}
@@ -1592,10 +1701,23 @@ function CheckoutContent() {
                   <span>Sub Total:</span>
                   <span className="font-semibold text-slate-900 font-mono">{formatPHP(subtotal)}</span>
                 </div>
-                <div className="flex justify-between items-center text-slate-600">
-                  <span>Shipping:</span>
-                  <span className="font-semibold text-slate-900 font-mono">
-                    {shipping === 0 ? 'FREE' : formatPHP(shipping)}
+                <div className="flex justify-between items-start gap-3 text-slate-600">
+                  <div>
+                    <span>Shipping ({shippingEstimate.courier}):</span>
+                    {!isTestCart && activeCartItems.length > 0 && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {detectedShipping.detected
+                          ? `${shippingEstimate.routeLabel} · ${shippingEstimate.weightLabel} (${shippingEstimate.bracketLabel})`
+                          : `Enter address or pin map · ${shippingEstimate.weightLabel} (${shippingEstimate.bracketLabel})`}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-semibold text-slate-900 font-mono shrink-0">
+                    {isTestCart || (detectedShipping.detected && shipping === 0)
+                      ? 'FREE'
+                      : detectedShipping.detected
+                        ? formatPHP(shipping)
+                        : 'Pending address'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-slate-600">

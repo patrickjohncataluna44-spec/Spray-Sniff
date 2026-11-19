@@ -149,6 +149,18 @@ export async function syncPaymongoOrdersToDatabase(): Promise<PaymongoSyncResult
     const customerName = (meta.customer_name || billing.name || 'Valued Customer').trim()
     const shippingAddress = (meta.shipping_address || '').trim()
     const amount = typeof attr.amount === 'number' ? attr.amount / 100 : 1
+    const metaShippingFee =
+      meta.shipping_fee !== undefined && meta.shipping_fee !== '' && Number.isFinite(Number(meta.shipping_fee))
+        ? Math.max(0, Math.round(Number(meta.shipping_fee) * 100) / 100)
+        : 0
+    const metaTaxAmount =
+      meta.tax_amount !== undefined && meta.tax_amount !== '' && Number.isFinite(Number(meta.tax_amount))
+        ? Math.max(0, Math.round(Number(meta.tax_amount) * 100) / 100)
+        : 0
+    const metaSubtotalAmount =
+      meta.subtotal_amount !== undefined && meta.subtotal_amount !== '' && Number.isFinite(Number(meta.subtotal_amount))
+        ? Math.max(0, Math.round(Number(meta.subtotal_amount) * 100) / 100)
+        : Math.max(0, Math.round((amount - metaShippingFee - metaTaxAmount) * 100) / 100)
     const paidAt = attr.paid_at
       ? new Date(attr.paid_at * 1000).toISOString()
       : attr.created_at
@@ -257,9 +269,9 @@ export async function syncPaymongoOrdersToDatabase(): Promise<PaymongoSyncResult
       payment_status: 'Paid',
       created_at: paidAt,
       updated_at: new Date().toISOString(),
-      subtotal: amount,
-      tax: 0,
-      shipping: 0,
+      subtotal: metaSubtotalAmount,
+      tax: metaTaxAmount,
+      shipping: metaShippingFee,
       total: amount,
       shipping_address: shippingAddress || 'Customer shipping address',
       notes,
@@ -294,9 +306,9 @@ export async function syncPaymongoOrdersToDatabase(): Promise<PaymongoSyncResult
       customer_name: customerName,
       customer_email: customerEmail || (matchedProfile?.email ?? 'customer@sprayandsniff.com'),
       amount,
-      subtotal: amount,
-      tax: 0,
-      shipping: 0,
+      subtotal: metaSubtotalAmount,
+      tax: metaTaxAmount,
+      shipping: metaShippingFee,
       payment_method: 'PayMongo',
       payment_gateway: 'PayMongo',
       payment_channel: channel,

@@ -1,10 +1,14 @@
 import type { Product } from '@/lib/products'
 import { products } from '@/lib/products'
+import {
+  calculateJntShipping,
+  detectPhilippineShippingRegion,
+  normalizeShippingRegion,
+  type ShippingRegion,
+} from '@/lib/shipping'
 import { DEMO_USER_EMAIL } from '@/lib/site'
 
 const TAX_RATE = 0.12
-const STANDARD_SHIPPING_FEE = 75
-const FREE_SHIPPING_THRESHOLD = 400
 export const PAYMENT_TEST_PRODUCT_ID = 'test-1peso'
 
 const DEFAULT_LOCATIONS = [
@@ -227,6 +231,8 @@ export interface PlaceOnlineOrderInput {
   customerName: string
   customerEmail: string
   shippingAddress: string
+  shippingRegion?: ShippingRegion
+  promoCode?: string
   paymentMethod: OnlinePaymentMethod
   notes?: string
   items?: CartItem[]
@@ -718,18 +724,57 @@ export function isPaymentTestCart(items: CartItem[]) {
   return items.length > 0 && items.every((item) => item.productId === PAYMENT_TEST_PRODUCT_ID)
 }
 
-function calculateTotals(items: CartItem[], source: OrderSource) {
+function calculateTotals(
+  items: CartItem[],
+  source: OrderSource,
+  options?: {
+    shippingRegion?: ShippingRegion
+    shippingAddress?: string
+    promoCode?: string
+  },
+) {
   const isTestCart = isPaymentTestCart(items)
   const subtotal = roundCurrency(items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0))
-  const shipping =
-    !isTestCart && source === 'ONLINE' && subtotal < FREE_SHIPPING_THRESHOLD
-      ? STANDARD_SHIPPING_FEE
-      : 0
-  // Standard 12% VAT added on top of product subtotal:
-  const tax = isTestCart ? 0 : roundCurrency(subtotal * 0.12)
-  const total = roundCurrency(subtotal + tax + shipping)
 
-  return { subtotal, shipping, tax, total }
+  const normalizedPromo = options?.promoCode?.trim().toUpperCase()
+  let discountAmount = 0
+  let waiveShipping = false
+
+  if (!isTestCart && source === 'ONLINE' && normalizedPromo) {
+    if (normalizedPromo === 'GRATISONGKR') {
+      waiveShipping = true
+    } else if (normalizedPromo === 'WELCOME10') {
+      discountAmount = Math.min(subtotal, 100)
+    } else if (normalizedPromo === 'SPRING2024') {
+      discountAmount = roundCurrency(subtotal * 0.2)
+    } else if (normalizedPromo === 'VIP30') {
+      discountAmount = roundCurrency(subtotal * 0.3)
+    }
+  }
+
+  const discountedSubtotal = Math.max(0, roundCurrency(subtotal - discountAmount))
+  const addressDetection = detectPhilippineShippingRegion({
+    shippingAddress: options?.shippingAddress,
+  })
+  const resolvedRegion = addressDetection.detected
+    ? addressDetection.region
+    : normalizeShippingRegion(options?.shippingRegion)
+
+  const shipping =
+    source === 'ONLINE'
+      ? calculateJntShipping({
+          items,
+          region: resolvedRegion,
+          isTestCart,
+          waiveShipping,
+        }).fee
+      : 0
+
+  // Standard 12% VAT added on top of discounted product subtotal:
+  const tax = isTestCart ? 0 : roundCurrency(discountedSubtotal * TAX_RATE)
+  const total = roundCurrency(discountedSubtotal + tax + shipping)
+
+  return { subtotal: discountedSubtotal, shipping, tax, total }
 }
 
 export function createSampleState(catalog: Product[] = products): StoreState {
@@ -1433,7 +1478,11 @@ export function performStoreAction(
           image: product?.images?.[0] || '',
         }
       })
-      const totals = calculateTotals(pricedCart, 'ONLINE')
+      const totals = calculateTotals(pricedCart, 'ONLINE', {
+        shippingRegion: action.input.shippingRegion,
+        shippingAddress: action.input.shippingAddress,
+        promoCode: action.input.promoCode,
+      })
       const nextInventory = currentState.inventory.map((record) => {
         const soldQuantity = quantityByProduct[record.productId]
         if (!soldQuantity) {

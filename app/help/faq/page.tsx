@@ -14,9 +14,9 @@ const faqs = [
       'Eau de Parfum usually carries a richer concentration and longer wear, while Eau de Toilette feels lighter and often fades sooner. Both can be beautiful; the right choice depends on how softly or boldly you want the perfume to project.',
   },
   {
-    question: 'How long does shipping take?',
+    question: 'How long does shipping take and how are rates calculated?',
     answer:
-      'Standard delivery typically takes 5-7 business days. Once your order is confirmed, you can track progress through your account and orders pages.',
+      'Orders ship from Mindanao via J&T Express standard rates based on parcel weight and destination: starting at ₱85 within Mindanao (2–4 business days) and ₱105 to Visayas or Luzon (4–7 business days) for parcels up to 500g. You can track progress through your account and orders pages.',
   },
   {
     question: 'What is your return policy?',

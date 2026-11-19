@@ -6,6 +6,7 @@ import {
 } from '@/lib/paymongo'
 import { savePendingPaymongoCheckout } from '@/lib/paymongo-pending'
 import { getRequestActor } from '@/lib/server-auth'
+import { isValidShippingRegion } from '@/lib/shipping'
 import crypto from 'crypto'
 
 function getBaseUrl(request: Request) {
@@ -38,6 +39,11 @@ export async function POST(request: NextRequest) {
       expectedAmount,
       reference,
       shippingAddress,
+      shippingRegion,
+      shippingFee,
+      taxAmount,
+      subtotalAmount,
+      promoCode,
       notes,
       cartItems,
       clientToken,
@@ -80,6 +86,9 @@ export async function POST(request: NextRequest) {
     const baseUrl = getBaseUrl(request)
     const successUrl = `${baseUrl}/checkout?paymongo=success&session_token=${checkoutToken}`
 
+    const resolvedShippingRegion = isValidShippingRegion(shippingRegion) ? shippingRegion : undefined
+    const resolvedPromoCode = typeof promoCode === 'string' ? promoCode.trim().toUpperCase() : ''
+
     const payload = await createPaymongoCheckoutSession({
       customerEmail,
       customerName: resolvedCustomerName,
@@ -93,6 +102,11 @@ export async function POST(request: NextRequest) {
         expected_amount: String(typeof expectedAmount === 'number' && expectedAmount >= 100 ? Math.round(expectedAmount) : computedSum),
         reference: reference || '',
         shipping_address: shippingAddress || '',
+        shipping_region: resolvedShippingRegion || '',
+        shipping_fee: typeof shippingFee === 'number' && Number.isFinite(shippingFee) ? String(shippingFee) : '',
+        tax_amount: typeof taxAmount === 'number' && Number.isFinite(taxAmount) ? String(taxAmount) : '',
+        subtotal_amount: typeof subtotalAmount === 'number' && Number.isFinite(subtotalAmount) ? String(subtotalAmount) : '',
+        promo_code: resolvedPromoCode,
         checkout_token: checkoutToken,
       },
     })
@@ -103,6 +117,8 @@ export async function POST(request: NextRequest) {
       customerEmail,
       customerName: resolvedCustomerName,
       shippingAddress: shippingAddress || '',
+      shippingRegion: resolvedShippingRegion,
+      promoCode: resolvedPromoCode || undefined,
       expectedAmount: typeof expectedAmount === 'number' && expectedAmount >= 100 ? Math.round(expectedAmount) : computedSum,
       reference: reference || '',
       notes: notes || '',

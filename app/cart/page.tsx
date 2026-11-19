@@ -11,12 +11,18 @@ import { QuantityInput } from '@/components/ui/quantity-input'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/lib/auth-context'
 import { formatPHP } from '@/lib/currency'
+import {
+  calculateJntShipping,
+  detectPhilippineShippingRegion,
+  type ShippingRegion,
+} from '@/lib/shipping'
 import { useStore } from '@/lib/store-context'
 import { isPaymentTestCart } from '@/lib/store-engine'
 import { toast } from '@/hooks/use-toast'
 
 const CHECKOUT_SIGN_IN_HREF = '/auth/signin?redirectTo=%2Fcheckout&reason=checkout'
 const CART_SELECTED_STORAGE_KEY = 'fragrance_selected_cart_items'
+const CHECKOUT_SAVED_ADDRESS_KEY = 'perfume_saved_delivery_address'
 
 function getCartItemKey(productId: string, size: number) {
   return `${productId}-${size}`
@@ -53,7 +59,7 @@ export default function CartPage() {
     removeFromCart,
     updateCartQuantity,
   } = useStore()
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
@@ -160,6 +166,56 @@ export default function CartPage() {
     }
   }
 
+  const [detectedLocation, setDetectedLocation] = useState<{
+    region: ShippingRegion
+    detected: boolean
+    label: string
+  }>({ region: 'mindanao', detected: false, label: '' })
+
+  useEffect(() => {
+    try {
+      const rawSaved = localStorage.getItem(CHECKOUT_SAVED_ADDRESS_KEY)
+      if (rawSaved) {
+        const parsed = JSON.parse(rawSaved) as {
+          state?: string
+          city?: string
+          zip?: string
+          address?: string
+          latitude?: number | null
+          longitude?: number | null
+        }
+        const detected = detectPhilippineShippingRegion({
+          province: parsed.state,
+          city: parsed.city,
+          postalCode: parsed.zip,
+          shippingAddress: parsed.address,
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
+        })
+        if (detected.detected) {
+          const locationLabel = [parsed.city, parsed.state || parsed.zip].filter(Boolean).join(', ')
+          setDetectedLocation({ region: detected.region, detected: true, label: locationLabel })
+          return
+        }
+      }
+    } catch {}
+
+    if (user) {
+      const detectedFromUser = detectPhilippineShippingRegion({
+        city: user.city,
+        postalCode: user.postalCode,
+        shippingAddress: user.address,
+      })
+      if (detectedFromUser.detected) {
+        const userLabel = [user.city, user.postalCode].filter(Boolean).join(' ')
+        setDetectedLocation({ region: detectedFromUser.region, detected: true, label: userLabel })
+        return
+      }
+    }
+
+    setDetectedLocation({ region: 'mindanao', detected: false, label: '' })
+  }, [user])
+
   // Calculate totals strictly based on SELECTED items
   const selectedCart = useMemo(
     () => cart.filter((item) => selectedKeys.has(getCartItemKey(item.productId, item.size))),
@@ -171,7 +227,16 @@ export default function CartPage() {
   const isTestCart = isPaymentTestCart(selectedCart)
   // 12% VAT added on top of product subtotal:
   const tax = isTestCart ? 0 : Math.round(subtotal * 0.12 * 100) / 100
-  const shipping = isTestCart ? 0 : subtotal >= 400 || subtotal === 0 ? 0 : 75
+  const shippingEstimate = useMemo(
+    () =>
+      calculateJntShipping({
+        items: selectedCart,
+        region: detectedLocation.region,
+        isTestCart,
+      }),
+    [selectedCart, detectedLocation.region, isTestCart],
+  )
+  const shipping = detectedLocation.detected || isTestCart ? shippingEstimate.fee : 0
   const total = subtotal + tax + shipping
   const checkoutHref = isAuthenticated ? '/checkout' : CHECKOUT_SIGN_IN_HREF
 
@@ -419,15 +484,26 @@ export default function CartPage() {
                 <span className="text-foreground/60">12% VAT</span>
                 <span className="font-mono font-medium text-foreground/80">+ {formatPHP(tax)}</span>
               </div>
-              <div className="flex justify-between items-center text-foreground/70">
-                <span className="text-foreground/60">Shipping</span>
-                <span className="font-mono font-medium text-foreground">
+              <div className="flex justify-between items-start gap-3 text-foreground/70">
+                <div>
+                  <span className="text-foreground/60">Shipping ({shippingEstimate.courier})</span>
+                  {selectedCart.length > 0 && !isTestCart && (
+                    <p className="text-[10px] text-foreground/45 mt-0.5">
+                      {detectedLocation.detected
+                        ? `${shippingEstimate.routeLabel}${detectedLocation.label ? ` (${detectedLocation.label})` : ''} · ${shippingEstimate.weightLabel} (${shippingEstimate.bracketLabel})`
+                        : `${shippingEstimate.weightLabel} (${shippingEstimate.bracketLabel}) · From ₱85 (Mindanao) / ₱105 (Visayas & Luzon)`}
+                    </p>
+                  )}
+                </div>
+                <span className="font-mono font-medium text-foreground shrink-0">
                   {selectedCart.length === 0 ? (
                     '₱0'
-                  ) : shipping === 0 ? (
+                  ) : isTestCart || (detectedLocation.detected && shipping === 0) ? (
                     <span className="text-emerald-600 font-semibold text-[11px] uppercase">Free</span>
-                  ) : (
+                  ) : detectedLocation.detected ? (
                     formatPHP(shipping)
+                  ) : (
+                    <span className="font-sans text-[11px] text-foreground/60">Calculated at checkout</span>
                   )}
                 </span>
               </div>
@@ -437,12 +513,6 @@ export default function CartPage() {
                   Payment test item: tax and shipping are waived for this cart.
                 </p>
               ) : null}
-
-              {selectedCart.length > 0 && !isTestCart && shipping === 0 && subtotal > 0 ? (
-                <p className="rounded-lg bg-primary/5 border border-primary/15 px-2.5 py-1.5 text-[10px] leading-4 text-foreground/70">
-                  Shipping is free on perfume orders of {formatPHP(400)} or more.
-                </p>
-              ) : null}
             </div>
 
             <div className="mt-6 border-t border-border/70 pt-4">
@@ -450,7 +520,11 @@ export default function CartPage() {
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Total</span>
                   <p className="text-[10px] text-foreground/45 mt-0.5">
-                    {selectedCart.length > 0 ? '12% VAT included in total · Free delivery ₱400+' : 'No items selected'}
+                    {selectedCart.length === 0
+                      ? 'No items selected'
+                      : detectedLocation.detected || isTestCart
+                        ? '12% VAT & J&T Express shipping included'
+                        : '12% VAT included · J&T shipping calculated at checkout'}
                   </p>
                 </div>
                 <span className="text-3xl font-serif font-bold text-foreground">{formatPHP(total)}</span>

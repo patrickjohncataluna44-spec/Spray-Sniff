@@ -1,4 +1,5 @@
 import { getPaymongoSecretKey } from './paymongo'
+import type { ShippingRegion } from './shipping'
 
 export interface PendingPaymongoRecord {
   token: string
@@ -6,6 +7,8 @@ export interface PendingPaymongoRecord {
   customerEmail: string
   customerName: string
   shippingAddress: string
+  shippingRegion?: ShippingRegion
+  promoCode?: string
   expectedAmount?: number
   reference?: string
   notes?: string

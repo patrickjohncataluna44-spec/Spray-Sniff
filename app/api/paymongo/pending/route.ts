@@ -8,6 +8,7 @@ import {
 } from '@/lib/paymongo-pending'
 import { retrievePaymongoCheckoutSession } from '@/lib/paymongo'
 import { getRequestActor } from '@/lib/server-auth'
+import { isValidShippingRegion } from '@/lib/shipping'
 
 export async function GET(request: NextRequest) {
   try {
@@ -55,6 +56,8 @@ export async function GET(request: NextRequest) {
             customerEmail: ownerEmail,
             customerName: meta.customer_name || session.data.attributes.billing?.name || '',
             shippingAddress: meta.shipping_address || '',
+            shippingRegion: isValidShippingRegion(meta.shipping_region) ? meta.shipping_region : undefined,
+            promoCode: typeof meta.promo_code === 'string' && meta.promo_code ? meta.promo_code : undefined,
             expectedAmount: meta.expected_amount ? Number(meta.expected_amount) : undefined,
             reference: meta.reference || '',
             notes: '',
