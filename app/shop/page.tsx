@@ -11,7 +11,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { useStore } from '@/lib/store-context'
 import { subscribeToProductCategories } from '@/lib/supabase-realtime'
 
-const SCENT_FAMILIES = ['Floral', 'Woody', 'Fresh', 'Citrus', 'Oriental', 'Spicy', 'Aquatic', 'Aromatic']
 const GENDERS = ['Male', 'Female', 'Unisex']
 const PRICE_RANGES = [
   { min: 0, max: 100, label: 'Under ₱100' },
@@ -25,7 +24,6 @@ function ShopContent() {
   const initialQuery = searchParams.get('q') || searchParams.get('search') || ''
 
   const [searchQuery, setSearchQuery] = useState(initialQuery)
-  const [selectedScents, setSelectedScents] = useState<string[]>([])
   const [selectedGenders, setSelectedGenders] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
   const [dbCategories, setDbCategories] = useState<string[]>([])
@@ -100,13 +98,6 @@ function ShopContent() {
       return false
     }
 
-    if (selectedScents.length > 0) {
-      const hasScent = product.scentFamily.some((family) => selectedScents.includes(family))
-      if (!hasScent) {
-        return false
-      }
-    }
-
     if (selectedGenders.length > 0) {
       const normalizedGender = product.gender.charAt(0).toUpperCase() + product.gender.slice(1)
       if (!selectedGenders.includes(normalizedGender)) {
@@ -131,12 +122,6 @@ function ShopContent() {
     filtered = [...filtered].sort((a, b) => Number(b.isNewArrival) - Number(a.isNewArrival))
   }
 
-  const toggleScent = (scent: string) => {
-    setSelectedScents((current) =>
-      current.includes(scent) ? current.filter((entry) => entry !== scent) : [...current, scent],
-    )
-  }
-
   const toggleGender = (gender: string) => {
     setSelectedGenders((current) =>
       current.includes(gender) ? current.filter((entry) => entry !== gender) : [...current, gender],
@@ -144,7 +129,6 @@ function ShopContent() {
   }
 
   const clearFilters = () => {
-    setSelectedScents([])
     setSelectedGenders([])
     setSelectedCategory('All')
     setPriceRange(null)
@@ -153,7 +137,6 @@ function ShopContent() {
 
   const hasFilters =
     selectedCategory !== 'All' ||
-    selectedScents.length > 0 ||
     selectedGenders.length > 0 ||
     Boolean(priceRange) ||
     Boolean(searchQuery.trim())
@@ -199,33 +182,6 @@ function ShopContent() {
                   }`}
                 >
                   {cat}
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* Scent Families */}
-        <section>
-          <p className="text-xs font-semibold text-foreground/70 mb-3">
-            Scent Family
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SCENT_FAMILIES.map((scent) => {
-              const active = selectedScents.includes(scent)
-              return (
-                <button
-                  key={scent}
-                  type="button"
-                  suppressHydrationWarning
-                  onClick={() => toggleScent(scent)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-border/70 bg-[#fffdfa] text-foreground/80 hover:border-primary/60'
-                  }`}
-                >
-                  {scent}
                 </button>
               )
             })}
@@ -310,7 +266,7 @@ function ShopContent() {
               <span>{mobileFiltersOpen ? 'Hide Filters' : 'Filter Fragrances'}</span>
               {hasFilters && (
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {selectedScents.length + selectedGenders.length + (priceRange ? 1 : 0) + (selectedCategory !== 'All' ? 1 : 0)}
+                  {selectedGenders.length + (priceRange ? 1 : 0) + (selectedCategory !== 'All' ? 1 : 0)}
                 </span>
               )}
             </button>
