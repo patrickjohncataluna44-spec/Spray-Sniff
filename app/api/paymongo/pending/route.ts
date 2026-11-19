@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import {
   getPendingPaymongoCheckoutByToken,
   getPendingPaymongoCheckoutBySessionId,
@@ -7,18 +7,28 @@ import {
   savePendingPaymongoCheckout,
 } from '@/lib/paymongo-pending'
 import { retrievePaymongoCheckoutSession } from '@/lib/paymongo'
+import { getRequestActor } from '@/lib/server-auth'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    const actor = await getRequestActor(request)
+    if (!actor) {
+      return NextResponse.json({ ok: false, error: 'Authentication required.' }, { status: 401 })
+    }
+
+    const isBackoffice = actor.role === 'ADMIN' || actor.role === 'STAFF'
+    const actorEmail = actor.email.trim().toLowerCase()
+    const canAccessRecord = (recordEmail?: string | null) =>
+      isBackoffice || !recordEmail || recordEmail.trim().toLowerCase() === actorEmail
+
     const { searchParams } = new URL(request.url)
     const token = searchParams.get('token') || searchParams.get('session_token') || ''
     const sessionId = searchParams.get('sessionId') || searchParams.get('session_id') || ''
-    const email = searchParams.get('email') || ''
 
     // 1. Try token lookup
     if (token) {
       const record = getPendingPaymongoCheckoutByToken(token)
-      if (record) {
+      if (record && canAccessRecord(record.customerEmail)) {
         return NextResponse.json({ ok: true, pendingCheckout: record })
       }
     }
@@ -26,7 +36,7 @@ export async function GET(request: Request) {
     // 2. Try sessionId lookup
     if (sessionId) {
       const record = getPendingPaymongoCheckoutBySessionId(sessionId)
-      if (record) {
+      if (record && canAccessRecord(record.customerEmail)) {
         return NextResponse.json({ ok: true, pendingCheckout: record })
       }
 
@@ -35,10 +45,14 @@ export async function GET(request: Request) {
         const session = await retrievePaymongoCheckoutSession(sessionId)
         if (session?.data?.id) {
           const meta = session.data.attributes.metadata ?? {}
+          const ownerEmail = meta.customer_email || session.data.attributes.billing?.email || ''
+          if (!canAccessRecord(ownerEmail)) {
+            return NextResponse.json({ ok: false, error: 'Access denied.' }, { status: 403 })
+          }
           const reconstructed = {
             token: token || `rec_${Date.now()}`,
             checkoutSessionId: session.data.id,
-            customerEmail: meta.customer_email || session.data.attributes.billing?.email || '',
+            customerEmail: ownerEmail,
             customerName: meta.customer_name || session.data.attributes.billing?.name || '',
             shippingAddress: meta.shipping_address || '',
             expectedAmount: meta.expected_amount ? Number(meta.expected_amount) : undefined,
@@ -55,15 +69,15 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3. Try customer email lookup from pending cache
-    if (email) {
-      const record = getLatestPendingPaymongoCheckoutByEmail(email)
+    // 3. Try verified actor email lookup from pending cache
+    if (actorEmail) {
+      const record = getLatestPendingPaymongoCheckoutByEmail(actorEmail)
       if (record) {
         return NextResponse.json({ ok: true, pendingCheckout: record })
       }
 
-      // 4. Fallback: check PayMongo recent successful payments for this email
-      const recentPaid = await findRecentPaidPaymongoPayment(email)
+      // 4. Fallback: check PayMongo recent successful payments for verified actor email
+      const recentPaid = await findRecentPaidPaymongoPayment(actorEmail)
       if (recentPaid) {
         const recovered = {
           token: `paid_${recentPaid.paymentId}`,

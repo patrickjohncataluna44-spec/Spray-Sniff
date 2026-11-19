@@ -6,17 +6,17 @@ import {
   AlertTriangle,
   BarChart3,
   Boxes,
+  Home,
   ReceiptText,
   ShoppingCart,
 } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
+import { Cell, Pie, PieChart } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { ProtectedRoute } from '@/components/protected-route'
 import { AdminSidebar } from '@/components/admin-sidebar'
+import { AdminSalesTrendCard } from '@/components/admin-sales-trend-card'
 import {
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -24,8 +24,9 @@ import {
 import {
   buildChannelMixData,
   buildInventoryHealthData,
-  buildSalesTrendData,
+  getManilaDateKey,
   isSuccessfulPaymentOrder,
+  roundAnalyticsCurrency,
 } from '@/lib/analytics'
 import { formatPHP } from '@/lib/currency'
 import { useAuth } from '@/lib/auth-context'
@@ -57,14 +58,31 @@ export default function AdminDashboard() {
     () => inventory.filter((item) => !item.isArchived),
     [inventory],
   )
-  const todayKey = new Date().toDateString()
+  const manilaTodayKey = getManilaDateKey(new Date())
 
-  const totalRevenue = successfulPayments.reduce((sum, order) => sum + order.total, 0)
-  const totalTax = successfulPayments.reduce((sum, order) => sum + order.tax, 0)
+  const totalRevenue = roundAnalyticsCurrency(
+    successfulPayments.reduce((sum, order) => sum + order.total, 0),
+  )
+  const totalSubtotal = roundAnalyticsCurrency(
+    successfulPayments.reduce((sum, order) => sum + order.subtotal, 0),
+  )
+  const totalTax = roundAnalyticsCurrency(
+    successfulPayments.reduce((sum, order) => sum + order.tax, 0),
+  )
+  const onlinePaidOrders = successfulPayments.filter((order) => order.source === 'ONLINE')
+  const posPaidOrders = successfulPayments.filter((order) => order.source === 'POS')
+  const onlineRevenue = roundAnalyticsCurrency(
+    onlinePaidOrders.reduce((sum, order) => sum + order.total, 0),
+  )
+  const posRevenue = roundAnalyticsCurrency(
+    posPaidOrders.reduce((sum, order) => sum + order.total, 0),
+  )
   const successfulPaymentCount = successfulPayments.length
-  const todayRevenue = successfulPayments
-    .filter((order) => new Date(order.createdAt).toDateString() === todayKey)
-    .reduce((sum, order) => sum + order.total, 0)
+  const todayRevenue = roundAnalyticsCurrency(
+    successfulPayments
+      .filter((order) => getManilaDateKey(order.createdAt) === manilaTodayKey)
+      .reduce((sum, order) => sum + order.total, 0),
+  )
   const pendingPaymentOrders = orders.filter(
     (order) => order.paymentStatus !== 'Paid' && order.status !== 'Cancelled',
   )
@@ -90,13 +108,12 @@ export default function AdminDashboard() {
   const todayPosTransactions = posTransactions.filter((transaction) => {
     const linkedOrder = ordersById.get(transaction.orderId)
     return (
-      new Date(transaction.createdAt).toDateString() === todayKey &&
+      getManilaDateKey(transaction.createdAt) === manilaTodayKey &&
       linkedOrder?.status !== 'Cancelled'
     )
   })
-  const todayPosRevenue = todayPosTransactions.reduce(
-    (sum, transaction) => sum + transaction.total,
-    0,
+  const todayPosRevenue = roundAnalyticsCurrency(
+    todayPosTransactions.reduce((sum, transaction) => sum + transaction.total, 0),
   )
   const recentOrders = [...orders]
     .sort(
@@ -117,7 +134,6 @@ export default function AdminDashboard() {
     )
     .slice(0, 5)
   const recentTransactions = posTransactions.slice(0, 4)
-  const salesTrendData = useMemo(() => buildSalesTrendData(orders, 7), [orders])
   const channelMixData = useMemo(
     () => buildChannelMixData(orders).filter((entry) => entry.value > 0),
     [orders],
@@ -166,32 +182,26 @@ export default function AdminDashboard() {
       {
         label: 'Paid Revenue',
         value: formatPHP(totalRevenue),
-        caption: 'Successful online and POS payments only',
+        caption: `${successfulPaymentCount} paid order(s) across all channels`,
         icon: BarChart3,
       },
       {
-        label: 'Today Revenue',
-        value: formatPHP(todayRevenue),
-        caption: `${successfulPaymentCount} successful payment(s) recorded`,
-        icon: ReceiptText,
+        label: 'Online Sales',
+        value: formatPHP(onlineRevenue),
+        caption: `${onlinePaidOrders.length} delivered / paid online order(s)`,
+        icon: ShoppingCart,
       },
       {
-        label: 'Pending Payments',
-        value: pendingPaymentOrders.length.toString(),
-        caption: 'Orders still waiting for payment collection',
-        icon: ShoppingCart,
+        label: 'POS Sales',
+        value: formatPHP(posRevenue),
+        caption: `${posPaidOrders.length} completed walk-in sale(s)`,
+        icon: ReceiptText,
       },
       {
         label: 'Tax Collected',
         value: formatPHP(totalTax),
-        caption: 'Collected from successful payments',
+        caption: `12% VAT on ${formatPHP(totalSubtotal)} subtotal`,
         icon: BarChart3,
-      },
-      {
-        label: 'Inventory Alerts',
-        value: `${lowStockCount + outOfStockCount}`,
-        caption: `${lowStockCount} low stock, ${outOfStockCount} out of stock`,
-        icon: AlertTriangle,
       },
     ]
 
@@ -229,6 +239,12 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
+                  <Button variant="outline" asChild>
+                    <Link href="/" className="inline-flex items-center gap-2">
+                      <Home className="h-4 w-4" />
+                      Home
+                    </Link>
+                  </Button>
                   <Button asChild>
                     <Link href="/admin/pos">Open POS</Link>
                   </Button>
@@ -248,7 +264,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
               {stats.map((stat) => {
                 const Icon = stat.icon
                 return (
@@ -257,70 +273,61 @@ export default function AdminDashboard() {
                       <p className="text-sm font-medium text-foreground/60">{stat.label}</p>
                       <Icon className="w-5 h-5 text-accent" />
                     </div>
-                    <p className="font-serif text-3xl text-foreground mb-2">{stat.value}</p>
+                    <p className="font-serif text-3xl tabular-nums text-foreground mb-2">{stat.value}</p>
                     <p className="text-xs text-foreground/50">{stat.caption}</p>
                   </div>
                 )
               })}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.7fr] gap-8 mb-10">
-              <section className="rounded-2xl border border-border bg-card p-6">
-                <div className="mb-6">
-                  <h2 className="font-serif text-2xl text-foreground">7-Day Sales Trend</h2>
-                  <p className="mt-2 text-sm text-foreground/60">
-                    {isStaffView
-                      ? 'Daily activity split between online orders and POS transactions.'
-                      : 'Daily paid revenue split between online orders and POS transactions.'}
-                  </p>
+            {!isStaffView && (
+              <div className="mb-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card px-5 py-3.5 text-xs">
+                <div className="flex flex-wrap items-center gap-6">
+                  <div>
+                    <span className="text-foreground/60">Today ({manilaTodayKey}): </span>
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {formatPHP(todayRevenue)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-foreground/60">Pending payments: </span>
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {pendingPaymentOrders.length}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-foreground/60">Inventory alerts: </span>
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {lowStockCount + outOfStockCount}
+                    </span>
+                    <span className="text-foreground/50">
+                      {' '}({lowStockCount} low · {outOfStockCount} out)
+                    </span>
+                  </div>
                 </div>
+                <div className="flex items-center gap-4">
+                  <Link href="/admin/orders" className="font-medium text-primary hover:underline">
+                    Review orders
+                  </Link>
+                  <Link href="/admin/inventory" className="font-medium text-primary hover:underline">
+                    Manage stock
+                  </Link>
+                </div>
+              </div>
+            )}
 
-                <ChartContainer config={salesTrendConfig} className="h-[300px] w-full">
-                  <BarChart data={salesTrendData}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(value) => `P${Math.round(value / 1000)}k`}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={
-                        <ChartTooltipContent
-                          indicator="dot"
-                          formatter={(value, name) => (
-                            <div className="flex w-full items-center justify-between gap-6">
-                              <span className="text-muted-foreground">{String(name)}</span>
-                              <span className="font-medium text-foreground">
-                                {formatPHP(Number(value))}
-                              </span>
-                            </div>
-                          )}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Bar
-                      dataKey="online"
-                      stackId="sales"
-                      fill="var(--color-online)"
-                      radius={[6, 6, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="pos"
-                      stackId="sales"
-                      fill="var(--color-pos)"
-                      radius={[6, 6, 0, 0]}
-                    />
-                  </BarChart>
-                </ChartContainer>
-              </section>
+            <div className="grid grid-cols-1 xl:grid-cols-[1.3fr_0.7fr] gap-8 mb-10">
+              <AdminSalesTrendCard
+                orders={orders}
+                chartConfig={salesTrendConfig}
+                title="Sales Trend"
+                description={
+                  isStaffView
+                    ? 'Activity split between online orders and POS transactions.'
+                    : 'Paid revenue split between online orders and POS transactions.'
+                }
+                chartHeightClass="h-[300px]"
+              />
 
               <section className="rounded-2xl border border-border bg-card p-6">
                 <div className="mb-6">
@@ -389,7 +396,7 @@ export default function AdminDashboard() {
                           />
                           <span className="font-medium text-foreground">{entry.label}</span>
                         </div>
-                        <span className="font-medium text-foreground">
+                        <span className="font-medium tabular-nums text-foreground">
                           {formatPHP(entry.value)}
                         </span>
                       </div>

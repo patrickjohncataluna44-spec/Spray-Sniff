@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { SITE_NAME } from '@/lib/site'
 
 const PAYMONGO_API_BASE_URL = 'https://api.paymongo.com/v1'
@@ -490,4 +491,53 @@ export function isPaymongoPaymentIntentPaid(intent: RetrievedPaymongoPaymentInte
   if (status === 'succeeded') return true
   const paidPayment = intent.data.attributes.payments?.find((p) => p.attributes?.status === 'paid')
   return Boolean(paidPayment)
+}
+
+export function verifyPaymongoWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+  webhookSecret: string,
+  toleranceSeconds = 300,
+): { valid: boolean; reason?: string } {
+  if (!signatureHeader) {
+    return { valid: false, reason: 'Missing Paymongo-Signature header.' }
+  }
+
+  const parts = Object.fromEntries(
+    signatureHeader.split(',').map((segment) => {
+      const idx = segment.indexOf('=')
+      return idx > 0
+        ? [segment.slice(0, idx).trim(), segment.slice(idx + 1).trim()]
+        : [segment.trim(), '']
+    }),
+  )
+
+  const timestamp = parts.t
+  if (!timestamp || !/^\d+$/.test(timestamp)) {
+    return { valid: false, reason: 'Invalid Paymongo-Signature timestamp.' }
+  }
+
+  const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp))
+  if (ageSeconds > toleranceSeconds) {
+    return { valid: false, reason: 'Expired Paymongo-Signature timestamp.' }
+  }
+
+  const env = isPaymongoConfigured() ? getPaymongoEnvironment() : 'test'
+  const candidateSig = env === 'live' ? parts.li || parts.te : parts.te || parts.li
+  if (!candidateSig) {
+    return { valid: false, reason: 'Missing Paymongo-Signature digest.' }
+  }
+
+  const expectedDigest = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex')
+
+  const sigBuf = Buffer.from(candidateSig, 'utf8')
+  const expectedBuf = Buffer.from(expectedDigest, 'utf8')
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return { valid: false, reason: 'Invalid Paymongo-Signature digest.' }
+  }
+
+  return { valid: true }
 }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, BarChart3 } from 'lucide-react'
+import { ArrowLeft, BarChart3, ChevronDown, Download, FileSpreadsheet, Lock } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -14,26 +14,36 @@ import {
   YAxis,
 } from 'recharts'
 import { AdminSidebar } from '@/components/admin-sidebar'
+import { AdminSalesTrendCard } from '@/components/admin-sales-trend-card'
 import { ProtectedRoute } from '@/components/protected-route'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { toast } from '@/hooks/use-toast'
 import {
   buildInventoryHealthData,
   buildOrderStatusData,
   buildPaymentBreakdownData,
-  buildSalesTrendData,
   buildStockMovementData,
   buildTopProductData,
+  getManilaMonthKey,
   isSuccessfulPaymentOrder,
+  roundAnalyticsCurrency,
 } from '@/lib/analytics'
 import { formatPHP } from '@/lib/currency'
+import { exportStoreReport, type ReportExportScope } from '@/lib/reports-export'
 import { useStore } from '@/lib/store-context'
 
 const salesReportConfig = {
@@ -74,13 +84,12 @@ function formatMonthLabel(monthKey: string) {
 export default function ReportsPage() {
   const { catalog, getInventoryRecord, inventory, orders, posTransactions, stockMovements } = useStore()
   const [selectedMonth, setSelectedMonth] = useState<string>('all')
+  const [isExporting, setIsExporting] = useState(false)
 
   const availableMonths = useMemo(() => {
     const monthsSet = new Set<string>()
     orders.forEach((o) => {
-      const date = new Date(o.createdAt)
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      monthsSet.add(key)
+      monthsSet.add(getManilaMonthKey(o.createdAt))
     })
     return Array.from(monthsSet).sort().reverse()
   }, [orders])
@@ -89,11 +98,7 @@ export default function ReportsPage() {
     if (selectedMonth === 'all') {
       return orders
     }
-    return orders.filter((o) => {
-      const date = new Date(o.createdAt)
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      return key === selectedMonth
-    })
+    return orders.filter((o) => getManilaMonthKey(o.createdAt) === selectedMonth)
   }, [orders, selectedMonth])
 
   const activeInventory = useMemo(
@@ -109,19 +114,26 @@ export default function ReportsPage() {
     [filteredOrders],
   )
 
-  const totalRevenue = successfulPayments.reduce((sum, order) => sum + order.total, 0)
-  const onlineRevenue = successfulPayments
-    .filter((order) => order.source === 'ONLINE')
-    .reduce((sum, order) => sum + order.total, 0)
-  const posRevenue = successfulPayments
-    .filter((order) => order.source === 'POS')
-    .reduce((sum, order) => sum + order.total, 0)
-  const taxCollected = successfulPayments.reduce((sum, order) => sum + order.tax, 0)
+  const totalRevenue = roundAnalyticsCurrency(
+    successfulPayments.reduce((sum, order) => sum + order.total, 0),
+  )
+  const onlineRevenue = roundAnalyticsCurrency(
+    successfulPayments
+      .filter((order) => order.source === 'ONLINE')
+      .reduce((sum, order) => sum + order.total, 0),
+  )
+  const posRevenue = roundAnalyticsCurrency(
+    successfulPayments
+      .filter((order) => order.source === 'POS')
+      .reduce((sum, order) => sum + order.total, 0),
+  )
+  const taxCollected = roundAnalyticsCurrency(
+    successfulPayments.reduce((sum, order) => sum + order.tax, 0),
+  )
   const inventoryCoverage =
     activeCatalog.length === 0
       ? 0
       : Math.round((activeInventory.length / activeCatalog.length) * 100)
-  const salesTrendData = useMemo(() => buildSalesTrendData(filteredOrders, 7), [filteredOrders])
   const paymentBreakdown = useMemo(() => buildPaymentBreakdownData(filteredOrders), [filteredOrders])
   const orderStatusData = useMemo(() => buildOrderStatusData(filteredOrders), [filteredOrders])
   const topProductData = useMemo(() => buildTopProductData(filteredOrders), [filteredOrders])
@@ -134,12 +146,43 @@ export default function ReportsPage() {
     [activeInventory],
   )
 
+  const handleExportReport = (scope: ReportExportScope) => {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      const result = exportStoreReport(scope, {
+        selectedMonth,
+        orders,
+        posTransactions,
+        stockMovements,
+        inventory,
+        catalog,
+      })
+      toast({
+        title: 'Report downloaded',
+        description:
+          result.sheetCount > 1
+            ? `Saved ${result.filename} (${result.sheetCount} sheets).`
+            : `Saved ${result.filename}.`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Export failed',
+        description:
+          error instanceof Error ? error.message : 'Unable to generate the report file.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <ProtectedRoute requiredRole="ADMIN">
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-dvh bg-background">
         <AdminSidebar />
-        <div className="flex-1">
-          <div className="border-b border-border bg-card">
+        <div className="flex-1" data-ui>
+          <div className="bg-card border-b border-border" data-ui>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex items-center gap-4 mb-4">
                 <Button variant="ghost" size="sm" asChild>
@@ -158,32 +201,100 @@ export default function ReportsPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <label htmlFor="periodSelect" className="text-xs font-semibold uppercase tracking-wider text-foreground/60">
-                    Period:
-                  </label>
-                  <select
-                    id="periodSelect"
-                    value={selectedMonth}
-                    onChange={(event) => setSelectedMonth(event.target.value)}
-                    className="rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    <option value="all">All Time</option>
-                    {availableMonths.map((m) => (
-                      <option key={m} value={m}>
-                        {formatMonthLabel(m)}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="periodSelect" className="text-xs font-medium text-foreground/65">
+                      Period:
+                    </label>
+                    <select
+                      id="periodSelect"
+                      value={selectedMonth}
+                      onChange={(event) => setSelectedMonth(event.target.value)}
+                      className="rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="all">All Time</option>
+                      {availableMonths.map((m) => (
+                        <option key={m} value={m}>
+                          {formatMonthLabel(m)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="inline-flex items-center gap-1" data-ui>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleExportReport('full')}
+                      disabled={isExporting}
+                      className="gap-2"
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      {isExporting ? 'Exporting...' : 'Download Excel'}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isExporting}
+                          aria-label="Choose specific Excel or CSV report"
+                          className="px-2"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-60">
+                        <DropdownMenuLabel>
+                          Export ({selectedMonth === 'all' ? 'All Time' : formatMonthLabel(selectedMonth)})
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleExportReport('full')}>
+                          <FileSpreadsheet className="h-4 w-4" />
+                          Full Workbook (All 8 Sheets)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportReport('sales')}>
+                          <Download className="h-4 w-4" />
+                          Sales Summary &amp; Trend (.xlsx)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportReport('orders')}>
+                          <Download className="h-4 w-4" />
+                          Orders &amp; Line Items (.xlsx)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportReport('products')}>
+                          <Download className="h-4 w-4" />
+                          Product Sales (.xlsx)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportReport('pos')}>
+                          <Download className="h-4 w-4" />
+                          POS Transactions (.xlsx)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportReport('inventory')}>
+                          <Download className="h-4 w-4" />
+                          Inventory Snapshot (.xlsx)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportReport('movements')}>
+                          <Download className="h-4 w-4" />
+                          Stock Movements (.xlsx)
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleExportReport('orders-csv')}>
+                          <Download className="h-4 w-4" />
+                          Orders Table (.csv)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <div className="mb-8 flex items-center justify-between flex-wrap gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-900 shadow-sm">
+            <div className="mb-8 flex items-center justify-between flex-wrap gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-900">
               <div className="flex items-start gap-3">
-                <span className="text-lg">🔒</span>
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
                 <div>
                   <p className="font-bold text-emerald-950">Immutable Historical Pricing Guarantee</p>
                   <p className="mt-0.5 text-emerald-800 leading-relaxed">
@@ -202,60 +313,31 @@ export default function ReportsPage() {
               <div className="rounded-2xl border border-border bg-card p-6">
                 <BarChart3 className="h-5 w-5 text-accent mb-4" />
                 <p className="text-sm font-medium text-foreground/60">Paid Revenue</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{formatPHP(totalRevenue)}</p>
+                <p className="mt-2 font-serif text-3xl tabular-nums text-foreground">{formatPHP(totalRevenue)}</p>
               </div>
               <div className="rounded-2xl border border-border bg-card p-6">
                 <p className="text-sm font-medium text-foreground/60">Online Paid Revenue</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{formatPHP(onlineRevenue)}</p>
+                <p className="mt-2 font-serif text-3xl tabular-nums text-foreground">{formatPHP(onlineRevenue)}</p>
               </div>
               <div className="rounded-2xl border border-border bg-card p-6">
                 <p className="text-sm font-medium text-foreground/60">POS Paid Revenue</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{formatPHP(posRevenue)}</p>
+                <p className="mt-2 font-serif text-3xl tabular-nums text-foreground">{formatPHP(posRevenue)}</p>
               </div>
               <div className="rounded-2xl border border-border bg-card p-6">
                 <p className="text-sm font-medium text-foreground/60">Tax Collected</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{formatPHP(taxCollected)}</p>
+                <p className="mt-2 font-serif text-3xl tabular-nums text-foreground">{formatPHP(taxCollected)}</p>
               </div>
             </div>
 
             <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-              <section className="rounded-2xl border border-border bg-card p-6">
-                <h2 className="font-serif text-2xl text-foreground mb-2">Sales Performance</h2>
-                <p className="mb-6 text-sm text-foreground/60">
-                  Seven-day paid revenue comparison between online sales and point-of-sale activity.
-                </p>
-
-                <ChartContainer config={salesReportConfig} className="h-[320px] w-full">
-                  <BarChart data={salesTrendData}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(value) => `P${Math.round(value / 1000)}k`}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={
-                        <ChartTooltipContent
-                          indicator="dot"
-                          formatter={(value, name) => (
-                            <div className="flex w-full items-center justify-between gap-6">
-                              <span className="text-muted-foreground">{String(name)}</span>
-                              <span className="font-medium text-foreground">
-                                {formatPHP(Number(value))}
-                              </span>
-                            </div>
-                          )}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Bar dataKey="online" stackId="sales" fill="var(--color-online)" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="pos" stackId="sales" fill="var(--color-pos)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ChartContainer>
-              </section>
+              <AdminSalesTrendCard
+                orders={orders}
+                chartConfig={salesReportConfig}
+                title="Sales Performance"
+                description="Paid revenue comparison between online sales and point-of-sale activity."
+                chartHeightClass="h-[320px]"
+                forcedMonthKey={selectedMonth}
+              />
 
               <section className="rounded-2xl border border-border bg-card p-6">
                 <h2 className="font-serif text-2xl text-foreground mb-2">Payment Share</h2>
@@ -343,7 +425,7 @@ export default function ReportsPage() {
               <section className="rounded-2xl border border-border bg-card p-6">
                 <h2 className="font-serif text-2xl text-foreground mb-2">Top Products</h2>
                 <p className="mb-6 text-sm text-foreground/60">
-                  Highest grossing products based on recorded sales.
+                  Highest grossing products based on pre-VAT unit sales from paid orders.
                 </p>
 
                 <ChartContainer config={productRevenueConfig} className="h-[320px] w-full">

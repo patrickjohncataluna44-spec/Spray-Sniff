@@ -105,7 +105,6 @@ export const DELIVERY_STAGES: {
   status: string
   label: string
 }[] = [
-  { stage: 'order_placed', status: 'Pending', label: 'Order Placed' },
   { stage: 'preparing_to_ship', status: 'Processing', label: 'Preparing to Ship' },
   { stage: 'picked_up', status: 'Shipped', label: 'Picked Up' },
   { stage: 'in_transit', status: 'In Transit', label: 'In Transit' },
@@ -137,8 +136,7 @@ export function mapOrderStatusToDeliveryStage(status: string): TrackingStatus {
 }
 
 export function getDeliveryStageIndex(status: TrackingStatus): number {
-  const index = DELIVERY_STAGES.findIndex((entry) => entry.stage === status)
-  return index === -1 ? 0 : index
+  return DELIVERY_STAGES.findIndex((entry) => entry.stage === status)
 }
 
 /**

@@ -6,19 +6,6 @@ import {
 import { getRequestActor } from '@/lib/server-auth'
 import type { CartItem } from '@/lib/store-engine'
 
-import { createSupabaseAdminClient } from '@/lib/supabase-server'
-
-function getBaseUrl(request: Request) {
-  const forwardedProto = request.headers.get('x-forwarded-proto')
-  const forwardedHost = request.headers.get('x-forwarded-host')
-
-  if (forwardedProto && forwardedHost) {
-    return `${forwardedProto}://${forwardedHost}`
-  }
-
-  return new URL(request.url).origin
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => null)) as {
@@ -26,32 +13,10 @@ export async function POST(request: NextRequest) {
       saleItems?: CartItem[]
       customerName?: string
       cashierName?: string
-      cashierId?: string
-      cashierEmail?: string
       clientSaleId?: string
     } | null
 
-    let actor = await getRequestActor(request)
-
-    if (!actor && (body?.cashierId || body?.cashierEmail)) {
-      const supabase = createSupabaseAdminClient()
-      let query = supabase.from('profiles').select('id, email, name, role')
-      if (body?.cashierId) {
-        query = query.eq('id', String(body.cashierId).trim())
-      } else if (body?.cashierEmail) {
-        query = query.ilike('email', String(body.cashierEmail).trim())
-      }
-      const { data: profileRows } = await query.limit(1)
-      const profile = profileRows?.[0]
-      if (profile && (profile.role === 'ADMIN' || profile.role === 'STAFF')) {
-        actor = {
-          id: profile.id,
-          email: profile.email,
-          name: profile.name,
-          role: profile.role,
-        }
-      }
-    }
+    const actor = await getRequestActor(request)
 
     if (!actor || (actor.role !== 'ADMIN' && actor.role !== 'STAFF')) {
       return NextResponse.json(

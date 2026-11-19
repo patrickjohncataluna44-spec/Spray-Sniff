@@ -9,6 +9,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "seed:pos": "node scripts/seed-pos-sales.mjs",
+    "seed:pos:clean": "node scripts/seed-pos-sales.mjs --clean",
+    "seed:pos:sql": "node scripts/seed-pos-sales.mjs --emit-sql",
+    "seed:delivery": "node scripts/seed-online-delivery.mjs",
+    "seed:delivery:clean": "node scripts/seed-online-delivery.mjs --clean",
+    "seed:delivery:sql": "node scripts/seed-online-delivery.mjs --emit-sql",
     "taste:lint": "node .agents/skills/design-taste-frontend/scripts/lint.mjs",
     "taste:draw": "node .agents/skills/design-taste-frontend/scripts/draw.mjs"
   },

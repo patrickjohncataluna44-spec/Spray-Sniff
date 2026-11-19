@@ -8,7 +8,6 @@ import {
   retrievePaymongoPaymentIntent,
 } from '@/lib/paymongo'
 import { getRequestActor } from '@/lib/server-auth'
-import { createSupabaseAdminClient } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,31 +22,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let actor = await getRequestActor(request)
-
-    if (!actor) {
-      const cashierId = searchParams.get('cashierId')
-      const cashierEmail = searchParams.get('cashierEmail')
-      if (cashierId || cashierEmail) {
-        const supabase = createSupabaseAdminClient()
-        let query = supabase.from('profiles').select('id, email, name, role')
-        if (cashierId) {
-          query = query.eq('id', cashierId.trim())
-        } else if (cashierEmail) {
-          query = query.ilike('email', cashierEmail.trim())
-        }
-        const { data: profileRows } = await query.limit(1)
-        const profile = profileRows?.[0]
-        if (profile && (profile.role === 'ADMIN' || profile.role === 'STAFF')) {
-          actor = {
-            id: profile.id,
-            email: profile.email,
-            name: profile.name,
-            role: profile.role,
-          }
-        }
-      }
-    }
+    const actor = await getRequestActor(request)
 
     if (!actor || (actor.role !== 'ADMIN' && actor.role !== 'STAFF')) {
       return NextResponse.json(

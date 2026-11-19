@@ -2,7 +2,7 @@ import '@/lib/server-only'
 import crypto from 'crypto'
 import { createSupabaseAdminClient } from '@/lib/supabase-server'
 import { getOptionalServerEnv } from '@/lib/server-runtime-env'
-import { clearBackofficeStoreSnapshotCache } from '@/lib/store-persistence'
+import { markBackofficeStateDirty } from '@/lib/store-persistence'
 import {
   DELIVERY_STATUS_RANK,
   mapDeliveryStageToOrderStatus,
@@ -205,9 +205,47 @@ export async function syncOrderWithParcelsShipment(
   const currentRank = DELIVERY_STATUS_RANK[order.status] ?? 0
   const nextRank = newOrderStatus ? (DELIVERY_STATUS_RANK[newOrderStatus] ?? 0) : 0
   const shouldAdvanceStatus = Boolean(newOrderStatus && nextRank > currentRank)
+  const effectiveStatus = shouldAdvanceStatus && newOrderStatus ? newOrderStatus : order.status
+  const isDeliveredResult = effectiveStatus === 'Delivered' || detectedStage === 'delivered'
 
   const supabase = createSupabaseAdminClient()
   const now = new Date().toISOString()
+
+  type OrderFinancialRow = {
+    source: string
+    customer_id: string | null
+    customer_name: string
+    customer_email: string
+    payment_method: string
+    payment_status: string
+    subtotal: number
+    tax: number
+    shipping: number
+    total: number
+  }
+
+  let orderFinancials: OrderFinancialRow | null = null
+
+  if (isDeliveredResult) {
+    const { data: orderDetail } = await supabase
+      .from('store_orders')
+      .select(
+        'source, customer_id, customer_name, customer_email, payment_method, payment_status, subtotal, tax, shipping, total',
+      )
+      .eq('id', order.id)
+      .maybeSingle()
+
+    if (orderDetail) {
+      orderFinancials = orderDetail as OrderFinancialRow
+    }
+  }
+
+  const shouldAutoSettleCod = Boolean(
+    isDeliveredResult &&
+      orderFinancials &&
+      orderFinancials.payment_method === 'Cash on Delivery' &&
+      orderFinancials.payment_status !== 'Paid',
+  )
 
   const orderUpdateExtended: Record<string, unknown> = {
     updated_at: now,
@@ -220,6 +258,11 @@ export async function syncOrderWithParcelsShipment(
   if (shouldAdvanceStatus && newOrderStatus) {
     orderUpdateExtended.status = newOrderStatus
     orderUpdateFallback.status = newOrderStatus
+  }
+
+  if (shouldAutoSettleCod) {
+    orderUpdateExtended.payment_status = 'Paid'
+    orderUpdateFallback.payment_status = 'Paid'
   }
 
   if (!order.courier && detectedCarrier?.name) {
@@ -246,6 +289,35 @@ export async function syncOrderWithParcelsShipment(
   if (updateRes.error) {
     console.error(`[Parcels Sync] Failed to update store_orders for ${order.id}:`, updateRes.error.message)
     return { updatedStatus: false, recordedCheckpoint: false }
+  }
+
+  if (shouldAutoSettleCod && orderFinancials) {
+    const { error: payErr } = await supabase.from('payment_records').upsert(
+      {
+        id: `${order.id}::payment`,
+        order_id: order.id,
+        source: orderFinancials.source,
+        customer_id: orderFinancials.customer_id,
+        customer_name: orderFinancials.customer_name,
+        customer_email: orderFinancials.customer_email,
+        amount: Number(orderFinancials.total),
+        subtotal: Number(orderFinancials.subtotal),
+        tax: Number(orderFinancials.tax),
+        shipping: Number(orderFinancials.shipping),
+        payment_method: 'Cash on Delivery',
+        payment_gateway: null,
+        payment_channel: null,
+        checkout_session_id: null,
+        reference: `COD delivered via ${carrierName}`,
+        status: 'succeeded',
+        paid_at: now,
+      },
+      { onConflict: 'id' },
+    )
+
+    if (payErr) {
+      console.warn(`[Parcels Sync] Failed to record COD payment for ${order.id}:`, payErr.message)
+    }
   }
 
   let recordedCheckpoint = false
@@ -304,8 +376,8 @@ export async function syncOrderWithParcelsShipment(
     }
   }
 
-  if (shouldAdvanceStatus || recordedCheckpoint) {
-    clearBackofficeStoreSnapshotCache()
+  if (shouldAdvanceStatus || recordedCheckpoint || shouldAutoSettleCod) {
+    await markBackofficeStateDirty().catch(() => {})
   }
 
   return {

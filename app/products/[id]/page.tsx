@@ -70,18 +70,9 @@ export default function ProductPage({
     if (!id) return
     try {
       const authHeaders = await getBrowserAuthHeaders()
-      const extraHeaders: Record<string, string> = {
-        ...authHeaders,
-      }
-      if (user?.id) {
-        extraHeaders['x-customer-id'] = user.id
-      }
-      if (user?.email) {
-        extraHeaders['x-customer-email'] = user.email
-      }
 
       const res = await fetch(`/api/reviews?productId=${encodeURIComponent(id)}`, {
-        headers: extraHeaders,
+        headers: authHeaders,
         cache: 'no-store',
       })
       if (res.ok) {
@@ -97,7 +88,7 @@ export default function ProductPage({
     } finally {
       setIsLoadingReviews(false)
     }
-  }, [id, user?.id, user?.email])
+  }, [id])
 
   // Re-fetch reviews once auth finishes loading or user session becomes available
   useEffect(() => {
@@ -140,26 +131,17 @@ export default function ProductPage({
     setIsSubmittingReview(true)
     try {
       const authHeaders = await getBrowserAuthHeaders()
-      const extraHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      }
-      if (user?.id) {
-        extraHeaders['x-customer-id'] = user.id
-      }
-      if (user?.email) {
-        extraHeaders['x-customer-email'] = user.email
-      }
 
       const res = await fetch('/api/reviews', {
         method: 'POST',
-        headers: extraHeaders,
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify({
           productId: id,
           rating: newRating,
           comment: newComment.trim(),
-          customerId: user?.id,
-          customerEmail: user?.email,
         }),
       })
       const result = await res.json()

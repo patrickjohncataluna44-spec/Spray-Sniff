@@ -57,8 +57,11 @@ export async function POST(req: Request) {
       console.warn('[ParcelsApp v5 Webhook Rejected]:', reason)
       return NextResponse.json({ error: reason || 'Unauthorized' }, { status: 401 })
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    console.warn('[ParcelsApp v5 Webhook Rejected]: Missing webhook signing secret in production.')
+    return NextResponse.json({ error: 'Webhook secret not configured.' }, { status: 401 })
   } else {
-    console.info('[ParcelsApp v5 Webhook]: No per-request or fallback PARCELS_WEBHOOK_SECRET found.')
+    console.info('[ParcelsApp v5 Webhook]: No per-request or fallback PARCELS_WEBHOOK_SECRET found (dev mode).')
   }
 
   if (payload.event === 'tracking_error') {

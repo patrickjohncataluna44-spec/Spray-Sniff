@@ -44,49 +44,59 @@ function isMissingCourierSlugError(error: { code?: string; message?: string } | 
 
 async function findStoreOrderForTracking(cleanKey: string): Promise<TrackableOrderRow | null> {
   const supabase = createSupabaseAdminClient()
-  const safeKey = cleanKey.replace(/[,()]/g, '').trim()
-  if (!safeKey) return null
+  const safeKey = cleanKey.replace(/[,()%_*]/g, '').trim()
+  if (!safeKey || safeKey.length < 4) return null
 
   const extendedCols = 'id, status, created_at, courier, courier_slug, tracking_number, delivery_notes, notes'
   const baseCols = 'id, status, created_at, courier, tracking_number, delivery_notes, notes'
 
-  const runExactQuery = async (cols: string) =>
+  const runExactIdQuery = async (cols: string) =>
     supabase
       .from('store_orders')
       .select(cols)
-      .or(`id.ilike.${safeKey},tracking_number.ilike.${safeKey}`)
+      .ilike('id', safeKey)
       .limit(1)
 
-  let res = await runExactQuery(extendedCols)
+  const runExactTrackingQuery = async (cols: string) =>
+    supabase
+      .from('store_orders')
+      .select(cols)
+      .ilike('tracking_number', safeKey)
+      .limit(1)
+
+  let res = await runExactIdQuery(extendedCols)
   if (res.error && isMissingCourierSlugError(res.error)) {
-    res = await runExactQuery(baseCols)
+    res = await runExactIdQuery(baseCols)
   }
 
   if (res.data && res.data.length > 0) {
     return res.data[0] as unknown as TrackableOrderRow
   }
 
-  // Fallback: match reference in notes
-  const runNotesQuery = async (cols: string) =>
-    supabase
-      .from('store_orders')
-      .select(cols)
-      .ilike('notes', `%${safeKey}%`)
-      .limit(1)
-
-  let notesRes = await runNotesQuery(extendedCols)
-  if (notesRes.error && isMissingCourierSlugError(notesRes.error)) {
-    notesRes = await runNotesQuery(baseCols)
+  let trackRes = await runExactTrackingQuery(extendedCols)
+  if (trackRes.error && isMissingCourierSlugError(trackRes.error)) {
+    trackRes = await runExactTrackingQuery(baseCols)
   }
 
-  if (notesRes.data && notesRes.data.length > 0) {
-    return notesRes.data[0] as unknown as TrackableOrderRow
+  if (trackRes.data && trackRes.data.length > 0) {
+    return trackRes.data[0] as unknown as TrackableOrderRow
   }
 
   return null
 }
 
-async function loadInternalTimelineEvents(orderId: string): Promise<TrackingEvent[]> {
+const COURIER_STAGE_STATUSES = new Set([
+  'Shipped',
+  'In Transit',
+  'Out for Delivery',
+  'Delivered',
+  'Completed',
+])
+
+async function loadInternalTimelineEvents(
+  orderId: string,
+  courierName?: string | null,
+): Promise<TrackingEvent[]> {
   const supabase = createSupabaseAdminClient()
   const { data: timelineEntries, error: timelineError } = await supabase
     .from('order_timeline_entries')
@@ -98,17 +108,29 @@ async function loadInternalTimelineEvents(orderId: string): Promise<TrackingEven
     console.error('Error querying timeline for tracking:', timelineError)
   }
 
-  const rawEvents: TrackingEvent[] = (timelineEntries ?? []).map((entry, index) => ({
-    id: `${orderId}-ev-${index}`,
-    datetime: entry.created_at,
-    status: entry.status,
-    stage: mapOrderStatusToDeliveryStage(entry.status),
-    location: entry.actor_name ? `${SITE_NAME} — ${entry.actor_name}` : `${SITE_NAME} store team`,
-    description: entry.note,
-    source: entry.actor_name?.includes('(Auto-sync)') ? 'courier' : 'store',
-    recordedBy: entry.actor_name ?? undefined,
-    previousStatus: entry.previous_status ?? undefined,
-  }))
+  const trimmedCourier = courierName?.trim() || null
+
+  const rawEvents: TrackingEvent[] = (timelineEntries ?? []).map((entry, index) => {
+    const isAutoSync = Boolean(entry.actor_name?.includes('(Auto-sync)'))
+    const isCourierMilestone = isAutoSync || (Boolean(trimmedCourier) && COURIER_STAGE_STATUSES.has(entry.status))
+
+    return {
+      id: `${orderId}-ev-${index}`,
+      datetime: entry.created_at,
+      status: entry.status,
+      stage: mapOrderStatusToDeliveryStage(entry.status),
+      location: isCourierMilestone && trimmedCourier
+        ? `${trimmedCourier} — Logistics Update`
+        : entry.actor_name
+          ? `${SITE_NAME} — ${entry.actor_name}`
+          : `${SITE_NAME} store team`,
+      description: entry.note,
+      source: isCourierMilestone ? 'courier' : 'store',
+      carrier: isCourierMilestone && trimmedCourier ? trimmedCourier : undefined,
+      recordedBy: entry.actor_name ?? undefined,
+      previousStatus: entry.previous_status ?? undefined,
+    }
+  })
 
   const filteredEvents = rawEvents.filter((entry) => TRACKABLE_EVENT_STATUSES.has(entry.status))
   const events = filteredEvents.length > 0 ? filteredEvents : rawEvents
@@ -126,6 +148,16 @@ function buildBaselineOrderResult(
 ): TrackingResult {
   const storeStage = mapOrderStatusToDeliveryStage(order.status)
   const deliveredStage = DELIVERY_STAGES[DELIVERY_STAGES.length - 1]
+  const estimatedDelivery =
+    storeStage === deliveredStage.stage
+      ? 'Delivered'
+      : storeStage === 'out_for_delivery'
+        ? 'Out for delivery today'
+        : storeStage === 'in_transit'
+          ? 'In transit via courier'
+          : storeStage === 'picked_up'
+            ? 'Picked up by courier'
+            : 'Updated by our store team'
 
   return {
     trackingNumber: order.tracking_number || order.id,
@@ -137,8 +169,7 @@ function buildBaselineOrderResult(
     },
     status: storeStage,
     statusText: order.status,
-    estimatedDelivery:
-      storeStage === deliveredStage.stage ? 'Delivered' : 'Updated by our store team',
+    estimatedDelivery,
     lastUpdated: internalEvents[0]?.datetime ?? order.created_at,
     events: internalEvents,
   }
@@ -152,11 +183,27 @@ function mergeOrderWithParcels(
   const storeStage = mapOrderStatusToDeliveryStage(order.status)
   const storeRank = DELIVERY_STATUS_RANK[order.status] ?? 0
   const courierRank = DELIVERY_STATUS_RANK[merged.statusText] ?? 0
+  const useStoreProgress = storeRank > courierRank
+
+  const effectiveEstimatedDelivery =
+    storeStage === 'delivered'
+      ? 'Delivered'
+      : useStoreProgress
+        ? storeStage === 'out_for_delivery'
+          ? 'Out for delivery today'
+          : storeStage === 'in_transit'
+            ? 'In transit via courier'
+            : storeStage === 'picked_up'
+              ? 'Picked up by courier'
+              : merged.estimatedDelivery
+        : merged.estimatedDelivery
 
   return {
     ...merged,
     status: courierRank >= storeRank ? merged.status : storeStage,
     statusText: courierRank >= storeRank ? merged.statusText : order.status,
+    estimatedDelivery: effectiveEstimatedDelivery,
+    isProcessing: storeStage === 'delivered' ? false : merged.isProcessing,
     orderId: order.id,
     events: merged.events.length > 0 ? merged.events : internalEvents,
   }
@@ -207,7 +254,7 @@ export async function GET(request: NextRequest) {
       })
 
       if (linkedOrder) {
-        const internalEvents = await loadInternalTimelineEvents(linkedOrder.id)
+        const internalEvents = await loadInternalTimelineEvents(linkedOrder.id, linkedOrder.courier)
         if (item?.shipment && item.state === 'completed') {
           await syncOrderWithParcelsShipment(linkedOrder, item)
         }
@@ -260,7 +307,7 @@ export async function GET(request: NextRequest) {
 
     // ── SCENARIO A: Store Order Found ────────────────────────────────────────
     if (order) {
-      const internalEvents = await loadInternalTimelineEvents(order.id)
+      const internalEvents = await loadInternalTimelineEvents(order.id, order.courier)
       let finalResult = buildBaselineOrderResult(order, internalEvents)
 
       if (order.tracking_number && order.tracking_number.trim()) {

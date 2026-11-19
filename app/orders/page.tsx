@@ -25,6 +25,7 @@ import {
   Check,
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/protected-route'
+import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
 import { StorefrontPageHero } from '@/components/storefront-page-hero'
 import { StorefrontShell } from '@/components/storefront-shell'
 import {
@@ -223,14 +224,26 @@ function OrdersContent() {
 
   // Automatically check for any unlinked/paid PayMongo transactions in background
   useEffect(() => {
-    fetch('/api/paymongo/sync-orders', { method: 'POST' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.recoveredOrders && data.recoveredOrders.length > 0) {
+    let active = true
+    void (async () => {
+      try {
+        const authHeaders = await getBrowserAuthHeaders()
+        if (!authHeaders.Authorization) return
+        const res = await fetch('/api/paymongo/sync-orders', {
+          method: 'POST',
+          headers: authHeaders,
+        })
+        const data = await res.json().catch(() => ({}))
+        if (active && data.recoveredOrders && data.recoveredOrders.length > 0) {
           refreshStore()
         }
-      })
-      .catch(() => {})
+      } catch {
+        // Ignore background sync failure
+      }
+    })()
+    return () => {
+      active = false
+    }
   }, [refreshStore])
 
   // Sync tab from URL if it changes
@@ -290,7 +303,11 @@ function OrdersContent() {
   const handleSyncOrders = async () => {
     setIsSyncing(true)
     try {
-      const res = await fetch('/api/paymongo/sync-orders', { method: 'POST' })
+      const authHeaders = await getBrowserAuthHeaders()
+      const res = await fetch('/api/paymongo/sync-orders', {
+        method: 'POST',
+        headers: authHeaders,
+      })
       const data = await res.json().catch(() => ({}))
       await refreshStore()
       toast({

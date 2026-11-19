@@ -5,33 +5,27 @@ import type { User, UserRole } from '@/lib/auth-context'
 export async function POST(request: Request) {
   try {
     const payload = (await request.json().catch(() => ({}))) as {
-      userId?: string
       email?: string
       name?: string
     }
 
     const authHeader = request.headers.get('Authorization')
-    let userId = payload.userId?.trim()
-    let email = payload.email?.trim().toLowerCase()
-    let name = payload.name?.trim()
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+
+    if (!token) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+    }
 
     const admin = createSupabaseAdminClient()
+    const { data: userData, error: userError } = await admin.auth.getUser(token)
 
-    // If Authorization Bearer token is provided, verify it
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '').trim()
-      const { data: userData, error: userError } = await admin.auth.getUser(token)
-
-      if (!userError && userData?.user) {
-        userId = userData.user.id
-        email = userData.user.email ?? email
-        name = (userData.user.user_metadata?.name as string) ?? name
-      }
+    if (userError || !userData?.user) {
+      return NextResponse.json({ error: 'Invalid or expired session.' }, { status: 401 })
     }
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required.' }, { status: 400 })
-    }
+    const userId = userData.user.id
+    const email = userData.user.email?.trim().toLowerCase() ?? payload.email?.trim().toLowerCase()
+    const name = (userData.user.user_metadata?.name as string | undefined)?.trim() || payload.name?.trim()
 
     // Read profile with admin client (bypasses RLS, no 406/401 error)
     const { data: existingRows } = await admin
@@ -129,7 +123,6 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const payload = (await request.json().catch(() => ({}))) as {
-      userId?: string
       name?: string
       phone?: string
       birthdate?: string
@@ -140,21 +133,20 @@ export async function PUT(request: Request) {
     }
 
     const authHeader = request.headers.get('Authorization')
-    let userId = payload.userId?.trim()
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+
+    if (!token) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+    }
 
     const admin = createSupabaseAdminClient()
+    const { data: userData, error: userError } = await admin.auth.getUser(token)
 
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '').trim()
-      const { data: userData } = await admin.auth.getUser(token)
-      if (userData?.user) {
-        userId = userData.user.id
-      }
+    if (userError || !userData?.user) {
+      return NextResponse.json({ error: 'Invalid or expired session.' }, { status: 401 })
     }
 
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID is required.' }, { status: 400 })
-    }
+    const userId = userData.user.id
 
     const updatePayload: Record<string, unknown> = {}
     if (payload.name !== undefined) updatePayload.name = payload.name.trim()

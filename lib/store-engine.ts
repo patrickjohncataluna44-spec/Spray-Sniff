@@ -1261,17 +1261,26 @@ export function performStoreAction(
         }
       }
 
+      const matchedSize = product.sizes.find((size) => size.ml === action.item.size)
+      const authoritativePrice = matchedSize ? matchedSize.price : product.price
+      const sanitizedItem: CartItem = {
+        ...action.item,
+        size: matchedSize ? matchedSize.ml : (product.sizes[0]?.ml ?? action.item.size),
+        quantity: nextQuantity,
+        unitPrice: authoritativePrice,
+      }
+
       const nextCart = existingItem
         ? currentState.cart.map((cartItem) =>
-          cartItem.productId === action.item.productId && cartItem.size === action.item.size
-            ? { ...cartItem, quantity: cartItem.quantity + nextQuantity }
+          cartItem.productId === action.item.productId && cartItem.size === sanitizedItem.size
+            ? { ...cartItem, quantity: cartItem.quantity + nextQuantity, unitPrice: authoritativePrice }
             : cartItem,
         )
-        : [...currentState.cart, { ...action.item, quantity: nextQuantity }]
+        : [...currentState.cart, sanitizedItem]
 
       return {
         nextState: { ...currentState, cart: nextCart },
-        result: { ok: true, message: `${product.name} was added to the cart.`, data: action.item },
+        result: { ok: true, message: `${product.name} was added to the cart.`, data: sanitizedItem },
       }
     }
 
@@ -1402,7 +1411,18 @@ export function performStoreAction(
       }
 
       const timestamp = new Date().toISOString()
-      const orderItems: OrderLineItem[] = activeCart.map((item) => {
+      const pricedCart: CartItem[] = activeCart.map((item) => {
+        const product = getProductById(item.productId)
+        const matchedSize = product?.sizes.find((size) => size.ml === item.size)
+        const authoritativePrice = matchedSize ? matchedSize.price : (product?.price ?? item.unitPrice)
+        return {
+          productId: item.productId,
+          size: matchedSize ? matchedSize.ml : item.size,
+          quantity: Math.max(1, clampToWholeNumber(item.quantity)),
+          unitPrice: authoritativePrice,
+        }
+      })
+      const orderItems: OrderLineItem[] = pricedCart.map((item) => {
         const product = getProductById(item.productId)
         return {
           productId: item.productId,
@@ -1413,7 +1433,7 @@ export function performStoreAction(
           image: product?.images?.[0] || '',
         }
       })
-      const totals = calculateTotals(activeCart, 'ONLINE')
+      const totals = calculateTotals(pricedCart, 'ONLINE')
       const nextInventory = currentState.inventory.map((record) => {
         const soldQuantity = quantityByProduct[record.productId]
         if (!soldQuantity) {
@@ -1423,12 +1443,17 @@ export function performStoreAction(
         return { ...record, stock: clampToWholeNumber(record.stock - soldQuantity), lastUpdated: timestamp }
       })
 
+      const authoritativeCustomerEmail =
+        actor?.role === 'USER' && actor.email
+          ? actor.email.trim().toLowerCase()
+          : action.input.customerEmail.trim().toLowerCase()
+
       const nextOrder: OrderRecord = {
         id: createOrderId('ONLINE'),
         source: 'ONLINE',
         customerId: actor?.id ?? null,
         customerName: action.input.customerName,
-        customerEmail: action.input.customerEmail.trim().toLowerCase(),
+        customerEmail: authoritativeCustomerEmail,
         status: 'Processing',
         paymentMethod: action.input.paymentMethod,
         paymentStatus: action.input.paymentMethod === 'Cash on Delivery' ? 'Pending' : 'Paid',
@@ -1524,7 +1549,18 @@ export function performStoreAction(
       }
 
       const timestamp = new Date().toISOString()
-      const totals = calculateTotals(action.input.items, 'POS')
+      const pricedPosItems: CartItem[] = action.input.items.map((item) => {
+        const product = getProductById(item.productId)
+        const matchedSize = product?.sizes.find((size) => size.ml === item.size)
+        const authoritativePrice = matchedSize ? matchedSize.price : (product?.price ?? item.unitPrice)
+        return {
+          productId: item.productId,
+          size: matchedSize ? matchedSize.ml : item.size,
+          quantity: Math.max(1, clampToWholeNumber(item.quantity)),
+          unitPrice: authoritativePrice,
+        }
+      })
+      const totals = calculateTotals(pricedPosItems, 'POS')
 
       let cashMetaTag = ''
       if (action.input.paymentMethod === 'Cash' && typeof action.input.tenderedAmount === 'number') {
@@ -1539,7 +1575,7 @@ export function performStoreAction(
         cashMetaTag = `[POS-CASH:${tendered.toFixed(2)}:${change.toFixed(2)}]`
       }
 
-      const orderItems: OrderLineItem[] = action.input.items.map((item) => {
+      const orderItems: OrderLineItem[] = pricedPosItems.map((item) => {
         const product = getProductById(item.productId)
         return {
           productId: item.productId,
@@ -1759,12 +1795,15 @@ export function performStoreAction(
       }
 
       if (
-        existingOrder.status === 'Delivered' ||
-        (existingOrder.status === 'Completed' && existingOrder.source !== 'POS')
+        existingOrder.source === 'ONLINE' &&
+        (isDeliveryOrderStatus(existingOrder.status) || existingOrder.status === 'Completed')
       ) {
         return {
           nextState: currentState,
-          result: { ok: false, message: 'Delivered or completed online orders cannot be cancelled.' },
+          result: {
+            ok: false,
+            message: 'Orders that have already been shipped or delivered can no longer be cancelled.',
+          },
         }
       }
 
@@ -1954,9 +1993,19 @@ export function performStoreAction(
           ? sanitizeDeliveryField(action.deliveryNotes)
           : existingOrder.deliveryNotes
 
+      const shouldAutoSettleCod =
+        action.status === 'Delivered' &&
+        existingOrder.paymentMethod === 'Cash on Delivery' &&
+        existingOrder.paymentStatus !== 'Paid'
+
+      const defaultDeliveryNote = shouldAutoSettleCod
+        ? `Delivery stage set to Delivered by ${actorName}. COD payment collected.`
+        : `Delivery stage set to ${action.status} by ${actorName}.`
+
       const updatedOrder: OrderRecord = {
         ...existingOrder,
         status: action.status,
+        paymentStatus: shouldAutoSettleCod ? 'Paid' : existingOrder.paymentStatus,
         courier,
         courierSlug,
         trackingNumber,
@@ -1969,9 +2018,7 @@ export function performStoreAction(
             createdAt: timestamp,
             actorName,
             actorId: actor?.id,
-            note:
-              sanitizeDeliveryField(action.note) ||
-              `Delivery stage set to ${action.status} by ${actorName}.`,
+            note: sanitizeDeliveryField(action.note) || defaultDeliveryNote,
           },
         ],
       }

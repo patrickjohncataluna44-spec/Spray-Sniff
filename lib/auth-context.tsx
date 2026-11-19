@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useEffectEvent } from '@/hooks/use-effect-event'
+import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
 import { subscribeToUserProfile } from '@/lib/supabase-realtime'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
@@ -98,17 +99,21 @@ function getInitialCachedUser(): User | null {
 
 async function readProfile(
   userId: string,
-  fallbackUser?: { email?: string | null; name?: string | null },
+  fallbackUser?: { email?: string | null; name?: string | null; accessToken?: string | null },
 ): Promise<User> {
   // 1. Fetch from server API route which runs with service role (bypasses RLS, zero 406/401/429/42501 errors)
   try {
+    const authHeaders = fallbackUser?.accessToken
+      ? { Authorization: `Bearer ${fallbackUser.accessToken}` }
+      : await getBrowserAuthHeaders()
+
     const response = await fetch('/api/auth/profile', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
       },
       body: JSON.stringify({
-        userId,
         email: fallbackUser?.email ?? undefined,
         name: fallbackUser?.name ?? undefined,
       }),
@@ -231,6 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const profile = await readProfile(sessionUser.id, {
           email: sessionUser.email,
           name,
+          accessToken: data.session?.access_token,
         })
 
         if (mounted) {
@@ -283,6 +289,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const profile = await readProfile(sessionUser.id, {
             email: sessionUser.email,
             name,
+            accessToken: session?.access_token,
           })
           setUser(profile)
           cacheUser(profile)
@@ -332,6 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const profile = await readProfile(sessionUser.id, {
           email: sessionUser.email,
           name,
+          accessToken: data.session?.access_token,
         })
 
         setUser(profile)
@@ -404,13 +412,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('You must be signed in to update your profile.')
     }
 
+    const authHeaders = await getBrowserAuthHeaders()
     const response = await fetch('/api/auth/profile', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
       },
       body: JSON.stringify({
-        userId: user.id,
         ...data,
       }),
     })

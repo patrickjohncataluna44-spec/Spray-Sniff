@@ -29,6 +29,7 @@ import { StorefrontShell } from '@/components/storefront-shell'
 import { Spinner } from '@/components/ui/spinner'
 import { formatPHP } from '@/lib/currency'
 import type { PaymongoCheckoutLineItem } from '@/lib/paymongo'
+import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
 import { ONLINE_PAYMENT_METHODS, useStore } from '@/lib/store-context'
 import { isPaymentTestCart, PAYMENT_TEST_PRODUCT_ID, type CartItem, type OrderRecord } from '@/lib/store-engine'
 import { useAuth } from '@/lib/auth-context'
@@ -511,7 +512,11 @@ function CheckoutContent() {
 
     if (queryParts.length > 0) {
       try {
-        const res = await fetch(`/api/paymongo/pending?${queryParts.join('&')}`, { cache: 'no-store' })
+        const authHeaders = await getBrowserAuthHeaders()
+        const res = await fetch(`/api/paymongo/pending?${queryParts.join('&')}`, {
+          headers: authHeaders,
+          cache: 'no-store',
+        })
         if (res.ok) {
           const data = await res.json()
           if (data.ok && data.pendingCheckout) {
@@ -567,7 +572,9 @@ function CheckoutContent() {
     let lastError: Error | null = null
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
+      const authHeaders = await getBrowserAuthHeaders()
       const response = await fetch(`/api/paymongo/checkout/${encodeURIComponent(pendingCheckout.checkoutSessionId)}`, {
+        headers: authHeaders,
         cache: 'no-store',
       })
 
@@ -845,10 +852,12 @@ function CheckoutContent() {
     try {
       if (isPaymongoCheckoutMethod(formData.paymentMethod)) {
         const clientToken = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `pm_${Date.now()}`
+        const authHeaders = await getBrowserAuthHeaders()
         const response = await fetch('/api/paymongo/checkout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...authHeaders,
           },
           body: JSON.stringify({
             customerEmail: user.email,

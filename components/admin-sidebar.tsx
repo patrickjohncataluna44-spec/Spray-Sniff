@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   BarChart3,
   Boxes,
+  Home,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -238,8 +239,18 @@ export function AdminSidebar() {
         })}
       </nav>
 
-      {/* Logout Button */}
-      <div className="p-4 border-t border-sidebar-border">
+      {/* Footer Actions */}
+      <div className="p-4 border-t border-sidebar-border space-y-2">
+        <Button
+          variant="outline"
+          className="w-full justify-center gap-2 border-sidebar-border bg-white/80 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          asChild
+        >
+          <Link href="/">
+            <Home className="w-4 h-4" />
+            Home
+          </Link>
+        </Button>
         <Button
           variant="outline"
           className="w-full justify-center gap-2 border-primary/20 bg-white/70 text-primary hover:bg-primary hover:text-primary-foreground"

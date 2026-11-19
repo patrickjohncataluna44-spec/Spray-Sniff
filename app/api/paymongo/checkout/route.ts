@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import {
   assertPaymongoConfigured,
   PAYMONGO_ORDER_CHECKOUT_DESCRIPTION,
   createPaymongoCheckoutSession,
 } from '@/lib/paymongo'
 import { savePendingPaymongoCheckout } from '@/lib/paymongo-pending'
+import { getRequestActor } from '@/lib/server-auth'
 import crypto from 'crypto'
 
 function getBaseUrl(request: Request) {
@@ -18,13 +19,20 @@ function getBaseUrl(request: Request) {
   return new URL(request.url).origin
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const actor = await getRequestActor(request)
+    if (!actor) {
+      return NextResponse.json(
+        { error: 'Please sign in before creating a checkout session.' },
+        { status: 401 },
+      )
+    }
+
     assertPaymongoConfigured()
 
     const body = await request.json()
     const {
-      customerEmail,
       customerName,
       lineItems,
       expectedAmount,
@@ -35,9 +43,35 @@ export async function POST(request: Request) {
       clientToken,
     } = body ?? {}
 
-    if (!customerEmail || !customerName || !Array.isArray(lineItems) || lineItems.length === 0) {
+    const customerEmail = actor.email.trim().toLowerCase()
+    const resolvedCustomerName = (typeof customerName === 'string' && customerName.trim()) || actor.name
+
+    if (!customerEmail || !resolvedCustomerName || !Array.isArray(lineItems) || lineItems.length === 0) {
       return NextResponse.json(
         { error: 'Customer details and at least one checkout line item are required.' },
+        { status: 400 },
+      )
+    }
+
+    const sanitizedLineItems = lineItems.map((item: { name?: unknown; amount?: unknown; quantity?: unknown; currency?: unknown; description?: unknown }) => {
+      const amount = Math.round(Number(item?.amount))
+      const quantity = Math.round(Number(item?.quantity))
+      if (!Number.isFinite(amount) || amount < 100 || !Number.isFinite(quantity) || quantity < 1) {
+        throw new Error('Checkout line items must have valid positive amounts and quantities.')
+      }
+      return {
+        name: String(item?.name || 'Fragrance Item').slice(0, 120),
+        amount,
+        quantity,
+        currency: 'PHP' as const,
+        description: typeof item?.description === 'string' ? item.description.slice(0, 200) : undefined,
+      }
+    })
+
+    const computedSum = sanitizedLineItems.reduce((sum, li) => sum + li.amount * li.quantity, 0)
+    if (computedSum < 100) {
+      return NextResponse.json(
+        { error: 'Checkout total must be at least ₱1.00.' },
         { status: 400 },
       )
     }
@@ -48,14 +82,15 @@ export async function POST(request: Request) {
 
     const payload = await createPaymongoCheckoutSession({
       customerEmail,
-      customerName,
+      customerName: resolvedCustomerName,
       description: PAYMONGO_ORDER_CHECKOUT_DESCRIPTION,
-      lineItems,
+      lineItems: sanitizedLineItems,
       successUrl,
       metadata: {
+        customer_id: actor.id,
         customer_email: customerEmail,
-        customer_name: customerName,
-        expected_amount: typeof expectedAmount === 'number' ? String(expectedAmount) : '',
+        customer_name: resolvedCustomerName,
+        expected_amount: String(typeof expectedAmount === 'number' && expectedAmount >= 100 ? Math.round(expectedAmount) : computedSum),
         reference: reference || '',
         shipping_address: shippingAddress || '',
         checkout_token: checkoutToken,
@@ -66,9 +101,9 @@ export async function POST(request: Request) {
       token: checkoutToken,
       checkoutSessionId: payload.data.id,
       customerEmail,
-      customerName,
+      customerName: resolvedCustomerName,
       shippingAddress: shippingAddress || '',
-      expectedAmount: typeof expectedAmount === 'number' ? expectedAmount : undefined,
+      expectedAmount: typeof expectedAmount === 'number' && expectedAmount >= 100 ? Math.round(expectedAmount) : computedSum,
       reference: reference || '',
       notes: notes || '',
       paymentMethodLabel: payload.paymentMethodLabel,

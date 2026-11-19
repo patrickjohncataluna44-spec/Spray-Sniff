@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import {
   assertPaymongoConfigured,
   getPaymongoCheckoutPaidAmount,
@@ -8,12 +8,18 @@ import {
   retrievePaymongoCheckoutSession,
   retrievePaymongoPayment,
 } from '@/lib/paymongo'
+import { getRequestActor } from '@/lib/server-auth'
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ sessionId: string }> },
 ) {
   try {
+    const actor = await getRequestActor(request)
+    if (!actor) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+    }
+
     assertPaymongoConfigured()
 
     const { sessionId } = await context.params
@@ -22,9 +28,20 @@ export async function GET(
       return NextResponse.json({ error: 'Checkout session id is required.' }, { status: 400 })
     }
 
+    const isBackoffice = actor.role === 'ADMIN' || actor.role === 'STAFF'
+    const actorEmail = actor.email.trim().toLowerCase()
+
     if (sessionId.startsWith('pay_')) {
       const paymentRes = await retrievePaymongoPayment(sessionId)
       const p = paymentRes.data
+      const ownerEmail = (
+        p.attributes.billing?.email ||
+        p.attributes.metadata?.customer_email ||
+        ''
+      ).trim().toLowerCase()
+      if (!isBackoffice && ownerEmail && ownerEmail !== actorEmail) {
+        return NextResponse.json({ error: 'Access denied for this payment session.' }, { status: 403 })
+      }
       const isPaid = p.attributes.status === 'paid'
       return NextResponse.json({
         checkoutSessionId: p.id,
@@ -45,6 +62,14 @@ export async function GET(
     }
 
     const session = await retrievePaymongoCheckoutSession(sessionId)
+    const ownerEmail = (
+      session.data.attributes.metadata?.customer_email ||
+      session.data.attributes.billing?.email ||
+      ''
+    ).trim().toLowerCase()
+    if (!isBackoffice && ownerEmail && ownerEmail !== actorEmail) {
+      return NextResponse.json({ error: 'Access denied for this checkout session.' }, { status: 403 })
+    }
     const paid = isPaymongoCheckoutPaid(session)
     const paidPayment = getPaymongoPaidPayment(session)
 

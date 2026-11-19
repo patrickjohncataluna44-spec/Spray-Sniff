@@ -99,39 +99,15 @@ export async function getRequestActor(request: NextRequest): Promise<StoreActor 
       }
 
       if (actor) {
+        if (actorCache.size >= 500) {
+          const firstKey = actorCache.keys().next().value
+          if (firstKey) actorCache.delete(firstKey)
+        }
         actorCache.set(token, {
           actor,
           expiresAt: Date.now() + ACTOR_CACHE_TTL_MS,
         })
         return actor
-      }
-    }
-  }
-
-  // Fallback: Resolve actor via verified customer headers if bearer token is refreshing or absent
-  const headerUserId = request.headers.get('x-customer-id')?.trim()
-  const headerUserEmail = request.headers.get('x-customer-email')?.trim()
-
-  if (headerUserId || headerUserEmail) {
-    const supabase = createSupabaseAdminClient()
-    let query = supabase.from('profiles').select('id, email, name, role')
-
-    if (headerUserId) {
-      query = query.eq('id', headerUserId)
-    } else if (headerUserEmail) {
-      query = query.ilike('email', headerUserEmail)
-    }
-
-    const { data: profileRows } = await query.limit(1)
-    const profile = profileRows?.[0]
-
-    if (profile) {
-      const normalizedProfileRole = normalizeRole(profile.role) ?? 'USER'
-      return {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        role: normalizedProfileRole,
       }
     }
   }

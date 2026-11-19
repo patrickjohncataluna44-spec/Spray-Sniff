@@ -1,7 +1,12 @@
 import { after, NextRequest, NextResponse } from 'next/server'
 import { sendPaymongoReceiptEmail } from '@/lib/mailer'
+import {
+  getPaymongoCheckoutPaidAmount,
+  isPaymongoCheckoutPaid,
+  retrievePaymongoCheckoutSession,
+  retrievePaymongoPayment,
+} from '@/lib/paymongo'
 import { getRequestActor } from '@/lib/server-auth'
-import { createSupabaseAdminClient } from '@/lib/supabase-server'
 import {
   createPublicStoreState,
   getVisibleStoreState,
@@ -17,7 +22,6 @@ import {
   performStoreAction,
   type OrderRecord,
   type StoreAction,
-  type StoreActor,
 } from '@/lib/store-engine'
 
 function getErrorMessage(error: unknown) {
@@ -117,26 +121,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A valid store action is required.' }, { status: 400 })
     }
 
-    let actor = await getRequestActor(request)
+    const actor = await getRequestActor(request)
 
-    if (!actor && (body?.customerId || body?.customerEmail)) {
-      const supabase = createSupabaseAdminClient()
-      let query = supabase.from('profiles').select('id, email, name, role')
-      if (body?.customerId) {
-        query = query.eq('id', String(body.customerId).trim())
-      } else if (body?.customerEmail) {
-        query = query.ilike('email', String(body.customerEmail).trim())
-      }
-      const { data: profileRows } = await query.limit(1)
-      const profile = profileRows?.[0]
-      if (profile) {
-        actor = {
-          id: profile.id,
-          email: profile.email,
-          name: profile.name,
-          role: (profile.role as StoreActor['role']) || 'USER',
-        }
-      }
+    if (!actor) {
+      return NextResponse.json(
+        { ok: false, message: 'Authentication required. Please sign in and try again.' },
+        { status: 401 },
+      )
     }
 
     const snapshotLoader = FULL_SNAPSHOT_ACTIONS.has(action.type)
@@ -187,6 +178,53 @@ export async function POST(request: NextRequest) {
             syncedAt: new Date().toISOString(),
           })
         }
+
+        // Verify with PayMongo that this checkout session or payment is actually paid
+        let isPaidInPaymongo = false
+        let paymongoCustomerEmail = ''
+
+        if (checkoutSessionId.startsWith('pay_')) {
+          const paymentRes = await retrievePaymongoPayment(checkoutSessionId)
+          isPaidInPaymongo = paymentRes.data.attributes.status === 'paid'
+          paymongoCustomerEmail = (
+            paymentRes.data.attributes.billing?.email ||
+            paymentRes.data.attributes.metadata?.customer_email ||
+            ''
+          ).trim().toLowerCase()
+        } else {
+          const sessionRes = await retrievePaymongoCheckoutSession(checkoutSessionId)
+          isPaidInPaymongo =
+            isPaymongoCheckoutPaid(sessionRes) &&
+            (getPaymongoCheckoutPaidAmount(sessionRes) ?? 0) >= 100
+          paymongoCustomerEmail = (
+            sessionRes.data.attributes.metadata?.customer_email ||
+            sessionRes.data.attributes.billing?.email ||
+            ''
+          ).trim().toLowerCase()
+        }
+
+        if (!isPaidInPaymongo) {
+          return NextResponse.json(
+            { ok: false, message: 'PayMongo payment has not been completed yet.' },
+            { status: 400 },
+          )
+        }
+
+        if (
+          actor.role === 'USER' &&
+          paymongoCustomerEmail &&
+          paymongoCustomerEmail !== actor.email.trim().toLowerCase()
+        ) {
+          return NextResponse.json(
+            { ok: false, message: 'This PayMongo session belongs to a different account.' },
+            { status: 403 },
+          )
+        }
+      } else {
+        return NextResponse.json(
+          { ok: false, message: 'A valid PayMongo session reference is required.' },
+          { status: 400 },
+        )
       }
     }
 

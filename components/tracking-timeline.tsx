@@ -40,7 +40,8 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
   const isException = tracking.status === 'exception'
   const currentIndex = getDeliveryStageIndex(tracking.status)
   const stageLabel =
-    DELIVERY_STAGES.find((entry) => entry.stage === tracking.status)?.label ?? 'In Transit'
+    DELIVERY_STAGES.find((entry) => entry.stage === tracking.status)?.label ??
+    (tracking.status === 'order_placed' ? 'Order Placed' : 'In Transit')
 
   return (
     <div className="space-y-6">
@@ -144,7 +145,7 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
             {/* Background Line */}
             <div className="absolute top-4 left-4 right-4 h-1 bg-muted rounded-full" />
             {/* Active Progress Line */}
-            {!isException && (
+            {!isException && currentIndex >= 0 && (
               <div
                 className="absolute top-4 left-4 h-1 bg-primary rounded-full transition-all duration-500 ease-out"
                 style={{
@@ -157,8 +158,8 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
             <div className="relative z-10 flex justify-between">
               {DELIVERY_STAGES.map((entry, idx) => {
                 const Icon = STAGE_ICONS[entry.stage] ?? Clock
-                const isPassed = !isException && idx <= currentIndex
-                const isCurrent = !isException && idx === currentIndex
+                const isPassed = !isException && currentIndex >= 0 && idx <= currentIndex
+                const isCurrent = !isException && currentIndex >= 0 && idx === currentIndex
 
                 return (
                   <div key={entry.stage} className="flex flex-col items-center group">
@@ -216,10 +217,34 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
                 Live carrier telemetry synchronized via ParcelsApp. Current verified stage:{' '}
                 <span className="font-semibold text-foreground">{stageLabel}</span>.
               </>
+            ) : tracking.status === 'delivered' ? (
+              <>
+                Your parcel has been delivered via{' '}
+                <span className="font-semibold text-foreground">{tracking.carrier.name}</span>. Current stage:{' '}
+                <span className="font-semibold text-foreground">{stageLabel}</span>.
+              </>
+            ) : tracking.status === 'out_for_delivery' ? (
+              <>
+                Your parcel is out for delivery with{' '}
+                <span className="font-semibold text-foreground">{tracking.carrier.name}</span>. Current stage:{' '}
+                <span className="font-semibold text-foreground">{stageLabel}</span>.
+              </>
+            ) : tracking.status === 'in_transit' ? (
+              <>
+                Your parcel has been dispatched and is in transit via{' '}
+                <span className="font-semibold text-foreground">{tracking.carrier.name}</span>. Current stage:{' '}
+                <span className="font-semibold text-foreground">{stageLabel}</span>.
+              </>
+            ) : tracking.status === 'picked_up' ? (
+              <>
+                Your parcel has been picked up by{' '}
+                <span className="font-semibold text-foreground">{tracking.carrier.name}</span>. Current stage:{' '}
+                <span className="font-semibold text-foreground">{stageLabel}</span>.
+              </>
             ) : (
               <>
                 Your order is currently being fulfilled by our boutique team. Current stage:{' '}
-                <span className="font-semibold text-foreground">{stageLabel}</span>. Once dispatched to the courier, real-time satellite scans will update here.
+                <span className="font-semibold text-foreground">{stageLabel}</span>. Once dispatched to the courier, tracking updates will appear here.
               </>
             )}
           </p>
@@ -268,7 +293,11 @@ export function TrackingTimeline({ tracking }: TrackingTimelineProps) {
                             : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300'
                         }`}
                       >
-                        {isCourier ? 'Courier Scan' : 'Boutique'}
+                        {isCourier
+                          ? event.id.startsWith('parcels-')
+                            ? 'Courier Scan'
+                            : event.carrier || 'Courier'
+                          : 'Boutique'}
                       </span>
                     </div>
 

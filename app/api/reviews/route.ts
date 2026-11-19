@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestActor } from '@/lib/server-auth'
 import { createSupabaseAdminClient } from '@/lib/supabase-server'
-import type { StoreActor } from '@/lib/store-engine'
 
 export interface ReviewItem {
   id: string
@@ -12,56 +11,6 @@ export interface ReviewItem {
   rating: number
   comment: string
   createdAt: string
-}
-
-async function resolveActor(request: NextRequest, fallbackId?: string, fallbackEmail?: string): Promise<StoreActor | null> {
-  // 1. Try Bearer token from header
-  const tokenActor = await getRequestActor(request)
-  if (tokenActor) {
-    return tokenActor
-  }
-
-  // 2. Check custom headers or body fallbacks
-  const headerUserId = request.headers.get('x-customer-id')?.trim() || fallbackId?.trim()
-  const headerUserEmail = request.headers.get('x-customer-email')?.trim() || fallbackEmail?.trim()
-
-  const supabase = createSupabaseAdminClient()
-
-  if (headerUserId) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, email, name, role')
-      .eq('id', headerUserId)
-      .maybeSingle()
-
-    if (profile) {
-      return {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        role: (profile.role as StoreActor['role']) || 'USER',
-      }
-    }
-  }
-
-  if (headerUserEmail) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, email, name, role')
-      .ilike('email', headerUserEmail)
-      .maybeSingle()
-
-    if (profile) {
-      return {
-        id: profile.id,
-        email: profile.email,
-        name: profile.name,
-        role: (profile.role as StoreActor['role']) || 'USER',
-      }
-    }
-  }
-
-  return null
 }
 
 // GET /api/reviews?productId=...
@@ -76,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createSupabaseAdminClient()
-    const actor = await resolveActor(request)
+    const actor = await getRequestActor(request)
 
     // 1. Fetch reviews for the product
     const { data: reviewsData, error: reviewsError } = await supabase
@@ -199,7 +148,7 @@ export async function POST(request: NextRequest) {
     const rating = typeof body?.rating === 'number' ? Math.max(1, Math.min(5, Math.round(body.rating))) : 0
     const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
 
-    const actor = await resolveActor(request, body?.customerId, body?.customerEmail)
+    const actor = await getRequestActor(request)
 
     if (!actor) {
       return NextResponse.json(

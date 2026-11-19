@@ -153,7 +153,7 @@ function getPayloadSyncedAt(payload: unknown) {
   return new Date().toISOString()
 }
 
-export async function getAuthHeaders(user?: { id?: string | null; email?: string | null } | null) {
+export async function getAuthHeaders(_user?: { id?: string | null; email?: string | null } | null) {
   const headers: Record<string, string> = {}
 
   try {
@@ -172,30 +172,6 @@ export async function getAuthHeaders(user?: { id?: string | null; email?: string
     const storedToken = getStoredSupabaseToken()
     if (storedToken) {
       headers.Authorization = `Bearer ${storedToken}`
-    }
-  }
-
-  if (user?.id) {
-    headers['x-customer-id'] = user.id
-  }
-  if (user?.email) {
-    headers['x-customer-email'] = user.email
-  }
-
-  if (!headers['x-customer-id'] && typeof window !== 'undefined') {
-    try {
-      const cached = localStorage.getItem('auth-user')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (parsed?.id) {
-          headers['x-customer-id'] = parsed.id
-          if (parsed.email) {
-            headers['x-customer-email'] = parsed.email
-          }
-        }
-      }
-    } catch {
-      // Ignore cache parse error
     }
   }
 
@@ -350,8 +326,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({
           action,
-          customerId: user?.id || authHeaders['x-customer-id'],
-          customerEmail: user?.email || authHeaders['x-customer-email'],
         }),
       })
 
@@ -391,8 +365,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({
           productId,
-          customerId: user?.id || authHeaders['x-customer-id'],
-          customerEmail: user?.email || authHeaders['x-customer-email'],
         }),
       })
 

@@ -304,6 +304,11 @@ export function clearBackofficeStoreSnapshotCache() {
   backofficeStoreSnapshotCacheExpiresAt = 0
 }
 
+export async function markBackofficeStateDirty() {
+  clearBackofficeStoreSnapshotCache()
+  await bumpStoreStateVersions({ backoffice: true, publicState: false })
+}
+
 function isMissingOrderDeliveryColumnsError(error: { code?: string; message?: string } | null | undefined) {
   if (!error) return false
   const msg = (error.message || '').toLowerCase()
@@ -1773,36 +1778,9 @@ async function loadOrdersForCustomer(actor: StoreActor) {
   const supabase = createSupabaseAdminClient()
   const normalizedEmail = actor.email ? actor.email.trim().toLowerCase() : ''
 
-  // Collect candidate emails for this actor
+  // Only match orders owned by the authenticated actor's verified ID or email
   const candidateEmails = new Set<string>()
   if (normalizedEmail) candidateEmails.add(normalizedEmail)
-
-  // Check profiles for linked accounts (e.g. matching phone number or secondary emails)
-  try {
-    if (actor.id || normalizedEmail) {
-      let profileQuery = supabase.from('profiles').select('id, email, phone, name')
-      if (actor.id) {
-        profileQuery = profileQuery.eq('id', actor.id)
-      } else {
-        profileQuery = profileQuery.ilike('email', normalizedEmail)
-      }
-      const { data: userProfiles } = await profileQuery.limit(1)
-      const userProfile = userProfiles?.[0]
-
-      if (userProfile?.phone && String(userProfile.phone).trim().length >= 7) {
-        const cleanPhone = String(userProfile.phone).trim()
-        const { data: matchingByPhone } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('phone', cleanPhone)
-        for (const p of matchingByPhone ?? []) {
-          if (p.email) candidateEmails.add(p.email.trim().toLowerCase())
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[loadOrdersForCustomer] Non-fatal profile phone lookup error:', err)
-  }
 
   const conditions: string[] = []
   if (actor.id) {

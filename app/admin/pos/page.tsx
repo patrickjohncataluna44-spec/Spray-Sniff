@@ -106,11 +106,42 @@ export default function PosPage() {
   const [receiptOrder, setReceiptOrder] = useState<OrderRecord | null>(null)
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
   const [lastCashTendered, setLastCashTendered] = useState<number | undefined>(undefined)
+  const [activitySearch, setActivitySearch] = useState('')
+  const [hideVoidedActivity, setHideVoidedActivity] = useState(false)
 
   const ordersById = useMemo(
     () => new Map(orders.map((order) => [order.id, order])),
     [orders],
   )
+
+  const filteredPosTransactions = useMemo(() => {
+    const query = activitySearch.trim().toLowerCase()
+
+    return posTransactions.filter((transaction) => {
+      const linkedOrder = ordersById.get(transaction.orderId)
+      const isVoided = linkedOrder?.status === 'Cancelled'
+      if (hideVoidedActivity && isVoided) {
+        return false
+      }
+
+      if (!query) return true
+
+      const dateLabel = new Date(transaction.createdAt).toLocaleDateString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+
+      return (
+        transaction.id.toLowerCase().includes(query) ||
+        transaction.orderId.toLowerCase().includes(query) ||
+        transaction.cashierName.toLowerCase().includes(query) ||
+        transaction.paymentMethod.toLowerCase().includes(query) ||
+        (linkedOrder?.customerName ?? 'Walk-in Customer').toLowerCase().includes(query) ||
+        dateLabel.toLowerCase().includes(query)
+      )
+    })
+  }, [activitySearch, hideVoidedActivity, ordersById, posTransactions])
 
   const activeReceiptOrder = useMemo(() => {
     if (!receiptOrder) return null
@@ -416,8 +447,6 @@ export default function PosPage() {
           saleItems,
           customerName: customerName.trim() || 'Walk-in Customer',
           cashierName: user?.name || 'Store Staff',
-          cashierId: user?.id,
-          cashierEmail: user?.email,
           clientSaleId,
         }),
       })
@@ -554,8 +583,6 @@ export default function PosPage() {
       const queryParams = new URLSearchParams({
         ...(qrModalData?.paymentIntentId ? { paymentIntentId: qrModalData.paymentIntentId } : {}),
         ...(qrModalData?.sessionId ? { sessionId: qrModalData.sessionId } : {}),
-        ...(user?.id ? { cashierId: user.id } : {}),
-        ...(user?.email ? { cashierEmail: user.email } : {}),
       })
       const res = await fetch(
         `/api/admin/pos/paymongo-qr/status?${queryParams.toString()}`,
@@ -1125,19 +1152,56 @@ export default function PosPage() {
 
                 {/* Recent POS Activity */}
                 <div className="mt-8 border-t border-border pt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-foreground/75">
-                      Recent POS Activity
-                    </h3>
-                    <span className="text-[11px] text-foreground/50">
-                      Click a sale for receipt or void
-                    </span>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-foreground/75">
+                        Recent POS Activity
+                      </h3>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground/65">
+                        {filteredPosTransactions.length} / {posTransactions.length}
+                      </span>
+                    </div>
+                    <Link
+                      href="/admin/orders?channel=pos"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Open in Orders
+                    </Link>
                   </div>
-                  <div className="space-y-2.5">
+
+                  {posTransactions.length > 0 && (
+                    <div className="mb-3 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={activitySearch}
+                        onChange={(e) => setActivitySearch(e.target.value)}
+                        placeholder="Search TX ID, date (e.g. Oct, Nov 8), customer..."
+                        aria-label="Filter POS activity"
+                        className="h-8 flex-1 rounded-lg border border-border bg-background px-2.5 text-xs text-foreground placeholder:text-foreground/45 focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setHideVoidedActivity((prev) => !prev)}
+                        className={`h-8 shrink-0 rounded-lg border px-2.5 text-[11px] font-medium transition-colors ${
+                          hideVoidedActivity
+                            ? 'border-accent bg-accent/15 text-foreground'
+                            : 'border-border bg-background text-foreground/65 hover:bg-muted'
+                        }`}
+                      >
+                        {hideVoidedActivity ? 'Showing active' : 'Hide voided'}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="max-h-[380px] overflow-y-auto space-y-2.5 pr-1">
                     {posTransactions.length === 0 ? (
                       <p className="text-xs text-foreground/50 italic">No recent transactions.</p>
+                    ) : filteredPosTransactions.length === 0 ? (
+                      <p className="text-xs text-foreground/50 italic">
+                        No POS transactions match your filter.
+                      </p>
                     ) : (
-                      posTransactions.slice(0, 5).map((transaction) => {
+                      filteredPosTransactions.map((transaction) => {
                         const linkedOrder = ordersById.get(transaction.orderId)
                         const isVoided = linkedOrder?.status === 'Cancelled'
 
@@ -1193,7 +1257,9 @@ export default function PosPage() {
                               <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-foreground/50">
                                 <Printer className="h-2.5 w-2.5" />
                                 <span>
-                                  {new Date(transaction.createdAt).toLocaleTimeString([], {
+                                  {new Date(transaction.createdAt).toLocaleString('en-PH', {
+                                    month: 'short',
+                                    day: 'numeric',
                                     hour: '2-digit',
                                     minute: '2-digit',
                                   })}

@@ -1,23 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ArrowLeft, Package, RefreshCw, Truck } from 'lucide-react'
-import Image from 'next/image'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Globe, Layers, RefreshCw, Store } from 'lucide-react'
 import Link from 'next/link'
-import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
-import { Button } from '@/components/ui/button'
-import { ProtectedRoute } from '@/components/protected-route'
-import { AdminSidebar } from '@/components/admin-sidebar'
-import { useAuth } from '@/lib/auth-context'
-import { formatPHP } from '@/lib/currency'
-import {
-  DELIVERY_ORDER_STATUSES,
-  ONLINE_ORDER_STATUSES,
-  type OrderRecord,
-  type OrderStatus,
-  useStore,
-} from '@/lib/store-context'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { AdminDeliveryDialog } from '@/components/admin-delivery-dialog'
+import { AdminOrdersTable } from '@/components/admin-orders-table'
+import { AdminSidebar } from '@/components/admin-sidebar'
+import { PosReceiptModal } from '@/components/pos-receipt-modal'
+import { ProtectedRoute } from '@/components/protected-route'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,138 +19,187 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/hooks/use-toast'
+import { type ChannelView } from '@/lib/admin-orders-formatters'
+import { useAuth } from '@/lib/auth-context'
+import { getBrowserAuthHeaders } from '@/lib/client-auth-headers'
+import { formatPHP } from '@/lib/currency'
+import { type OrderRecord, type OrderStatus, useStore } from '@/lib/store-context'
 
-const ALL_STATUSES = ['All Status', ...ONLINE_ORDER_STATUSES, 'Cancelled', 'Completed']
-const ALL_CHANNELS = ['All Channels', 'ONLINE', 'POS']
 const ALL_PAYMENT_STATES = ['All Payments', 'Paid', 'Pending']
 
-/**
- * The inline control only runs the pre-delivery workflow. Every delivery stage
- * goes through the admin-only Manage Delivery dialog, and the server rejects
- * delivery statuses on this action regardless of role — so this is a faithful
- * reflection of what the action actually accepts, not the enforcement itself.
- */
-const PRE_DELIVERY_ORDER_STATUSES: OrderStatus[] = ['Pending', 'Processing']
-
-function isDeliveryStage(status: OrderStatus) {
-  return (DELIVERY_ORDER_STATUSES as readonly OrderStatus[]).includes(status)
-}
-
-function getChannelLabel(order: OrderRecord) {
-  return order.source === 'POS' ? 'Walk-in / POS' : 'Online'
-}
-
-function getChannelTone(order: OrderRecord) {
-  return order.source === 'POS'
-    ? 'bg-violet-100 text-violet-700'
-    : 'bg-sky-100 text-sky-700'
-}
-
-function getPaymentMethodLabel(order: OrderRecord) {
-  if (order.paymentMethod === 'Cash on Delivery') {
-    return 'COD'
+function parseChannelParam(raw: string | null): ChannelView {
+  if (raw === 'pos' || raw === 'all' || raw === 'online') {
+    return raw
   }
-
-  if (order.paymentMethod === 'PayMongo') {
-    return 'PayMongo'
-  }
-
-  return order.paymentMethod
+  return 'online'
 }
 
-function getPaymentStateTone(paymentStatus: OrderRecord['paymentStatus']) {
-  return paymentStatus === 'Paid'
-    ? 'bg-emerald-100 text-emerald-700'
-    : 'bg-amber-100 text-amber-700'
-}
-
-function getPaymentDescription(order: OrderRecord) {
-  if (order.source === 'POS') {
-    if (order.status === 'Cancelled') {
-      return order.paymentMethod === 'Cash'
-        ? 'POS sale voided. Cash refunded at drawer.'
-        : 'POS sale voided. Manual PayMongo refund follow-up may be required.'
-    }
-    return 'Walk-in payment recorded at checkout.'
-  }
-
-  if (order.status === 'Cancelled') {
-    return order.paymentStatus === 'Paid'
-      ? 'Order cancelled after payment. Manual refund follow-up is still required.'
-      : 'Order cancelled before payment collection.'
-  }
-
-  if (order.paymentMethod === 'Cash on Delivery') {
-    return order.paymentStatus === 'Paid'
-      ? 'COD payment has been collected.'
-      : 'Collect payment from the customer upon delivery.'
-  }
-
-  return order.paymentStatus === 'Paid'
-    ? 'Paid online successfully.'
-    : 'Online payment is still waiting for confirmation.'
-}
-
-function getStatusTone(status: OrderRecord['status']) {
-  if (status === 'Cancelled') {
-    return 'bg-slate-200 text-slate-700'
-  }
-
-  return 'bg-accent/10 text-accent'
-}
-
-function getLastTimelineEntry(order: OrderRecord) {
-  return order.timeline[order.timeline.length - 1]
-}
-
-function needsRefundFollowUp(order: OrderRecord) {
-  if (order.source === 'POS' && order.paymentMethod === 'Cash') {
-    return false
-  }
-  return order.actionAvailability?.needsRefundFollowUp ?? (order.status === 'Cancelled' && order.paymentStatus === 'Paid')
-}
-
-export default function AdminOrdersPage() {
+function AdminOrdersContent() {
   const { user } = useAuth()
-  const { markOrderPaymentPaid, orders, updateOrderStatus, adminCancelOrder, getProductById } = useStore()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const {
+    adminCancelOrder,
+    getProductById,
+    markOrderPaymentPaid,
+    orders,
+    posTransactions,
+    refreshStore,
+    updateOrderStatus,
+  } = useStore()
+
+  const channelParam = parseChannelParam(searchParams.get('channel'))
+  const [channelView, setChannelView] = useState<ChannelView>(channelParam)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All Status')
-  const [channelFilter, setChannelFilter] = useState('All Channels')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('All Payments')
   const [paymentUpdatingOrderId, setPaymentUpdatingOrderId] = useState<string | null>(null)
   const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null)
   const [refundingOrderId, setRefundingOrderId] = useState<string | null>(null)
   const [deliveryOrder, setDeliveryOrder] = useState<OrderRecord | null>(null)
+  const [receiptOrder, setReceiptOrder] = useState<OrderRecord | null>(null)
   const [adminCancelOrderTarget, setAdminCancelOrderTarget] = useState<OrderRecord | null>(null)
   const [adminCancelReason, setAdminCancelReason] = useState('')
   const [isAdminCancelling, setIsAdminCancelling] = useState(false)
   const [isSyncingDeliveries, setIsSyncingDeliveries] = useState(false)
 
-  const counts = useMemo(() => {
-    return {
-      all: orders.length,
-      pending: orders.filter((o) => o.status === 'Pending').length,
-      processing: orders.filter((o) => o.status === 'Processing').length,
-      shipped: orders.filter((o) => o.status === 'Shipped').length,
-      inTransit: orders.filter((o) => o.status === 'In Transit').length,
-      delivery: orders.filter((o) => o.status === 'Out for Delivery').length,
-      unpaid: orders.filter((o) => o.paymentStatus === 'Pending' && o.status !== 'Cancelled').length,
-      completed: orders.filter((o) => o.status === 'Completed' || o.status === 'Delivered').length,
-      cancelled: orders.filter((o) => o.status === 'Cancelled').length,
+  useEffect(() => {
+    setChannelView(channelParam)
+  }, [channelParam])
+
+  const handleSelectChannel = (nextChannel: ChannelView) => {
+    setChannelView(nextChannel)
+    setStatusFilter('all')
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('channel', nextChannel)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  const posTransactionsByOrderId = useMemo(
+    () => new Map(posTransactions.map((tx) => [tx.orderId, tx])),
+    [posTransactions],
+  )
+
+  const onlineOrders = useMemo(
+    () => orders.filter((order) => order.source === 'ONLINE'),
+    [orders],
+  )
+  const posOrders = useMemo(
+    () => orders.filter((order) => order.source === 'POS'),
+    [orders],
+  )
+
+  const channelBaseOrders = useMemo(() => {
+    if (channelView === 'online') return onlineOrders
+    if (channelView === 'pos') return posOrders
+    return orders
+  }, [channelView, onlineOrders, orders, posOrders])
+
+  const summaryMetrics = useMemo(() => {
+    if (channelView === 'online') {
+      const needsPacking = onlineOrders.filter(
+        (o) => o.status === 'Pending' || o.status === 'Processing',
+      ).length
+      const inTransit = onlineOrders.filter(
+        (o) => o.status === 'Shipped' || o.status === 'In Transit' || o.status === 'Out for Delivery',
+      ).length
+      const unpaidCod = onlineOrders.filter(
+        (o) =>
+          o.paymentMethod === 'Cash on Delivery' &&
+          o.paymentStatus === 'Pending' &&
+          o.status !== 'Cancelled',
+      ).length
+      const delivered = onlineOrders.filter(
+        (o) => o.status === 'Delivered' || o.status === 'Completed',
+      ).length
+      return [
+        { label: 'Needs Packing', value: String(needsPacking), detail: 'Pending & Processing' },
+        { label: 'In Courier Transit', value: String(inTransit), detail: 'Shipped through Delivery' },
+        { label: 'Unpaid COD', value: String(unpaidCod), detail: 'Awaiting collection' },
+        { label: 'Delivered', value: String(delivered), detail: 'Completed fulfillment' },
+      ]
     }
-  }, [orders])
+
+    if (channelView === 'pos') {
+      const activePos = posOrders.filter((o) => o.status !== 'Cancelled')
+      const cashSales = activePos.filter((o) => o.paymentMethod === 'Cash')
+      const qrSales = activePos.filter((o) => o.paymentMethod === 'QR Pay')
+      const voidedPos = posOrders.filter((o) => o.status === 'Cancelled').length
+      const cashTotal = cashSales.reduce((sum, o) => sum + o.total, 0)
+      const qrTotal = qrSales.reduce((sum, o) => sum + o.total, 0)
+      return [
+        { label: 'Completed Sales', value: String(activePos.length), detail: 'Active counter receipts' },
+        { label: 'Cash Sales', value: String(cashSales.length), detail: formatPHP(cashTotal) },
+        { label: 'QR Pay Sales', value: String(qrSales.length), detail: formatPHP(qrTotal) },
+        { label: 'Voided', value: String(voidedPos), detail: 'Cancelled walk-in sales' },
+      ]
+    }
+
+    const unpaidActive = orders.filter(
+      (o) => o.paymentStatus === 'Pending' && o.status !== 'Cancelled',
+    ).length
+    const completedAll = orders.filter(
+      (o) => o.status === 'Delivered' || o.status === 'Completed',
+    ).length
+    return [
+      { label: 'Online Orders', value: String(onlineOrders.length), detail: 'Web checkout & delivery' },
+      { label: 'POS / Walk-In', value: String(posOrders.length), detail: 'In-store register sales' },
+      { label: 'Unpaid Active', value: String(unpaidActive), detail: 'Pending payment' },
+      { label: 'Completed / Delivered', value: String(completedAll), detail: 'All fulfilled orders' },
+    ]
+  }, [channelView, onlineOrders, orders, posOrders])
+
+  const tabs = useMemo(() => {
+    if (channelView === 'online') {
+      return [
+        { id: 'all', label: 'All Online', count: onlineOrders.length },
+        { id: 'Pending', label: 'Pending', count: onlineOrders.filter((o) => o.status === 'Pending').length },
+        { id: 'Processing', label: 'Processing', count: onlineOrders.filter((o) => o.status === 'Processing').length },
+        { id: 'Shipped', label: 'Shipped', count: onlineOrders.filter((o) => o.status === 'Shipped').length },
+        { id: 'In Transit', label: 'In Transit', count: onlineOrders.filter((o) => o.status === 'In Transit').length },
+        { id: 'Out for Delivery', label: 'Out for Delivery', count: onlineOrders.filter((o) => o.status === 'Out for Delivery').length },
+        { id: 'Unpaid', label: 'Unpaid', count: onlineOrders.filter((o) => o.paymentStatus === 'Pending' && o.status !== 'Cancelled').length },
+        { id: 'Delivered', label: 'Delivered', count: onlineOrders.filter((o) => o.status === 'Delivered' || o.status === 'Completed').length },
+        { id: 'Cancelled', label: 'Cancelled', count: onlineOrders.filter((o) => o.status === 'Cancelled').length },
+      ]
+    }
+
+    if (channelView === 'pos') {
+      return [
+        { id: 'all', label: 'All POS', count: posOrders.length },
+        { id: 'Completed', label: 'Completed', count: posOrders.filter((o) => o.status !== 'Cancelled').length },
+        { id: 'Cash', label: 'Cash', count: posOrders.filter((o) => o.paymentMethod === 'Cash' && o.status !== 'Cancelled').length },
+        { id: 'QR Pay', label: 'QR Pay', count: posOrders.filter((o) => o.paymentMethod === 'QR Pay' && o.status !== 'Cancelled').length },
+        { id: 'Voided', label: 'Voided', count: posOrders.filter((o) => o.status === 'Cancelled').length },
+      ]
+    }
+
+    return [
+      { id: 'all', label: 'All Orders', count: orders.length },
+      { id: 'Unpaid', label: 'Unpaid', count: orders.filter((o) => o.paymentStatus === 'Pending' && o.status !== 'Cancelled').length },
+      { id: 'Active', label: 'In Progress', count: orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Completed' && o.status !== 'Cancelled').length },
+      { id: 'Completed', label: 'Completed / Delivered', count: orders.filter((o) => o.status === 'Delivered' || o.status === 'Completed').length },
+      { id: 'Cancelled', label: 'Cancelled / Voided', count: orders.filter((o) => o.status === 'Cancelled').length },
+    ]
+  }, [channelView, onlineOrders, orders, posOrders])
 
   const filteredOrders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
 
-    return orders.filter((order) => {
+    return channelBaseOrders.filter((order) => {
+      const matchingTx = posTransactionsByOrderId.get(order.id)
       const matchesSearch =
         query.length === 0 ||
         order.id.toLowerCase().includes(query) ||
         order.customerName.toLowerCase().includes(query) ||
         order.customerEmail.toLowerCase().includes(query) ||
+        order.trackingNumber?.toLowerCase().includes(query) ||
+        order.courier?.toLowerCase().includes(query) ||
+        matchingTx?.cashierName.toLowerCase().includes(query) ||
         order.paymentSummary?.reference?.toLowerCase().includes(query) ||
         order.paymentSummary?.checkoutSessionId?.toLowerCase().includes(query)
 
@@ -170,29 +210,32 @@ export default function AdminOrdersPage() {
       else if (statusFilter === 'In Transit') matchesStatus = order.status === 'In Transit'
       else if (statusFilter === 'Out for Delivery') matchesStatus = order.status === 'Out for Delivery'
       else if (statusFilter === 'Unpaid') matchesStatus = order.paymentStatus === 'Pending' && order.status !== 'Cancelled'
-      else if (statusFilter === 'Completed') matchesStatus = order.status === 'Completed' || order.status === 'Delivered'
+      else if (statusFilter === 'Delivered') matchesStatus = order.status === 'Delivered' || order.status === 'Completed'
       else if (statusFilter === 'Cancelled') matchesStatus = order.status === 'Cancelled'
+      else if (statusFilter === 'Completed') {
+        matchesStatus =
+          channelView === 'pos'
+            ? order.status !== 'Cancelled'
+            : order.status === 'Completed' || order.status === 'Delivered'
+      } else if (statusFilter === 'Cash') {
+        matchesStatus = order.paymentMethod === 'Cash' && order.status !== 'Cancelled'
+      } else if (statusFilter === 'QR Pay') {
+        matchesStatus = order.paymentMethod === 'QR Pay' && order.status !== 'Cancelled'
+      } else if (statusFilter === 'Voided') {
+        matchesStatus = order.status === 'Cancelled'
+      } else if (statusFilter === 'Active') {
+        matchesStatus =
+          order.status !== 'Delivered' &&
+          order.status !== 'Completed' &&
+          order.status !== 'Cancelled'
+      }
 
-      const matchesChannel =
-        channelFilter === 'All Channels' || order.source === channelFilter
       const matchesPayment =
         paymentFilter === 'All Payments' || order.paymentStatus === paymentFilter
 
-      return matchesSearch && matchesStatus && matchesChannel && matchesPayment
+      return matchesSearch && matchesStatus && matchesPayment
     })
-  }, [channelFilter, orders, paymentFilter, searchQuery, statusFilter])
-
-  const tabs = [
-    { id: 'All Status', label: 'All', count: counts.all },
-    { id: 'Pending', label: 'Pending', count: counts.pending },
-    { id: 'Processing', label: 'Processing', count: counts.processing },
-    { id: 'Shipped', label: 'Shipped', count: counts.shipped },
-    { id: 'In Transit', label: 'In Transit', count: counts.inTransit },
-    { id: 'Out for Delivery', label: 'Delivery', count: counts.delivery },
-    { id: 'Unpaid', label: 'Unpaid', count: counts.unpaid },
-    { id: 'Completed', label: 'Completed', count: counts.completed },
-    { id: 'Cancelled', label: 'Cancelled', count: counts.cancelled },
-  ]
+  }, [channelBaseOrders, channelView, paymentFilter, posTransactionsByOrderId, searchQuery, statusFilter])
 
   const handleStatusChange = async (orderId: string, nextStatus: string) => {
     try {
@@ -236,14 +279,22 @@ export default function AdminOrdersPage() {
 
   const handleConfirmAdminCancel = async () => {
     if (!adminCancelOrderTarget) return
+    const isPos = adminCancelOrderTarget.source === 'POS'
     try {
       setIsAdminCancelling(true)
       const result = await adminCancelOrder(
         adminCancelOrderTarget.id,
-        adminCancelReason.trim() || `Cancelled by admin (${user?.name || 'Staff'}).`,
+        adminCancelReason.trim() ||
+          (isPos
+            ? `POS sale voided by ${user?.name || 'Staff'}.`
+            : `Cancelled by admin (${user?.name || 'Staff'}).`),
       )
       toast({
-        title: result.ok ? 'Order cancelled' : 'Unable to cancel order',
+        title: result.ok
+          ? isPos
+            ? 'POS sale voided'
+            : 'Order cancelled'
+          : 'Unable to complete action',
         description: result.message,
         variant: result.ok ? 'default' : 'destructive',
       })
@@ -254,6 +305,16 @@ export default function AdminOrdersPage() {
     } finally {
       setIsAdminCancelling(false)
     }
+  }
+
+  const handleVoidFromReceiptModal = async (orderId: string, reason: string) => {
+    const result = await adminCancelOrder(orderId, reason)
+    toast({
+      title: result.ok ? 'POS sale voided' : 'Unable to void POS sale',
+      description: result.message,
+      variant: result.ok ? 'default' : 'destructive',
+    })
+    return result.ok
   }
 
   const handleIssueRefund = async (order: OrderRecord) => {
@@ -283,7 +344,7 @@ export default function AdminOrdersPage() {
         }),
       })
 
-      const result = await response.json().catch(() => null) as {
+      const result = (await response.json().catch(() => null)) as {
         ok?: boolean
         message?: string
         refundId?: string
@@ -295,7 +356,7 @@ export default function AdminOrdersPage() {
       }
 
       toast({
-        title: '✅ Refund issued',
+        title: 'Refund issued',
         description: result.message ?? `Refund sent back to customer. Refund ID: ${result.refundId}`,
       })
     } catch (error) {
@@ -331,6 +392,7 @@ export default function AdminOrdersPage() {
         throw new Error(result?.error ?? result?.message ?? 'Courier sync failed.')
       }
 
+      await refreshStore()
       toast({
         title: 'Courier sync complete',
         description: result.message || 'Active shipments checked against Parcels API v5.',
@@ -346,14 +408,39 @@ export default function AdminOrdersPage() {
     }
   }
 
+  const resetFilters = () => {
+    setSearchQuery('')
+    setStatusFilter('all')
+    setPaymentFilter('All Payments')
+  }
+
+  const activeReceiptOrder = receiptOrder
+    ? orders.find((o) => o.id === receiptOrder.id) ?? receiptOrder
+    : null
+  const activeReceiptTransaction = activeReceiptOrder
+    ? posTransactionsByOrderId.get(activeReceiptOrder.id) ?? null
+    : null
+
+  const channelButtons: Array<{
+    id: ChannelView
+    label: string
+    count: number
+    icon: typeof Globe
+  }> = [
+    { id: 'online', label: 'Online Orders', count: onlineOrders.length, icon: Globe },
+    { id: 'pos', label: 'POS / Walk-In', count: posOrders.length, icon: Store },
+    { id: 'all', label: 'All', count: orders.length, icon: Layers },
+  ]
+
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
-      <div className="flex min-h-screen bg-background">
+      <div data-ui="orders-workspace" className="flex min-h-dvh bg-background">
         <AdminSidebar />
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
+          {/* taste-skill-ignore: page header divider */}
           <div className="border-b border-border bg-card">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-4 mb-3">
                 <Button variant="ghost" size="sm" asChild>
                   <Link href="/admin/dashboard" className="flex items-center gap-2">
                     <ArrowLeft className="w-4 h-4" />
@@ -361,45 +448,96 @@ export default function AdminOrdersPage() {
                   </Link>
                 </Button>
               </div>
-              <h1 className="font-serif text-3xl text-foreground">Orders</h1>
-              <p className="mt-2 text-sm text-foreground/60">
-                Manage customer orders from processing through delivery, plus completed POS sales.
-              </p>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h1 className="font-serif text-3xl text-foreground">Orders</h1>
+                  <p className="mt-1.5 text-sm text-foreground/60">
+                    Online delivery fulfillment and in-store POS sales organized in separate workspaces.
+                  </p>
+                </div>
+
+                {/* Primary Channel Workspace Switcher */}
+                <div
+                  role="tablist"
+                  aria-label="Order channel workspace"
+                  className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-border bg-background p-1"
+                >
+                  {channelButtons.map((channel) => {
+                    const Icon = channel.icon
+                    const isActive = channelView === channel.id
+                    return (
+                      <button
+                        key={channel.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => handleSelectChannel(channel.id)}
+                        className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-foreground/70 hover:bg-muted hover:text-foreground'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{channel.label}</span>
+                        <span
+                          className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : 'bg-muted text-foreground/65'
+                          }`}
+                        >
+                          {channel.count}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="mb-8 space-y-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+            {/* Compact Operational Summary Strip (Flat 1px border, tabular figures) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {summaryMetrics.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-xl border border-border bg-card px-4 py-3.5"
+                >
+                  <p className="text-xs font-medium text-foreground/60">{metric.label}</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                    {metric.value}
+                  </p>
+                  <p className="mt-0.5 text-xs text-foreground/55">{metric.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Toolbar & Context-Aware Filter Pills */}
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="relative flex-1 max-w-xl">
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    aria-label="Search orders by order ID, customer, email, reference, or PayMongo session"
-                    placeholder="Search by order ID, customer, email, or payment reference..."
-                    className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                    aria-label="Search orders by ID, receipt, customer, email, tracking, or reference"
+                    placeholder={
+                      channelView === 'pos'
+                        ? 'Search POS receipt ID, customer, cashier, or ref...'
+                        : 'Search order ID, tracking number, customer, or reference...'
+                    }
+                    className="h-10 w-full rounded-xl border border-border bg-card px-4 text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <select
-                    value={channelFilter}
-                    aria-label="Filter orders by channel"
-                    onChange={(event) => setChannelFilter(event.target.value)}
-                    className="px-4 py-2 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
-                  >
-                    {ALL_CHANNELS.map((channel) => (
-                      <option key={channel} value={channel}>
-                        {channel}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-wrap items-center gap-2.5">
                   <select
                     value={paymentFilter}
                     aria-label="Filter orders by payment state"
                     onChange={(event) => setPaymentFilter(event.target.value)}
-                    className="px-4 py-2 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                    className="h-10 rounded-xl border border-border bg-card px-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     {ALL_PAYMENT_STATES.map((paymentState) => (
                       <option key={paymentState} value={paymentState}>
@@ -407,39 +545,57 @@ export default function AdminOrdersPage() {
                       </option>
                     ))}
                   </select>
-                  {user?.role === 'ADMIN' && (
+
+                  {user?.role === 'ADMIN' && channelView !== 'pos' && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       disabled={isSyncingDeliveries}
                       onClick={handleSyncDeliveries}
-                      className="h-9 gap-1.5 rounded-xl border-border text-xs font-medium"
+                      className="h-10 gap-1.5 rounded-xl border-border text-xs font-medium"
                     >
                       <RefreshCw className={`h-3.5 w-3.5 ${isSyncingDeliveries ? 'animate-spin' : ''}`} />
                       {isSyncingDeliveries ? 'Syncing...' : 'Sync Courier Updates'}
                     </Button>
                   )}
+
+                  {channelView === 'pos' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      className="h-10 rounded-xl border-border text-xs font-medium"
+                    >
+                      <Link href="/admin/pos">New POS Sale</Link>
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {tabs.map((tab) => {
                   const isActive = statusFilter === tab.id
                   return (
                     <button
                       key={tab.id}
+                      type="button"
                       onClick={() => setStatusFilter(tab.id)}
-                      className={`flex items-center gap-2.5 shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors ${
                         isActive
-                          ? 'bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(var(--primary-rgb),0.25)]'
-                          : 'text-foreground/60 hover:bg-muted hover:text-foreground'
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-card text-foreground/70 hover:bg-muted hover:text-foreground'
                       }`}
                     >
-                      {tab.label}
-                      <span className={`inline-flex items-center justify-center min-w-5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
-                      }`}>
+                      <span>{tab.label}</span>
+                      <span
+                        className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-muted text-foreground/65'
+                        }`}
+                      >
                         {tab.count}
                       </span>
                     </button>
@@ -448,285 +604,47 @@ export default function AdminOrdersPage() {
               </div>
             </div>
 
-            <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Order</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Customer</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Channel</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Payment</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Amount</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Status</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Last Activity</th>
-                      <th className="text-left py-4 px-6 font-medium text-foreground/60">Update</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.map((order) => (
-                      <tr key={order.id} className="border-b border-border last:border-0 hover:bg-muted/50">
-                        <td className="py-4 px-6">
-                          <p className="font-medium text-foreground">{order.id}</p>
-                          <p className="text-xs text-foreground/60">
-                            {new Date(order.createdAt).toLocaleString()}
-                          </p>
-                          {/* Ordered item preview thumbnails */}
-                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                            {order.items.slice(0, 3).map((item, i) => {
-                              const product = getProductById(item.productId)
-                              const imageUrl = item.image || product?.images?.[0]
-                              return (
-                                <div
-                                  key={`${order.id}-thumb-${i}`}
-                                  className="relative h-8 w-8 rounded-lg overflow-hidden border border-border/70 bg-muted/40"
-                                  title={`${item.productName} (${item.size}ml x ${item.quantity})`}
-                                >
-                                  {imageUrl ? (
-                                    <Image src={imageUrl} alt={item.productName} fill className="object-cover" />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-[8px] text-foreground/40">
-                                      {item.quantity}x
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                            {order.items.length > 3 && (
-                              <span className="text-[10px] text-foreground/50 font-medium">
-                                +{order.items.length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <p className="text-foreground">{order.customerName}</p>
-                          <p className="text-xs text-foreground/60">{order.customerEmail}</p>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getChannelTone(order)}`}>
-                            {getChannelLabel(order)}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="space-y-2">
-                            <span className="inline-flex rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground/70">
-                              {getPaymentMethodLabel(order)}
-                            </span>
-                            <div>
-                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getPaymentStateTone(order.paymentStatus)}`}>
-                                {order.paymentStatus}
-                              </span>
-                            </div>
-                            <p className="max-w-52 text-xs text-foreground/55">
-                              {getPaymentDescription(order)}
-                            </p>
-                            {order.paymentSummary?.reference ? (
-                              <p className="max-w-52 break-all text-[11px] text-foreground/50">
-                                Ref: {order.paymentSummary.reference}
-                              </p>
-                            ) : null}
-                            {needsRefundFollowUp(order) ? (
-                              order.paymentSummary?.checkoutSessionId ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={refundingOrderId === order.id}
-                                  onClick={() => handleIssueRefund(order)}
-                                  className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                                >
-                                  {refundingOrderId === order.id ? (
-                                    <><RefreshCw className="mr-1.5 h-3 w-3 animate-spin" />Refunding...</>
-                                  ) : (
-                                    '⮐ Issue Refund'
-                                  )}
-                                </Button>
-                              ) : (
-                                <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-                                  Refund follow-up needed
-                                </span>
-                              )
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <p className="font-semibold text-foreground">{formatPHP(order.total)}</p>
-                          <p className="text-[11px] text-foreground/55 mt-0.5">
-                            Subtotal: {formatPHP(order.subtotal)}
-                          </p>
-                          <p className="text-[11px] text-foreground/55">
-                            12% VAT: +{formatPHP(order.tax)}
-                          </p>
-                          {order.shipping > 0 ? (
-                            <p className="text-[11px] text-foreground/55">
-                              Ship: {formatPHP(order.shipping)}
-                            </p>
-                          ) : null}
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusTone(order.status)}`}>
-                            {order.status}
-                          </span>
-                          {(order.courier || order.trackingNumber) && (
-                            <div className="mt-2 space-y-0.5 text-xs text-foreground/70">
-                              {order.courier && (
-                                <p className="inline-flex items-center gap-1 font-medium text-foreground">
-                                  <Truck className="h-3 w-3 text-muted-foreground" />
-                                  {order.courier}
-                                </p>
-                              )}
-                              {order.trackingNumber && (
-                                <p className="font-mono text-[11px] text-muted-foreground select-all">
-                                  {order.trackingNumber}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-4 px-6">
-                          {getLastTimelineEntry(order) ? (
-                            <>
-                              <p className="text-sm text-foreground">
-                                {getLastTimelineEntry(order)?.note}
-                              </p>
-                              <p className="text-xs text-foreground/50">
-                                {new Date(getLastTimelineEntry(order)?.createdAt ?? order.createdAt).toLocaleString()}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-foreground/50">No activity yet</p>
-                          )}
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="space-y-3">
-                            {order.source === 'ONLINE' && order.status !== 'Cancelled' ? (
-                              <>
-                                {isDeliveryStage(order.status) ? (
-                                  <p className="text-xs text-foreground/50">
-                                    {order.status} — delivery stages are set from Manage Delivery.
-                                  </p>
-                                ) : (
-                                  <select
-                                    value={order.status}
-                                    onChange={(event) => handleStatusChange(order.id, event.target.value)}
-                                    disabled={statusUpdatingOrderId === order.id}
-                                    className="rounded-lg border border-border bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    {PRE_DELIVERY_ORDER_STATUSES.map((status) => (
-                                      <option key={status} value={status}>
-                                        {status}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                                {user?.role === 'ADMIN' ? (
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setDeliveryOrder(order)}
-                                    >
-                                      Manage Delivery
-                                    </Button>
-                                    {order.status !== 'Delivered' && (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                                        onClick={() => {
-                                          setAdminCancelOrderTarget(order)
-                                          setAdminCancelReason('')
-                                        }}
-                                      >
-                                        Cancel Order
-                                      </Button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-foreground/50">
-                                    Delivery stages are managed by an administrator.
-                                  </p>
-                                )}
-                              </>
-                            ) : order.status === 'Cancelled' ? (
-                              <span className="text-xs text-foreground/50">
-                                {order.source === 'POS'
-                                  ? 'POS sale voided and stock restored.'
-                                  : 'Customer cancellation locked this order.'}
-                              </span>
-                            ) : (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs text-foreground/50">
-                                  Walk-in orders complete at checkout
-                                </span>
-                                {user?.role === 'ADMIN' && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                                    onClick={() => {
-                                      setAdminCancelOrderTarget(order)
-                                      setAdminCancelReason('')
-                                    }}
-                                  >
-                                    Void POS Sale
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-
-                            {order.paymentStatus === 'Pending' && order.status !== 'Cancelled' ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={paymentUpdatingOrderId === order.id}
-                                onClick={() => handleRecordPayment(order)}
-                              >
-                                {paymentUpdatingOrderId === order.id
-                                  ? 'Recording...'
-                                  : order.paymentMethod === 'Cash on Delivery'
-                                    ? 'Mark COD Paid'
-                                    : 'Mark Paid'}
-                              </Button>
-                            ) : order.status === 'Cancelled' && order.paymentStatus === 'Pending' ? (
-                              <span className="text-xs text-foreground/50">
-                                Payment collection stops after cancellation.
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium text-emerald-700">
-                                Payment already recorded in Supabase
-                              </span>
-                            )}
-
-                            {order.source === "ONLINE" && (
-                              <div className="pt-1">
-                                <Link
-                                  href={`/track?num=${encodeURIComponent(order.trackingNumber || order.id)}`}
-                                  target="_blank"
-                                  className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-                                >
-                                  <Package className="h-3.5 w-3.5" />
-                                  View Live Tracking
-                                </Link>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="flex items-center justify-between text-xs text-foreground/60">
+              <span>
+                Showing <strong className="text-foreground tabular-nums">{filteredOrders.length}</strong> of{' '}
+                <strong className="text-foreground tabular-nums">{channelBaseOrders.length}</strong>{' '}
+                {channelView === 'online'
+                  ? 'online orders'
+                  : channelView === 'pos'
+                    ? 'POS sales'
+                    : 'total records'}
+              </span>
+              {(searchQuery || statusFilter !== 'all' || paymentFilter !== 'All Payments') && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="font-medium text-primary hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
 
-            <div className="mt-6 text-sm text-foreground/60">
-              Showing {filteredOrders.length} of {orders.length} order records
-            </div>
+            <AdminOrdersTable
+              channelView={channelView}
+              orders={filteredOrders}
+              posTransactionsByOrderId={posTransactionsByOrderId}
+              actor={user ? { id: user.id, name: user.name, role: user.role } : null}
+              getProductById={getProductById}
+              statusUpdatingOrderId={statusUpdatingOrderId}
+              paymentUpdatingOrderId={paymentUpdatingOrderId}
+              refundingOrderId={refundingOrderId}
+              onStatusChange={handleStatusChange}
+              onManageDelivery={setDeliveryOrder}
+              onRecordPayment={handleRecordPayment}
+              onRequestCancelOrVoid={(order) => {
+                setAdminCancelOrderTarget(order)
+                setAdminCancelReason('')
+              }}
+              onIssueRefund={handleIssueRefund}
+              onViewPosReceipt={setReceiptOrder}
+              onResetFilters={resetFilters}
+            />
           </div>
         </div>
       </div>
@@ -742,6 +660,19 @@ export default function AdminOrdersPage() {
         }}
       />
 
+      <PosReceiptModal
+        open={activeReceiptOrder !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReceiptOrder(null)
+          }
+        }}
+        order={activeReceiptOrder}
+        transaction={activeReceiptTransaction}
+        actor={user ? { role: user.role } : null}
+        onVoidSale={handleVoidFromReceiptModal}
+      />
+
       <AlertDialog
         open={adminCancelOrderTarget !== null}
         onOpenChange={(open) => {
@@ -753,22 +684,36 @@ export default function AdminOrdersPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Order {adminCancelOrderTarget?.id}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {adminCancelOrderTarget?.source === 'POS'
+                ? `Void POS Sale ${adminCancelOrderTarget.id}?`
+                : `Cancel Order ${adminCancelOrderTarget?.id}?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the order as Cancelled and automatically restore the perfume inventory.
+              {adminCancelOrderTarget?.source === 'POS'
+                ? 'This will void the walk-in POS sale and automatically restore the sold stock back to inventory.'
+                : 'This will mark the order as Cancelled and automatically restore the perfume inventory.'}
               {adminCancelOrderTarget?.paymentStatus === 'Paid' && (
-                <span className="block mt-2 font-medium text-amber-700">
-                  Note: Payment was recorded via {adminCancelOrderTarget.paymentMethod}. You can issue a refund after cancellation.
+                <span className="mt-2 block font-medium text-amber-700">
+                  {adminCancelOrderTarget.source === 'POS' && adminCancelOrderTarget.paymentMethod === 'Cash'
+                    ? 'Note: Cash payment was collected at checkout. Refund the cash amount from your register drawer.'
+                    : `Note: Payment was recorded via ${adminCancelOrderTarget.paymentMethod}. Issue a refund after cancellation if needed.`}
                 </span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
-            <label className="text-xs font-semibold text-foreground/70 block mb-1">
-              Cancellation Reason (Optional)
+            <label className="mb-1 block text-xs font-semibold text-foreground/70">
+              {adminCancelOrderTarget?.source === 'POS'
+                ? 'Void Reason (Optional)'
+                : 'Cancellation Reason (Optional)'}
             </label>
             <Input
-              placeholder="e.g., Customer requested cancellation via support"
+              placeholder={
+                adminCancelOrderTarget?.source === 'POS'
+                  ? 'e.g., Wrong item or size entered'
+                  : 'e.g., Customer requested cancellation via support'
+              }
               value={adminCancelReason}
               onChange={(e) => setAdminCancelReason(e.target.value)}
               className="text-sm"
@@ -784,11 +729,34 @@ export default function AdminOrdersPage() {
               disabled={isAdminCancelling}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isAdminCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+              {isAdminCancelling
+                ? adminCancelOrderTarget?.source === 'POS'
+                  ? 'Voiding...'
+                  : 'Cancelling...'
+                : adminCancelOrderTarget?.source === 'POS'
+                  ? 'Confirm Void'
+                  : 'Confirm Cancellation'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </ProtectedRoute>
+  )
+}
+
+export default function AdminOrdersPage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
+          <div className="flex min-h-dvh bg-background">
+            <AdminSidebar />
+            <div className="flex-1 p-8 text-sm text-foreground/60">Loading orders...</div>
+          </div>
+        </ProtectedRoute>
+      }
+    >
+      <AdminOrdersContent />
+    </Suspense>
   )
 }
