@@ -105,7 +105,7 @@ const DEFAULT_FAQS: SupportFaq[] = [
     id: 'faq-cancel',
     question: 'When can I cancel my order?',
     answer:
-      'You can cancel your order yourself as long as it is still in Pending status (e.g. awaiting payment or order confirmation). Once it moves to To Ship (Processing) or into delivery, cancellation is no longer available through self-service to protect packaging and fulfillment. Please contact our support team as soon as possible if you need urgent assistance.',
+      'You can cancel your order yourself while it is still in Pending or Processing status (before it is shipped). Once your order has been marked as Shipped or handed over for delivery, cancellation is no longer available through self-service. Please contact our support team as soon as possible if you need urgent assistance.',
   },
   {
     id: 'faq-refund',
@@ -147,7 +147,7 @@ const CUSTOMER_QUICK_ACTIONS: SupportQuickAction[] = [
   {
     id: 'cancel_order',
     label: 'Cancel my order',
-    description: 'Cancel only eligible Pending orders (before To Ship).',
+    description: 'Cancel eligible Pending or Processing orders (before Shipped).',
   },
   {
     id: 'request_refund',

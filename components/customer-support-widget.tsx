@@ -650,7 +650,7 @@ export function CustomerSupportWidget() {
       if (cancellableOrders.length === 0) {
         appendTextMessage(
           'bot',
-          'There are no customer-cancellable orders right now. Orders that have reached "To Ship" (Processing) or Delivery cannot be cancelled directly through self-service.',
+          'There are no customer-cancellable orders right now. Orders that have already been Shipped or Delivered cannot be cancelled directly through self-service.',
         )
       } else {
         appendOrdersMessage(

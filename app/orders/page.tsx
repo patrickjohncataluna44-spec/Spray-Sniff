@@ -380,6 +380,9 @@ function OrdersContent() {
         description: result.message,
         variant: result.ok ? 'default' : 'destructive',
       })
+      if (!result.ok) {
+        await refreshStore()
+      }
     } finally {
       setSubmittingOrderId(null)
     }
@@ -874,9 +877,9 @@ function OrdersContent() {
                               >
                                 {submittingOrderId === order.id ? 'Cancelling...' : 'Cancel Order'}
                               </Button>
-                            ) : matchesCategory(order, 'to-ship') ? (
-                              <span className="text-xs text-muted-foreground/80 italic">
-                                Preparing to ship • Non-cancellable
+                            ) : isDelivering ? (
+                              <span className="text-xs font-medium text-foreground/55">
+                                Already shipped • Non-cancellable
                               </span>
                             ) : null}
 

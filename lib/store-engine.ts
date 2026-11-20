@@ -548,8 +548,21 @@ export function parsePosReceiptMetadata(notes?: string): ParsedPosReceiptMetadat
 }
 
 /**
+ * Customer self-service cancellation is allowed only before an order is
+ * handed off to the courier (i.e. while still Pending or Processing).
+ * Once an order reaches Shipped or any later stage, customers can no longer cancel it.
+ */
+export const CANCELLABLE_CUSTOMER_ORDER_STATUSES: readonly OrderStatus[] = [
+  'Pending',
+  'Processing',
+]
+
+export function isCancellableCustomerOrderStatus(status: OrderStatus): boolean {
+  return CANCELLABLE_CUSTOMER_ORDER_STATUSES.includes(status)
+}
+
+/**
  * Checks whether an order is in the "To Ship" stage (either Processing or Paid Pending).
- * When in this stage, customer self-service cancellation is disabled.
  */
 export function isOrderInToShip(
   order: Pick<OrderRecord, 'status' | 'paymentStatus'>,
@@ -574,12 +587,8 @@ export function getCustomerOrderActionAvailability(
     }
   }
 
-  const inToShip = isOrderInToShip(order)
-  const isDelivery = isDeliveryOrderStatus(order.status)
-
-  // Once an order reaches "To Ship" (Processing or Paid Pending) or any delivery stage,
-  // self-service customer cancellation is closed.
-  const canCancel = order.status === 'Pending' && order.paymentStatus === 'Pending'
+  // Customers can cancel while the order is Pending or Processing (before Shipped).
+  const canCancel = isCancellableCustomerOrderStatus(order.status)
 
   let cancelBlockedReason: string | undefined
 
@@ -588,24 +597,17 @@ export function getCustomerOrderActionAvailability(
       case 'Cancelled':
         cancelBlockedReason = 'This order has already been cancelled.'
         break
-      case 'Processing':
-        cancelBlockedReason = 'This order is already in To Ship (preparing for shipment) and can no longer be cancelled.'
-        break
       case 'Shipped':
       case 'In Transit':
       case 'Out for Delivery':
-        cancelBlockedReason = 'This order is already in dispatch and can no longer be cancelled here.'
+        cancelBlockedReason = 'This order has already been shipped and can no longer be cancelled.'
         break
       case 'Delivered':
       case 'Completed':
         cancelBlockedReason = 'Delivered or completed orders can no longer be cancelled here.'
         break
       default:
-        if (inToShip) {
-          cancelBlockedReason = 'This order is already in To Ship (preparing for shipment) and can no longer be cancelled.'
-        } else {
-          cancelBlockedReason = 'This order cannot be cancelled from your account.'
-        }
+        cancelBlockedReason = 'This order cannot be cancelled from your account.'
         break
     }
   }
@@ -1732,22 +1734,26 @@ export function performStoreAction(
         }
       }
 
-      if (isOrderInToShip(existingOrder)) {
+      if (
+        isDeliveryOrderStatus(existingOrder.status) ||
+        existingOrder.status === 'Delivered' ||
+        existingOrder.status === 'Completed'
+      ) {
         return {
           nextState: currentState,
           result: {
             ok: false,
-            message: 'Orders that are already in To Ship (preparing for shipment) cannot be cancelled from your account.',
+            message: 'Orders that have already been shipped or delivered can no longer be cancelled.',
           },
         }
       }
 
-      if (existingOrder.status !== 'Pending') {
+      if (!isCancellableCustomerOrderStatus(existingOrder.status)) {
         return {
           nextState: currentState,
           result: {
             ok: false,
-            message: 'Only pending orders can be cancelled from your account.',
+            message: 'Only pending or processing orders (before shipment) can be cancelled from your account.',
           },
         }
       }
