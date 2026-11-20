@@ -56,6 +56,7 @@ function isOpenCase(status: SupportCase['status']) {
 
 export default function AdminSupportPage() {
   const { user, isLoading: isAuthLoading } = useAuth()
+  const userId = user?.id ?? null
   const { getProductById } = useStore()
   const [cases, setCases] = useState<SupportCase[]>([])
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([])
@@ -92,7 +93,7 @@ export default function AdminSupportPage() {
       return
     }
 
-    if (!user) {
+    if (!userId) {
       setIsLoadingCases(false)
       return
     }
@@ -119,10 +120,6 @@ export default function AdminSupportPage() {
 
       setCases(payload.cases)
       setStaffMembers(payload.staffMembers ?? [])
-
-      if (!selectedCaseId && payload.cases.length > 0) {
-        setSelectedCaseId(payload.cases[0].id)
-      }
     } catch (error) {
       toast({
         title: 'Unable to load support inbox',
@@ -132,10 +129,10 @@ export default function AdminSupportPage() {
     } finally {
       setIsLoadingCases(false)
     }
-  }, [isAuthLoading, selectedCaseId, user])
+  }, [isAuthLoading, userId])
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
-    if (isAuthLoading || !user) {
+    if (isAuthLoading || !userId) {
       return
     }
 
@@ -168,7 +165,7 @@ export default function AdminSupportPage() {
     } finally {
       setIsLoadingDetail(false)
     }
-  }, [isAuthLoading, user])
+  }, [isAuthLoading, userId])
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -179,7 +176,7 @@ export default function AdminSupportPage() {
   }, [isAuthLoading, loadCases])
 
   useEffect(() => {
-    if (isAuthLoading || !user) {
+    if (isAuthLoading || !userId) {
       return
     }
 
@@ -189,12 +186,12 @@ export default function AdminSupportPage() {
     }
 
     void loadCaseDetail(selectedCaseId)
-  }, [isAuthLoading, loadCaseDetail, selectedCaseId, user])
+  }, [isAuthLoading, loadCaseDetail, selectedCaseId, userId])
 
   useEffect(() => {
     if (filteredCases.length === 0) {
-      setSelectedCaseId(null)
-      setSelectedCase(null)
+      setSelectedCaseId((current) => (current === null ? current : null))
+      setSelectedCase((current) => (current === null ? current : null))
       return
     }
 
