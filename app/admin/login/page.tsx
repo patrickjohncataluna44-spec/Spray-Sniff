@@ -37,6 +37,9 @@ export default function AdminLoginPage() {
     setLoading(true)
     try {
       await login(email, password)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('admin_stock_alert_notified')
+      }
       toast({
         title: 'Signed in successfully!',
         description: 'Welcome to ' + SITE_NAME + ' operations.',

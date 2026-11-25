@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  AlertTriangle,
   BarChart3,
   Boxes,
   Home,
@@ -14,7 +13,7 @@ import {
   Menu,
   Package,
   ReceiptText,
-  ShoppingCart,
+  ShoppingBag,
   TicketPercent,
   Users,
   X,
@@ -23,23 +22,24 @@ import { Button } from '@/components/ui/button'
 import { useAuth, type UserRole } from '@/lib/auth-context'
 import { getRoleLabel } from '@/lib/auth'
 import { useStore } from '@/lib/store-context'
-import { DEFAULT_OVERSTOCK_THRESHOLD } from '@/lib/store-engine'
+import { SITE_NAME } from '@/lib/site'
 
 const adminMenuItems: Array<{
   href: string
   label: string
   icon: typeof LayoutDashboard
   roles: UserRole[]
+  badgeKey?: 'orders' | 'inventory'
 }> = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'STAFF'] },
-  { href: '/admin/pos', label: 'POS', icon: ReceiptText, roles: ['ADMIN', 'STAFF'] },
-  { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['ADMIN', 'STAFF'] },
-  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart, roles: ['ADMIN', 'STAFF'] },
-  { href: '/admin/support', label: 'Support', icon: LifeBuoy, roles: ['ADMIN', 'STAFF'] },
   { href: '/admin/products', label: 'Products', icon: Package, roles: ['ADMIN', 'STAFF'] },
-  { href: '/admin/customers', label: 'Accounts', icon: Users, roles: ['ADMIN'] },
-  { href: '/admin/reports', label: 'Reports', icon: BarChart3, roles: ['ADMIN'] },
-  { href: '/admin/promotions', label: 'Promotions', icon: TicketPercent, roles: ['ADMIN'] },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingBag, roles: ['ADMIN', 'STAFF'], badgeKey: 'orders' },
+  { href: '/admin/customers', label: 'Customers', icon: Users, roles: ['ADMIN'] },
+  { href: '/admin/reports', label: 'Analytics', icon: BarChart3, roles: ['ADMIN'] },
+  { href: '/admin/pos', label: 'POS Terminal', icon: ReceiptText, roles: ['ADMIN', 'STAFF'] },
+  { href: '/admin/inventory', label: 'Inventory', icon: Boxes, roles: ['ADMIN', 'STAFF'], badgeKey: 'inventory' },
+  { href: '/admin/promotions', label: 'Discounts', icon: TicketPercent, roles: ['ADMIN'] },
+  { href: '/admin/support', label: 'Support', icon: LifeBuoy, roles: ['ADMIN', 'STAFF'] },
 ]
 
 export function AdminSidebar() {
@@ -47,29 +47,24 @@ export function AdminSidebar() {
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { logout, user } = useAuth()
-  const { inventory, isRealtimeRefreshing, lastSyncedAt } = useStore()
+  const { inventory, isRealtimeRefreshing, lastSyncedAt, orders } = useStore()
   const roleLabel = getRoleLabel(user?.role)
   const visibleItems = adminMenuItems.filter((item) =>
     user ? item.roles.includes(user.role) : false,
   )
 
+  const pendingOrdersCount = orders.filter(
+    (order) => order.status === 'Pending' || order.status === 'Processing',
+  ).length
+
   const activeInventory = inventory.filter((item) => !item.isArchived)
   const lowStockCount = activeInventory.filter(
     (item) => item.stock > 0 && item.stock <= item.reorderPoint,
   ).length
-  const overStockCount = activeInventory.filter(
-    (item) => item.stock >= (item.overStockThreshold ?? DEFAULT_OVERSTOCK_THRESHOLD),
-  ).length
   const outOfStockCount = activeInventory.filter((item) => item.stock === 0).length
-  const totalStockAlerts = lowStockCount + overStockCount + outOfStockCount
+  const totalStockAlerts = lowStockCount + outOfStockCount
 
-  const syncLabel = isRealtimeRefreshing ? 'Syncing' : 'Live'
-  const syncTimeLabel = lastSyncedAt
-    ? new Date(lastSyncedAt).toLocaleTimeString('en-PH', {
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    : 'Waiting'
+  const syncLabel = isRealtimeRefreshing ? 'Syncing...' : 'Live'
 
   // Close the mobile drawer when navigating to another admin page
   useEffect(() => {
@@ -79,26 +74,23 @@ export function AdminSidebar() {
   return (
     <>
       {/* Mobile top bar with sidebar toggle */}
-      <div className="lg:hidden fixed top-0 inset-x-0 z-50 flex h-14 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-[0_10px_24px_rgba(183,92,127,0.12)]">
+      <div data-ui="admin-mobile-topbar" className="lg:hidden fixed top-0 inset-x-0 z-50 flex h-14 items-center justify-between border-b border-border bg-card px-4">
         <button
           type="button"
           aria-label="Open admin menu"
           onClick={() => setMobileOpen(true)}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sidebar-border bg-white/80 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-foreground hover:bg-muted"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-sidebar-foreground">
-          {user?.role === 'STAFF' ? 'Staff Operations' : 'Admin Control Center'}
-        </p>
-        <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-sidebar-border bg-white/75 px-3 py-1.5 text-xs font-medium text-sidebar-foreground">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              isRealtimeRefreshing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-            }`}
-          />
-          {syncLabel}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-serif font-bold tracking-tight text-foreground">{SITE_NAME}</span>
+          <span className="text-xs text-muted-foreground">Studio</span>
+        </div>
+        <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className={`h-2 w-2 rounded-full ${isRealtimeRefreshing ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+          <span>{syncLabel}</span>
+        </div>
       </div>
 
       {/* Backdrop when the drawer is open */}
@@ -106,164 +98,101 @@ export function AdminSidebar() {
         <div
           role="presentation"
           onClick={() => setMobileOpen(false)}
-          className="lg:hidden fixed inset-0 z-40 bg-foreground/40 backdrop-blur-[2px]"
+          className="lg:hidden fixed inset-0 z-40 bg-black/40"
         />
       )}
 
       <aside
+        data-ui="admin-sidebar"
         className={`${
           mobileOpen ? 'flex fixed inset-y-0 left-0 z-50' : 'hidden'
-        } lg:flex lg:sticky lg:top-0 lg:h-screen w-72 shrink-0 bg-sidebar border-r border-sidebar-border flex-col shadow-[24px_0_50px_rgba(183,92,127,0.08)]`}
+        } lg:flex lg:sticky lg:top-0 lg:h-[100dvh] w-64 shrink-0 bg-[#FDFBF9] border-r border-[#EFEAE6] flex-col justify-between`}
       >
-        {/* Sidebar Header */}
-        <div className="relative border-b border-sidebar-border bg-[linear-gradient(145deg,rgba(255,240,246,0.96),rgba(255,251,253,0.9))] p-6">
-          <button
-            type="button"
-            aria-label="Close admin menu"
-            onClick={() => setMobileOpen(false)}
-            className="lg:hidden absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-sidebar-border bg-white/80 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <span className="inline-flex rounded-full bg-primary/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
-          {user?.role === 'STAFF' ? 'Operations Console' : 'Admin Control'}
-        </span>
-        <h2 className="mt-4 font-serif text-xl text-sidebar-foreground">
-          {user?.role === 'STAFF' ? 'Staff Operations' : 'Admin Control Center'}
-        </h2>
-        <p className="mt-2 text-sm text-sidebar-foreground/60">
-          {user?.role === 'STAFF'
-            ? 'Orders, inventory, and in-store sales for daily store operations.'
-            : 'Catalog, reporting, promotions, and business controls.'}
-        </p>
-        <p className="mt-3 text-xs uppercase tracking-[0.2em] text-sidebar-foreground/50">
-          {roleLabel}
-        </p>
-        <div className="mt-4 flex items-center justify-between rounded-2xl border border-sidebar-border bg-white/75 px-3 py-3">
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                isRealtimeRefreshing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
-              }`}
-            />
-            <span className="text-sm font-medium text-sidebar-foreground">Supabase {syncLabel}</span>
-          </div>
-          <span className="text-xs text-sidebar-foreground/55">{syncTimeLabel}</span>
-        </div>
-
-        {totalStockAlerts > 0 && (
-          <div className="mt-3 rounded-2xl border border-amber-200/90 bg-amber-50/90 p-3 text-xs shadow-sm">
-            <div className="flex items-center justify-between font-semibold text-amber-900">
-              <span className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                Stock Notifications
+        {/* Brand Header */}
+        <div>
+          <div className="p-6 pb-5 flex items-center justify-between">
+            <Link href="/admin/dashboard" className="block group">
+              <span className="font-serif text-2xl font-bold tracking-tight text-[#2D1B22] block leading-tight">
+                {SITE_NAME}
               </span>
-              <span className="rounded-full bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                {totalStockAlerts}
+              <span className="text-xs text-[#8E7881] font-normal tracking-wide block mt-0.5">
+                Fragrance Studio
               </span>
-            </div>
-            <div className="mt-2 space-y-1.5 text-amber-800">
-              {lowStockCount > 0 && (
-                <Link
-                  href="/admin/inventory?filter=low_stock"
-                  className="flex items-center justify-between rounded-lg px-1.5 py-1 transition hover:bg-amber-100/80"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    Low stock alerts
-                  </span>
-                  <span className="font-bold">{lowStockCount}</span>
-                </Link>
-              )}
-              {overStockCount > 0 && (
-                <Link
-                  href="/admin/inventory?filter=over_stock"
-                  className="flex items-center justify-between rounded-lg px-1.5 py-1 transition hover:bg-amber-100/80"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
-                    Overstocked items
-                  </span>
-                  <span className="font-bold">{overStockCount}</span>
-                </Link>
-              )}
-              {outOfStockCount > 0 && (
-                <Link
-                  href="/admin/inventory?filter=out_of_stock"
-                  className="flex items-center justify-between rounded-lg px-1.5 py-1 transition hover:bg-amber-100/80"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                    Out of stock
-                  </span>
-                  <span className="font-bold">{outOfStockCount}</span>
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 min-h-0 space-y-2 overflow-y-auto p-4">
-        {visibleItems.map((item) => {
-          const Icon = item.icon
-          const isActive = pathname.startsWith(item.href)
-          const isInventory = item.href === '/admin/inventory'
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-2xl px-4 py-3 transition-all ${
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-[0_16px_30px_rgba(191,98,133,0.22)]'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-              }`}
+            </Link>
+            <button
+              type="button"
+              aria-label="Close admin menu"
+              onClick={() => setMobileOpen(false)}
+              className="lg:hidden inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground"
             >
-              <Icon className="w-5 h-5" />
-              <span className="font-medium flex-1">{item.label}</span>
-              {isInventory && totalStockAlerts > 0 && (
-                <span
-                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="px-3 space-y-1">
+            {visibleItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || (item.href !== '/admin/dashboard' && pathname.startsWith(item.href))
+              
+              let badgeCount: number | null = null
+              if (item.badgeKey === 'orders' && pendingOrdersCount > 0) {
+                badgeCount = pendingOrdersCount
+              } else if (item.badgeKey === 'inventory' && totalStockAlerts > 0) {
+                badgeCount = totalStockAlerts
+              }
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-white text-primary'
-                      : 'bg-amber-100 text-amber-800'
+                      ? 'bg-[#4A1521] text-white shadow-none font-medium'
+                      : 'text-[#5C4A52] hover:bg-[#F5ECE8] hover:text-[#2D1B22]'
                   }`}
                 >
-                  {totalStockAlerts}
-                </span>
-              )}
-            </Link>
-          )
-        })}
-      </nav>
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-[#7D6B73]'}`} />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {badgeCount !== null && (
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold rounded-full ${
+                        isActive
+                          ? 'bg-[#E03A58] text-white'
+                          : 'bg-[#E03A58] text-white'
+                      }`}
+                    >
+                      {badgeCount}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
 
-      {/* Footer Actions */}
-      <div className="p-4 border-t border-sidebar-border space-y-2">
-        <Button
-          variant="outline"
-          className="w-full justify-center gap-2 border-sidebar-border bg-white/80 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          asChild
-        >
-          <Link href="/">
-            <Home className="w-4 h-4" />
-            Home
+        {/* Bottom Section: Quick Actions & Logout */}
+        <div className="p-4 space-y-1">
+          <Link
+            href="/"
+            className="flex items-center gap-3 px-3 py-2 text-xs font-medium text-[#6B575F] hover:text-[#2D1B22] rounded-lg hover:bg-[#F5ECE8] transition-colors"
+          >
+            <Home className="w-4 h-4 text-[#8E7B83]" />
+            <span>Visit Storefront</span>
           </Link>
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full justify-center gap-2 border-primary/20 bg-white/70 text-primary hover:bg-primary hover:text-primary-foreground"
-          onClick={async () => {
-            await logout()
-            router.push('/admin/login')
-          }}
-        >
-          <LogOut className="w-4 h-4" />
-          Logout
-        </Button>
-      </div>
-    </aside>
+          <button
+            type="button"
+            onClick={async () => {
+              await logout()
+              router.push('/admin/login')
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-[#6B575F] hover:text-[#B91C1C] rounded-lg hover:bg-rose-50 transition-colors text-left"
+          >
+            <LogOut className="w-4 h-4 text-[#8E7B83]" />
+            <span>Log Out</span>
+          </button>
+        </div>
+      </aside>
     </>
   )
 }

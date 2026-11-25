@@ -57,7 +57,7 @@ export default function AdminProductsPage() {
   const filteredProducts = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
-    return catalog.filter((product) => {
+    const list = catalog.filter((product) => {
       const matchesSearch =
         normalizedQuery.length === 0 ||
         product.name.toLowerCase().includes(normalizedQuery) ||
@@ -70,7 +70,32 @@ export default function AdminProductsPage() {
 
       return matchesSearch && matchesCategory
     })
-  }, [catalog, searchQuery, selectedCategory])
+
+    const statusPriority: Record<string, number> = {
+      'Out of Stock': 0,
+      'Low Stock': 1,
+      'In Stock': 2,
+    }
+
+    return [...list].sort((a, b) => {
+      const statusA = getAvailabilityStatus(a.id)
+      const statusB = getAvailabilityStatus(b.id)
+      const priorityA = statusPriority[statusA] ?? 3
+      const priorityB = statusPriority[statusB] ?? 3
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+
+      const stockA = getAvailableStock(a.id)
+      const stockB = getAvailableStock(b.id)
+      if (stockA !== stockB) {
+        return stockA - stockB
+      }
+
+      return a.name.localeCompare(b.name)
+    })
+  }, [catalog, getAvailabilityStatus, getAvailableStock, searchQuery, selectedCategory])
 
   const handleDelete = async (product: Product) => {
     const shouldDelete = window.confirm(
@@ -134,6 +159,22 @@ export default function AdminProductsPage() {
                   </Link>
                 </Button>
               ) : null}
+            </div>
+
+            {/* Navigation Tabs between Catalog and Sales */}
+            <div className="mt-6 flex items-center gap-6 border-t border-border/40 pt-4">
+              <Link
+                href="/admin/products"
+                className="border-b-2 border-primary pb-2 text-sm font-semibold text-foreground"
+              >
+                Catalog & Stock
+              </Link>
+              <Link
+                href="/admin/products/sales"
+                className="border-b-2 border-transparent pb-2 text-sm font-medium text-foreground/60 hover:text-foreground transition-colors"
+              >
+                Sales Performance & Rankings
+              </Link>
             </div>
           </div>
         </div>

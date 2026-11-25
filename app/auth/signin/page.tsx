@@ -101,6 +101,9 @@ function SignInPageContent() {
 
     try {
       await login(email, password)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('admin_stock_alert_notified')
+      }
       toast({
         title: 'Welcome back!',
         description: 'Signed in successfully. Redirecting...',

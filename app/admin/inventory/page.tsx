@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Boxes, PackagePlus, RotateCcw, Trash2 } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { ArrowLeft, AlertTriangle, Boxes, CheckCircle2, PackagePlus, RotateCcw, ShieldAlert, Sparkles, Trash2 } from 'lucide-react'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { ProtectedRoute } from '@/components/protected-route'
 import {
@@ -83,8 +84,9 @@ function formatDateTime(value?: string) {
   })
 }
 
-export default function InventoryPage() {
+function InventoryContent() {
   const { user } = useAuth()
+  const searchParams = useSearchParams()
   const {
     adjustInventory,
     archiveInventoryItem,
@@ -105,14 +107,18 @@ export default function InventoryPage() {
   const [deleteTarget, setDeleteTarget] = useState<InventoryRow | null>(null)
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const f = params.get('filter')
-      if (f === 'low_stock' || f === 'over_stock' || f === 'out_of_stock') {
-        setStockHealthFilter(f)
-      }
+    const f = searchParams.get('filter') || searchParams.get('health')
+    if (f === 'low_stock' || f === 'low-stock' || f === 'lowstock') {
+      setStockHealthFilter('low_stock')
+      setActiveTab('active')
+    } else if (f === 'over_stock' || f === 'over-stock') {
+      setStockHealthFilter('over_stock')
+      setActiveTab('active')
+    } else if (f === 'out_of_stock' || f === 'out-of-stock') {
+      setStockHealthFilter('out_of_stock')
+      setActiveTab('active')
     }
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
     setDrafts(
@@ -178,6 +184,11 @@ export default function InventoryPage() {
   ).length
   const outOfStockCount = activeInventory.filter((item) => item.stock === 0).length
 
+  const criticalLowStockItems = useMemo(
+    () => activeInventory.filter((item) => item.stock <= item.reorderPoint),
+    [activeInventory],
+  )
+
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     let source = activeTab === 'active' ? activeInventory : trashedInventory
@@ -194,19 +205,56 @@ export default function InventoryPage() {
       })
     }
 
-    if (!query) {
-      return source
+    if (query) {
+      source = source.filter((row) =>
+        [
+          row.productName,
+          row.productBrand,
+          row.productCategory,
+          row.sku,
+          row.location,
+        ].some((value) => value.toLowerCase().includes(query)),
+      )
     }
 
-    return source.filter((row) =>
-      [
-        row.productName,
-        row.productBrand,
-        row.productCategory,
-        row.sku,
-        row.location,
-      ].some((value) => value.toLowerCase().includes(query)),
-    )
+    if (activeTab === 'active') {
+      const healthPriority: Record<string, number> = {
+        out_of_stock: 0,
+        low_stock: 1,
+        healthy: 2,
+        over_stock: 3,
+        archived: 4,
+      }
+
+      return [...source].sort((a, b) => {
+        const healthA = getInventoryStockHealth(
+          a.stock,
+          a.reorderPoint,
+          a.overStockThreshold,
+          a.isArchived,
+        )
+        const healthB = getInventoryStockHealth(
+          b.stock,
+          b.reorderPoint,
+          b.overStockThreshold,
+          b.isArchived,
+        )
+        const priorityA = healthPriority[healthA] ?? 5
+        const priorityB = healthPriority[healthB] ?? 5
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB
+        }
+
+        if (a.stock !== b.stock) {
+          return a.stock - b.stock
+        }
+
+        return a.productName.localeCompare(b.productName)
+      })
+    }
+
+    return source
   }, [activeInventory, activeTab, searchQuery, stockHealthFilter, trashedInventory])
 
   useEffect(() => {
@@ -271,12 +319,15 @@ export default function InventoryPage() {
     })
   }
 
-  const openRestockDialog = () => {
+  const openRestockDialog = (productId?: string, defaultQty = '10') => {
+    const targetItem = productId
+      ? activeInventory.find((item) => item.productId === productId)
+      : activeInventory[0]
     setRestockDraft({
-      productId: activeInventory[0]?.productId ?? '',
-      quantity: '1',
+      productId: targetItem?.productId ?? activeInventory[0]?.productId ?? '',
+      quantity: defaultQty,
       note: '',
-      location: '',
+      location: targetItem?.location || '',
     })
     setIsRestockDialogOpen(true)
   }
@@ -379,10 +430,10 @@ export default function InventoryPage() {
 
   return (
     <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-[#FDF6F8] text-slate-800" data-ui="admin-inventory-page">
         <AdminSidebar />
         <div className="flex-1">
-          <div className="border-b border-border bg-card">
+          <div className="border-b border-[#F2E2E8] bg-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <div className="flex items-center gap-4 mb-4">
                 <Button variant="ghost" size="sm" asChild>
@@ -405,7 +456,7 @@ export default function InventoryPage() {
                   <span className="rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-700">
                     {lowStockCount} low stock
                   </span>
-                  <span className="rounded-full bg-purple-100 px-3 py-1 text-sm text-purple-700">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700 border border-slate-200">
                     {overStockCount} overstocked
                   </span>
                   <span className="rounded-full bg-red-100 px-3 py-1 text-sm text-red-700">
@@ -415,7 +466,7 @@ export default function InventoryPage() {
                     {trashedInventory.length} in trash
                   </span>
                   <Button
-                    onClick={openRestockDialog}
+                    onClick={() => openRestockDialog()}
                     disabled={activeInventory.length === 0}
                     className="gap-2"
                   >
@@ -427,64 +478,212 @@ export default function InventoryPage() {
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* =============================================================== */}
+            {/* TOP HIGH-VISIBILITY NOTIFICATION WARNING CARD                   */}
+            {/* =============================================================== */}
+            {criticalLowStockItems.length > 0 ? (
+              <div
+                className="mb-8 rounded-2xl bg-amber-50/95 border-2 border-amber-300 p-5 shadow-2xs"
+                role="alert"
+                aria-label="Inventory Stock Warning"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                      <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-serif text-lg font-semibold text-amber-950">
+                          {outOfStockCount > 0
+                            ? `Critical Stock Warning: ${criticalLowStockItems.length} item${criticalLowStockItems.length > 1 ? 's' : ''} affected`
+                            : `Low Stock Warning: ${criticalLowStockItems.length} item${criticalLowStockItems.length > 1 ? 's' : ''} require immediate restocking`}
+                        </h2>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200/90 text-amber-950 border border-amber-300">
+                          <span className="inline-block h-2 w-2 rounded-full bg-amber-600" />
+                          Needs Attention
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
+                        {outOfStockCount > 0 && `${outOfStockCount} item is out of stock. `}
+                        Current stock is at or below minimum warehouse reorder points. Replenish now to prevent stockouts and order delays.
+                      </p>
+
+                      {/* Affected Items Chip Strip */}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {criticalLowStockItems.map((item) => (
+                          <div
+                            key={item.productId}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-amber-200 text-xs shadow-2xs"
+                          >
+                            <span className="font-semibold text-slate-900">{item.productName}</span>
+                            <span className="text-[11px] text-slate-500">({item.sku})</span>
+                            <span className="text-amber-400">•</span>
+                            <span className="font-bold text-amber-950 tabular-nums">
+                              {item.stock === 0 ? '0 (Out of Stock)' : `${item.stock} left`}
+                            </span>
+                            <span className="text-slate-400 tabular-nums text-[11px]">(Reorder: {item.reorderPoint})</span>
+                            <span className="text-amber-400">•</span>
+                            <span className="text-slate-600 text-[11px]">Loc: <strong className="text-slate-800">{item.location}</strong></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2.5 lg:self-center shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => openRestockDialog(criticalLowStockItems[0]?.productId, '10')}
+                      className="gap-1.5 bg-[#B84A6E] hover:bg-[#9A3A5A] text-white text-xs sm:text-sm font-semibold shadow-2xs h-9"
+                    >
+                      <PackagePlus className="w-4 h-4" />
+                      <span>+ Quick Restock</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab('active')
+                        setStockHealthFilter(outOfStockCount > 0 ? 'out_of_stock' : 'low_stock')
+                      }}
+                      className="border-amber-300 text-amber-950 hover:bg-amber-100/70 text-xs sm:text-sm font-medium h-9"
+                    >
+                      <span>Filter Low Stock ({criticalLowStockItems.length})</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-8 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-semibold text-emerald-950">
+                      All Stock Levels Healthy
+                    </p>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      All {activeInventory.length} active inventory items are stocked safely above minimum reorder points.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openRestockDialog()}
+                  className="text-emerald-900 hover:text-emerald-950 hover:bg-emerald-100/80 text-xs font-semibold gap-1.5 self-start sm:self-center"
+                >
+                  <PackagePlus className="w-4 h-4" />
+                  <span>Add Stock</span>
+                </Button>
+              </div>
+            )}
+
+            {/* 5 Reactive KPI Cards */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-8">
               <button
                 type="button"
                 onClick={() => setStockHealthFilter('all')}
-                className={`rounded-2xl border p-6 text-left transition-all ${
+                className={`rounded-2xl border p-5 text-left transition-all ${
                   stockHealthFilter === 'all'
-                    ? 'border-primary bg-primary/5 ring-2 ring-primary'
-                    : 'border-border bg-card hover:border-border/80'
+                    ? 'border-slate-800 bg-slate-50 ring-2 ring-slate-800/10'
+                    : 'border-[#F2E2E8] bg-white hover:border-slate-300'
                 }`}
               >
-                <Boxes className="h-5 w-5 text-accent mb-4" />
-                <p className="text-sm font-medium text-foreground/60">Active Products</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{activeInventory.length}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <Boxes className="h-5 w-5 text-slate-500" />
+                  <span className="text-[11px] font-semibold text-slate-400">Total</span>
+                </div>
+                <p className="text-xs font-semibold text-slate-600">Active Products</p>
+                <p className="mt-1 font-serif text-3xl font-bold text-slate-900 tabular-nums">{activeInventory.length}</p>
+                <p className="mt-1 text-[11px] text-slate-500">In sellable catalog</p>
               </button>
+
+              {/* Low Stock Alerts Card */}
               <button
                 type="button"
                 onClick={() => setStockHealthFilter('low_stock')}
-                className={`rounded-2xl border p-6 text-left transition-all ${
-                  stockHealthFilter === 'low_stock'
-                    ? 'border-amber-500 bg-amber-500/10 ring-2 ring-amber-500'
-                    : 'border-border bg-card hover:border-amber-300'
+                className={`rounded-2xl border-2 p-5 text-left transition-colors ${
+                  lowStockCount > 0
+                    ? stockHealthFilter === 'low_stock'
+                      ? 'border-amber-500 bg-amber-100 ring-2 ring-amber-400'
+                      : 'border-amber-300 bg-amber-50 hover:border-amber-400'
+                    : 'border-[#F2E2E8] bg-white hover:border-slate-300'
                 }`}
               >
-                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">⚠️ Low Stock Alerts</p>
-                <p className="mt-2 font-serif text-3xl text-amber-700 dark:text-amber-400">{lowStockCount}</p>
-                <p className="mt-1 text-[11px] text-foreground/50">Stock ≤ Reorder Point</p>
+                <div className="flex items-center justify-between mb-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-700" />
+                  {lowStockCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-950 border border-amber-300">
+                      Needs Restock
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold text-amber-900">Low Stock Alerts</p>
+                <p className="mt-1 font-serif text-3xl font-bold text-amber-950 tabular-nums">{lowStockCount}</p>
+                <p className="mt-1 text-[11px] text-amber-800/80">Stock ≤ Reorder Point</p>
               </button>
+
+              {/* Over Stock Alerts Card */}
               <button
                 type="button"
                 onClick={() => setStockHealthFilter('over_stock')}
-                className={`rounded-2xl border p-6 text-left transition-all ${
+                className={`rounded-2xl border p-5 text-left transition-colors ${
                   stockHealthFilter === 'over_stock'
-                    ? 'border-purple-500 bg-purple-500/10 ring-2 ring-purple-500'
-                    : 'border-border bg-card hover:border-purple-300'
+                    ? 'border-slate-700 bg-slate-100 ring-2 ring-slate-400'
+                    : 'border-[#F2E2E8] bg-white hover:border-slate-300'
                 }`}
               >
-                <p className="text-sm font-medium text-purple-700 dark:text-purple-400">📦 Over Stock Alerts</p>
-                <p className="mt-2 font-serif text-3xl text-purple-700 dark:text-purple-400">{overStockCount}</p>
-                <p className="mt-1 text-[11px] text-foreground/50">Stock ≥ Max Threshold</p>
+                <div className="flex items-center justify-between mb-2">
+                  <Boxes className="w-4 h-4 text-slate-600" />
+                  <span className="text-[11px] font-medium text-slate-400">Excess</span>
+                </div>
+                <p className="text-xs font-semibold text-slate-700">Over Stock Alerts</p>
+                <p className="mt-1 font-serif text-3xl font-bold text-slate-800 tabular-nums">{overStockCount}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Stock ≥ Max Threshold</p>
               </button>
+
+              {/* Out of Stock Card */}
               <button
                 type="button"
                 onClick={() => setStockHealthFilter('out_of_stock')}
-                className={`rounded-2xl border p-6 text-left transition-all ${
-                  stockHealthFilter === 'out_of_stock'
-                    ? 'border-rose-500 bg-rose-500/10 ring-2 ring-rose-500'
-                    : 'border-border bg-card hover:border-rose-300'
+                className={`rounded-2xl border-2 p-5 text-left transition-colors ${
+                  outOfStockCount > 0
+                    ? stockHealthFilter === 'out_of_stock'
+                      ? 'border-rose-500 bg-rose-100 ring-2 ring-rose-400'
+                      : 'border-rose-300 bg-rose-50 hover:border-rose-400'
+                    : 'border-[#F2E2E8] bg-white hover:border-slate-300'
                 }`}
               >
-                <p className="text-sm font-medium text-rose-700 dark:text-rose-400">🚫 Out of Stock</p>
-                <p className="mt-2 font-serif text-3xl text-rose-700 dark:text-rose-400">{outOfStockCount}</p>
-                <p className="mt-1 text-[11px] text-foreground/50">0 units available</p>
+                <div className="flex items-center justify-between mb-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-700" />
+                  {outOfStockCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-200 text-rose-950 border border-rose-300">
+                      Critical
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold text-rose-900">Out of Stock</p>
+                <p className="mt-1 font-serif text-3xl font-bold text-rose-950 tabular-nums">{outOfStockCount}</p>
+                <p className="mt-1 text-[11px] text-rose-800/80">0 units available</p>
               </button>
-              <div className="rounded-2xl border border-border bg-card p-6">
-                <p className="text-sm font-medium text-foreground/60">Trash Items</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">{trashedInventory.length}</p>
-                <p className="mt-1 text-[11px] text-foreground/50">Archived items</p>
+
+              {/* Trash Items Card */}
+              <div className="rounded-2xl border border-[#F2E2E8] bg-white p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <Trash2 className="h-4 w-4 text-slate-400" />
+                  <span className="text-[11px] font-medium text-slate-400">Archived</span>
+                </div>
+                <p className="text-xs font-semibold text-slate-600">Trash Items</p>
+                <p className="mt-1 font-serif text-3xl font-bold text-slate-900 tabular-nums">{trashedInventory.length}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Archived items</p>
               </div>
             </div>
 
@@ -529,8 +728,8 @@ export default function InventoryPage() {
                         onClick={() => setStockHealthFilter('over_stock')}
                         className={`rounded-lg px-2.5 py-1.5 font-medium transition ${
                           stockHealthFilter === 'over_stock'
-                            ? 'bg-purple-600 text-white'
-                            : 'text-purple-700 hover:bg-purple-50'
+                            ? 'bg-slate-800 text-white'
+                            : 'text-slate-700 hover:bg-slate-100'
                         }`}
                       >
                         Over ({overStockCount})
@@ -606,7 +805,7 @@ export default function InventoryPage() {
                                     : 'In Stock'
                             const badgeTone =
                               health === 'over_stock'
-                                ? 'bg-purple-100 text-purple-700 font-bold border border-purple-200'
+                                ? 'bg-slate-100 text-slate-800 font-bold border border-slate-200'
                                 : health === 'low_stock'
                                   ? 'bg-amber-100 text-amber-800 font-bold border border-amber-200'
                                   : health === 'out_of_stock'
@@ -614,7 +813,16 @@ export default function InventoryPage() {
                                     : 'bg-emerald-100 text-emerald-700'
 
                             return (
-                              <tr key={row.productId} className="border-b border-border last:border-0">
+                              <tr
+                                key={row.productId}
+                                className={`border-b border-[#F2E2E8] last:border-0 transition-colors ${
+                                  health === 'low_stock'
+                                    ? 'bg-amber-50/40 hover:bg-amber-50/70'
+                                    : health === 'out_of_stock'
+                                      ? 'bg-rose-50/40 hover:bg-rose-50/70'
+                                      : 'hover:bg-slate-50/60'
+                                }`}
+                              >
                                 <td className="px-6 py-4 align-top">
                                   <p className="font-medium text-foreground">{row.productName}</p>
                                   <p className="text-xs text-foreground/60">
@@ -679,9 +887,22 @@ export default function InventoryPage() {
                                   </p>
                                 </td>
                                 <td className="px-6 py-4 align-top">
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
                                     <Button size="sm" onClick={() => handleSave(row.productId)}>
                                       Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openRestockDialog(row.productId, '10')}
+                                      className={`gap-1.5 ${
+                                        health === 'low_stock' || health === 'out_of_stock'
+                                          ? 'border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100 font-semibold'
+                                          : 'text-slate-700 hover:text-slate-900'
+                                      }`}
+                                    >
+                                      <PackagePlus className="h-3.5 w-3.5 text-[#B84A6E]" />
+                                      <span>+ Restock</span>
                                     </Button>
                                     <Button
                                       size="sm"
@@ -816,7 +1037,32 @@ export default function InventoryPage() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium text-foreground">Quantity to Add</label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">Quantity to Add</label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRestockDraft((c) => ({ ...c, quantity: '5' }))}
+                    className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[#FAF0F3] text-[#B84A6E] hover:bg-[#F2E2E8]"
+                  >
+                    +5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRestockDraft((c) => ({ ...c, quantity: '10' }))}
+                    className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[#FAF0F3] text-[#B84A6E] hover:bg-[#F2E2E8]"
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRestockDraft((c) => ({ ...c, quantity: '20' }))}
+                    className="px-2 py-0.5 rounded-md text-xs font-semibold bg-[#FAF0F3] text-[#B84A6E] hover:bg-[#F2E2E8]"
+                  >
+                    +20
+                  </button>
+                </div>
+              </div>
               <input
                 type="number"
                 min="1"
@@ -828,7 +1074,7 @@ export default function InventoryPage() {
                     quantity: event.target.value,
                   }))
                 }
-                className="rounded-lg border border-border bg-background px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+                className="rounded-lg border border-border bg-background px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-accent tabular-nums font-semibold"
               />
             </div>
 
@@ -840,12 +1086,12 @@ export default function InventoryPage() {
               const isOver = futureStock >= targetRow.overStockThreshold
               return (
                 <div className={`rounded-xl p-3 text-xs border ${
-                  isOver ? 'border-purple-300 bg-purple-50 text-purple-900 font-medium' : 'border-border bg-muted/40 text-foreground/75'
+                  isOver ? 'border-slate-300 bg-slate-100 text-slate-900 font-medium' : 'border-border bg-muted/40 text-foreground/75'
                 }`}>
                   <p>Current stock: <strong>{targetRow.stock}</strong> units → After restock: <strong>{futureStock}</strong> units (Overstock threshold: {targetRow.overStockThreshold})</p>
                   {isOver && (
-                    <p className="mt-1 font-bold text-purple-700">
-                      📦 Overstock Alert: Restocking this amount will flag this item as Overstocked.
+                    <p className="mt-1 font-bold text-slate-800">
+                      Overstock Alert: Restocking this amount will flag this item as Overstocked.
                     </p>
                   )}
                 </div>
@@ -945,5 +1191,22 @@ export default function InventoryPage() {
         </AlertDialogContent>
       </AlertDialog>
     </ProtectedRoute>
+  )
+}
+
+export default function InventoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedRoute requiredRole={['ADMIN', 'STAFF']}>
+          <div className="flex min-h-screen bg-[#FDF6F8]">
+            <AdminSidebar />
+            <div className="flex-1 p-8 text-sm text-slate-500">Loading inventory...</div>
+          </div>
+        </ProtectedRoute>
+      }
+    >
+      <InventoryContent />
+    </Suspense>
   )
 }
